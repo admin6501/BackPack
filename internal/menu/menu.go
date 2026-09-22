@@ -1403,6 +1403,9 @@ func uninstallMenu() {
 	_ = manage.DisableMonitorService()
 	_ = schedule.SetAutoRefresh(0)
 	_ = telegram.Disable()
+	if err := optimize.RemovePersistence(); err != nil {
+		tui.Warn("Could not remove Optimize persistence: " + err.Error())
+	}
 	os.RemoveAll(app.ConfigDir)
 	if err := os.Remove(app.BinPath); err != nil {
 		tui.Warn("Could not remove binary at " + app.BinPath + " — remove it manually.")
