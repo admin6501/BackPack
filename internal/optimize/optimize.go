@@ -239,6 +239,26 @@ func ensureBootService(logf func(string)) {
 // BootServiceContent returns the unit installed by Optimize.
 func BootServiceContent() string { return bootServiceContent }
 
+// RemovePersistence disables and removes files created by Optimize.
+func RemovePersistence() error {
+	var firstErr error
+	if out, err := exec.Command("systemctl", "disable", "--now", bootServiceName).CombinedOutput(); err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg != "" && !strings.Contains(msg, "not found") {
+			firstErr = fmt.Errorf("disable %s: %s", bootServiceName, msg)
+		}
+	}
+	for _, path := range []string{bootServiceFile, sysctlFile, limitsFile} {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if out, err := exec.Command("systemctl", "daemon-reload").CombinedOutput(); err != nil && firstErr == nil {
+		firstErr = fmt.Errorf("reload systemd: %s", strings.TrimSpace(string(out)))
+	}
+	return firstErr
+}
+
 // WasApplied reports whether Optimize has ever run on this machine, by the one
 // durable trace it leaves: the sysctl file it owns.
 //
