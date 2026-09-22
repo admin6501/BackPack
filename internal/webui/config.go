@@ -101,6 +101,9 @@ func EnsurePassword() (Config, error) {
 	changed := false
 	if c.Password == "" {
 		c.Password = randomDigits(8)
+		if c.Password == "" {
+			return c, fmt.Errorf("could not obtain cryptographic randomness for the panel password")
+		}
 		changed = true
 	}
 	if c.BasePath == "" {
@@ -315,8 +318,10 @@ func randomDigits(n int) string {
 	for i := range b {
 		d, err := rand.Int(rand.Reader, big.NewInt(10))
 		if err != nil {
-			b[i] = '0' + byte(i%10)
-			continue
+			// Never fall back to predictable digits for an authentication secret.
+			// A failed system CSPRNG must fail closed rather than create a known
+			// password that looks random to the operator.
+			return ""
 		}
 		b[i] = '0' + byte(d.Int64())
 	}
