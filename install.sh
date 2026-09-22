@@ -179,7 +179,10 @@ trusted_dir() {
   local dir="$1" perms
   perms="$(stat -c '%a' "$dir" 2>/dev/null)" || return 1
   perms="${perms: -3}"   # drop setuid/sticky if stat printed four digits
-  (( (${perms:2:1} & 2) == 0 ))
+  # Refuse both group- and world-writable directories. The installer runs as root
+  # and may execute or install files found here; a writable group is still an
+  # untrusted local principal even when the other-write bit is clear.
+  (( (${perms:1:1} & 2) == 0 && (${perms:2:1} & 2) == 0 ))
 }
 
 install_release() {
