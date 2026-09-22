@@ -128,3 +128,11 @@ func TestTheUnitItComparesAgainstIsTheOneItWould(t *testing.T) {
 			"an older version keeps that version's open-file ceiling for ever")
 	}
 }
+
+
+func TestTunnelUnitsWaitForPersistentOptimize(t *testing.T) {
+	unit := UnitFor("boot-order")
+	if !strings.Contains(unit, "After=network.target backpack-optimize.service") {
+		t.Error("tunnel unit does not wait for persistent Backpack network tuning")
+	}
+}
