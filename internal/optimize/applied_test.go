@@ -2,6 +2,7 @@ package optimize
 
 import (
 	"os"
+	"strings"
 	"path/filepath"
 	"testing"
 )
@@ -27,5 +28,20 @@ func TestWasAppliedFollowsTheFileOptimizeOwns(t *testing.T) {
 	if !WasApplied() {
 		t.Error("reported as not applied with the file present — a server carrying an " +
 			"older Optimize's port range would never be repaired")
+	}
+}
+
+
+func TestBootServiceReappliesPersistentSettings(t *testing.T) {
+	unit := BootServiceContent()
+	for _, want := range []string{
+		"After=local-fs.target systemd-sysctl.service",
+		"Before=network-pre.target",
+		"ExecStart=/sbin/sysctl -p /etc/sysctl.d/99-backpack.conf",
+		"WantedBy=multi-user.target",
+	} {
+		if !strings.Contains(unit, want) {
+			t.Errorf("boot service is missing %q", want)
+		}
 	}
 }
