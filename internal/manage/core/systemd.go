@@ -133,7 +133,7 @@ func WriteUnit(name string) error {
 func UnitFor(name string) string {
 	return fmt.Sprintf(`[Unit]
 Description=Backpack Tunnel (%s)
-After=network.target
+After=network.target backpack-optimize.service
 
 [Service]
 Type=simple
