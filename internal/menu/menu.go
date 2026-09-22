@@ -818,7 +818,8 @@ func optimizeMenu() {
 	fmt.Println()
 	optimize.Apply(func(line string) { tui.Info("• " + line) }, manage.ReservedPorts())
 	fmt.Println()
-	tui.Warn("A reboot is recommended for file-limit changes to fully apply.")
+	tui.Warn("Network tuning is persisted and reapplied automatically at boot.")
+	tui.Warn("A reboot is recommended only for file-limit changes to fully apply.")
 	tui.PressEnter()
 }
 
