@@ -14,7 +14,7 @@ const (
 
 	// RepoOwner/RepoName identify the GitHub repository used by the installer
 	// and the release-based updater.
-	RepoOwner = "AminMGMT"
+	RepoOwner = "admin6501"
 	RepoName  = "BackPack"
 
 	// Attribution is the line NOTICE requires a modified version to keep.
