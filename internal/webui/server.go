@@ -724,7 +724,12 @@ func writeJSON(w http.ResponseWriter, v any) {
 
 func randomHex(n int) string {
 	b := make([]byte, n)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// Session identifiers are authentication credentials. Never continue
+		// with zero-filled or otherwise predictable bytes if the system CSPRNG
+		// is unavailable; failing closed is safer than issuing a guessable token.
+		panic(fmt.Sprintf("cryptographic randomness unavailable: %v", err))
+	}
 	return hex.EncodeToString(b)
 }
 
