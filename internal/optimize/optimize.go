@@ -123,6 +123,25 @@ func EngineStartupTuning() [][2]string {
 var sysctlFile = "/etc/sysctl.d/99-backpack.conf"
 
 const limitsFile = "/etc/security/limits.d/99-backpack.conf"
+const bootServiceFile = "/etc/systemd/system/backpack-optimize.service"
+const bootServiceName = "backpack-optimize.service"
+
+const bootServiceContent = `[Unit]
+Description=Backpack persistent network tuning
+DefaultDependencies=no
+After=local-fs.target systemd-sysctl.service
+Before=network-pre.target
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/sysctl -p /etc/sysctl.d/99-backpack.conf
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+`
 
 const limitsContent = `# Raised by backpack for high connection counts
 * soft nofile 1048576
@@ -168,6 +187,7 @@ func Apply(logf func(string), reserve []int) {
 		logf("Could not write " + sysctlFile + ": " + err.Error())
 	} else {
 		logf("Wrote persistent settings to " + sysctlFile)
+		ensureBootService(logf)
 	}
 
 	// Apply live (best effort per key so one failure doesn't abort the rest).
@@ -189,6 +209,35 @@ func Apply(logf func(string), reserve []int) {
 	verifyBBR(logf)
 	logf("Optimization complete.")
 }
+
+// ensureBootService installs a small systemd oneshot that reapplies the exact
+// file written by Optimize after systemd-sysctl and before network services.
+//
+// sysctl.d is the normal persistence mechanism, but a provider image, a custom
+// init script, or another boot-time tuner can rewrite a value later in startup.
+// The health check intentionally reports the live kernel value, so a machine
+// can otherwise pass immediately after Optimize and fail again after reboot.
+// Reapplying our own file at a deterministic point makes the operator's explicit
+// Optimize choice survive that class of boot-time override without touching
+// unrelated sysctl files.
+func ensureBootService(logf func(string)) {
+	if err := os.WriteFile(bootServiceFile, []byte(bootServiceContent), 0644); err != nil {
+		logf("Could not write " + bootServiceFile + ": " + err.Error())
+		return
+	}
+	if out, err := exec.Command("systemctl", "daemon-reload").CombinedOutput(); err != nil {
+		logf("Could not reload systemd: " + strings.TrimSpace(string(out)))
+		return
+	}
+	if out, err := exec.Command("systemctl", "enable", bootServiceName).CombinedOutput(); err != nil {
+		logf("Could not enable " + bootServiceName + ": " + strings.TrimSpace(string(out)))
+		return
+	}
+	logf("Enabled persistent boot tuning: " + bootServiceName)
+}
+
+// BootServiceContent returns the unit installed by Optimize.
+func BootServiceContent() string { return bootServiceContent }
 
 // WasApplied reports whether Optimize has ever run on this machine, by the one
 // durable trace it leaves: the sysctl file it owns.
