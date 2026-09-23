@@ -77,7 +77,8 @@ func Logo(version string) {
  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝`)
 	fmt.Print(Reset)
 	fmt.Printf("%s Backpack  %s%s%s\n", Bold+White, Red, version, Reset)
-	fmt.Println(Gray + " TeleGram : @BlackProtocols  |  GitHub : https://github.com/AminMGMT" + Reset)
+	fmt.Println(Gray + " GitHub : https://github.com/admin6501" + Reset)
+
 	// The attribution NOTICE requires a modified version to keep. Printed here
 	// because this banner is the program's About screen, and that is one of the
 	// places the additional term under AGPL-3.0 §7(b) names.

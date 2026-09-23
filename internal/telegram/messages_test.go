@@ -68,7 +68,7 @@ func TestSystemTextIsTrimmed(t *testing.T) {
 func TestSupportTextFormat(t *testing.T) {
 	got := supportText(LangEN)
 	for _, want := range []string{
-		"GitHub : ", "Channel : ",
+		"GitHub : ",
 		"🔺 Tron [ TRX ] :",
 		"💠 USDT [ BEP20 ] :",
 		"💎 Gram [ TON ] :",

@@ -4,10 +4,10 @@
 
 <p align="center">
   <a href="go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/AminMGMT/BackPack?logo=go&label=Go"></a>
-  <a href="https://github.com/AminMGMT/BackPack/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/AminMGMT/BackPack?logo=github&label=release&color=orange"></a>
+  <a href="https://github.com/admin6501/BackPack/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/AminMGMT/BackPack?logo=github&label=release&color=orange"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/AminMGMT/BackPack?color=orange"></a>
-  <a href="https://github.com/AminMGMT/BackPack/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/AminMGMT/BackPack?style=flat&logo=github&color=orange"></a>
-  <a href="https://github.com/AminMGMT/BackPack/releases"><img alt="Total downloads across all releases" src="https://img.shields.io/github/downloads/AminMGMT/BackPack/total?logo=github&label=total%20downloads&color=orange"></a>
+  <a href="https://github.com/admin6501/BackPack/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/AminMGMT/BackPack?style=flat&logo=github&color=orange"></a>
+  <a href="https://github.com/admin6501/BackPack/releases"><img alt="Total downloads across all releases" src="https://img.shields.io/github/downloads/AminMGMT/BackPack/total?logo=github&label=total%20downloads&color=orange"></a>
 </p>
 
 **Backpack** is a high-performance **tunnel** engine written entirely in
@@ -23,8 +23,8 @@ private network.
   <b><a href="tutorial/README.md">📘 Setup tutorials</a></b> ·
   <b><a href="docs/README.md">📚 Documentation</a></b> ·
   <b><a href="README_FA.md">🇮🇷 راهنمای فارسی</a></b> ·
-  <b><a href="https://t.me/BlackProtocols">Telegram Channel</a></b> ·
-  <b><a href="https://t.me/BlackProtocolsGroup">Telegram Group</a></b>
+
+
 
 </p>
 
@@ -234,8 +234,8 @@ Both sections are also summarised in Persian at the bottom of every page.
 
 If Backpack helps you, a star or a small tip is appreciated. 🙏
 
-- Telegram channel: **[@BlackProtocols](https://t.me/BlackProtocols)**
-- Telegram Group: **[@BlackProtocolsGroup](https://t.me/BlackProtocolsGroup)**
+
+
 
 | Coin | Address |
 |------|---------|
@@ -259,7 +259,7 @@ taking away anything it grants:
   NOTICE, its README, its version output and the notices its panel shows:
 
   > Based on BackPack by Amin Mohammadi (AminMGMT)
-  > https://github.com/AminMGMT/BackPack
+  > https://github.com/admin6501/BackPack
 
 - **Use your own name.** "BackPack", the name and the logo are not licensed with
   the code — a fork needs a name of its own. Saying truthfully that your work is

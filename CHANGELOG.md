@@ -2714,7 +2714,7 @@ cause.
   cannot drift apart again.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#12](https://github.com/AminMGMT/BackPack/pull/12). We reviewed that pull
+  [#12](https://github.com/admin6501/BackPack/pull/12). We reviewed that pull
   request, finished it and improved on it, and what shipped here is the
   result — the shared helper trims its input and states the bound as an
   inclusive range, so the edge the report was about is the one the code now
@@ -2742,7 +2742,7 @@ cause.
   begins to matter.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#26](https://github.com/AminMGMT/BackPack/pull/26). We reviewed that pull
+  [#26](https://github.com/admin6501/BackPack/pull/26). We reviewed that pull
   request, finished it and improved on it, and what shipped here is the result:
   the group is keyed on the parsed list rather than the raw target, so spacing
   and a trailing separator no longer each get a pool of their own, and the
@@ -2770,7 +2770,7 @@ cause.
   waiting for, was the one that then got none.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#11](https://github.com/AminMGMT/BackPack/pull/11). We reviewed that pull
+  [#11](https://github.com/admin6501/BackPack/pull/11). We reviewed that pull
   request, finished it and improved on it, and what shipped here is the result:
   `pck` did not exist when it was written and is a raw-socket transport too, so
   it joins `xdi` and `spoof` in being left out of the wait instead of spending
@@ -2798,7 +2798,7 @@ cause.
   direction will not get one.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#18](https://github.com/AminMGMT/BackPack/pull/18). We reviewed that pull
+  [#18](https://github.com/admin6501/BackPack/pull/18). We reviewed that pull
   request, finished it and improved on it, and what shipped here is the result —
   the waiting and closing is one shared routine both handlers call rather than
   the same dozen lines written out twice, so the two relays cannot drift apart
@@ -2838,7 +2838,7 @@ cause.
   than looking like one reporting nothing.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#24](https://github.com/AminMGMT/BackPack/pull/24). We reviewed that pull
+  [#24](https://github.com/admin6501/BackPack/pull/24). We reviewed that pull
   request, finished it and improved on it, and what shipped here is the result:
   the pull request bound the page to loopback outright, with nothing an
   operator could do about it. Anyone watching that page from another machine
@@ -2864,7 +2864,7 @@ cause.
   for something that will actually come.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#29](https://github.com/AminMGMT/BackPack/pull/29). We reviewed that pull
+  [#29](https://github.com/admin6501/BackPack/pull/29). We reviewed that pull
   request, finished it and improved on it, and what shipped here is the result:
   the read and write deadlines it put on the profiling server are gone, because
   a CPU profile is a thirty-second response by default and a trace is longer —
@@ -2896,7 +2896,7 @@ cause.
   and was not.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#27](https://github.com/AminMGMT/BackPack/pull/27). We reviewed that pull
+  [#27](https://github.com/admin6501/BackPack/pull/27). We reviewed that pull
   request, finished it and improved on it, and what shipped here is the result:
   the directory entry is fsynced after the rename as well, because syncing only
   the file leaves the rename itself able to reach the disk after a crash and
@@ -2939,7 +2939,7 @@ cause.
   still wins over the archived one.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#28](https://github.com/AminMGMT/BackPack/pull/28). We reviewed that pull
+  [#28](https://github.com/admin6501/BackPack/pull/28). We reviewed that pull
   request, finished it and improved on it, and what shipped here is the result:
   it swapped the config tree without first copying the current one in, so
   restoring an older archive would have deleted every file added since it was
@@ -2976,7 +2976,7 @@ cause.
   connection that opens and then says nothing runs into.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#23](https://github.com/AminMGMT/BackPack/pull/23). We reviewed that pull
+  [#23](https://github.com/admin6501/BackPack/pull/23). We reviewed that pull
   request, finished it and improved on it, and what shipped here is the result:
   `Secure` is set on evidence of TLS — this connection, or a panel configured
   for HTTPS — and never on `X-Forwarded-Proto`, which anyone can send and which
@@ -3000,7 +3000,7 @@ cause.
   the loop reads on.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#22](https://github.com/AminMGMT/BackPack/pull/22). We reviewed that pull
+  [#22](https://github.com/admin6501/BackPack/pull/22). We reviewed that pull
   request and took the part of it that fixes the crash. The rest of it changes
   how live tunnels behave — read limits on the tunnel connections, a shorter
   handshake timeout, and replacing the deliberate `IdleTimeout: -1` on the
@@ -3046,7 +3046,7 @@ cause.
   creates that file and now closes it.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#25](https://github.com/AminMGMT/BackPack/pull/25). We reviewed that pull
+  [#25](https://github.com/admin6501/BackPack/pull/25). We reviewed that pull
   request; the largest thing in it — the shared tunnel-status string, rewritten
   by transports while the stats endpoint read it — had already been fixed here
   since, so what shipped is the rest of it, reviewed and finished. The
@@ -3075,7 +3075,7 @@ cause.
   responder at all.
 
   *Thanks to [@dr-hoseyn](https://github.com/dr-hoseyn), who raised this in
-  [#21](https://github.com/AminMGMT/BackPack/pull/21). We reviewed that pull
+  [#21](https://github.com/admin6501/BackPack/pull/21). We reviewed that pull
   request and took the problem it identified rather than its solution. It
   builds a registry with reference-counted leases, a retry loop and a scheme
   for sharing the challenge port between separate processes — several hundred

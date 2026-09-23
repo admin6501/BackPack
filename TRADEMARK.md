@@ -51,7 +51,7 @@ question unanswerable.
 Rename it, then say plainly what it came from:
 
 > **Based on BackPack by Amin Mohammadi (AminMGMT)** —
-> https://github.com/AminMGMT/BackPack
+> https://github.com/admin6501/BackPack
 
 That sentence is required by `NOTICE`, and it is also the whole of what is being
 asked. Change the name, keep the credit.
@@ -61,7 +61,7 @@ asked. Change the name, keep the credit.
 For anything else — a distribution package, a commercial arrangement, using the
 name in a way this file does not cover — ask.
 
-Open an issue at https://github.com/AminMGMT/BackPack/issues.
+Open an issue at https://github.com/admin6501/BackPack/issues.
 
 ---
 

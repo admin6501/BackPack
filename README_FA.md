@@ -6,10 +6,10 @@
 
 <p align="center">
   <a href="go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/AminMGMT/BackPack?logo=go&label=Go"></a>
-  <a href="https://github.com/AminMGMT/BackPack/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/AminMGMT/BackPack?logo=github&label=release&color=blue"></a>
+  <a href="https://github.com/admin6501/BackPack/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/AminMGMT/BackPack?logo=github&label=release&color=blue"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/AminMGMT/BackPack?color=green"></a>
-  <a href="https://github.com/AminMGMT/BackPack/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/AminMGMT/BackPack?style=flat&logo=github&color=yellow"></a>
-  <a href="https://github.com/AminMGMT/BackPack/releases"><img alt="Total downloads across all releases" src="https://img.shields.io/github/downloads/AminMGMT/BackPack/total?logo=github&label=total%20downloads&color=orange"></a>
+  <a href="https://github.com/admin6501/BackPack/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/AminMGMT/BackPack?style=flat&logo=github&color=yellow"></a>
+  <a href="https://github.com/admin6501/BackPack/releases"><img alt="Total downloads across all releases" src="https://img.shields.io/github/downloads/AminMGMT/BackPack/total?logo=github&label=total%20downloads&color=orange"></a>
 </p>
 
 **بک‌پک** یک هستهٔ تونل با کارایی بالاست که کاملاً با **Go** نوشته شده و برای
@@ -27,7 +27,7 @@
   <b><a href="tutorial/README.md">📘 آموزش‌های راه‌اندازی</a></b> ·
   <b><a href="docs/README.md">📚 مستندات</a></b> ·
   <b><a href="README.md">🇬🇧 English</a></b> ·
-  <b><a href="https://t.me/BlackProtocols">✈️ تلگرام</a></b>
+
 </p>
 
 <div dir="rtl">
@@ -242,7 +242,7 @@ TLS و زمان‌بندی؛ آپدیت تأییدشده روی کانال stabl
 
 اگر بک‌پک برات مفید بود، یه ستاره یا یه دونیت کوچیک خیلی ارزشمنده. 🙏
 
-- کانال تلگرام: **[@BlackProtocols](https://t.me/BlackProtocols)**
+
 
 </div>
 
@@ -268,7 +268,7 @@ TLS و زمان‌بندی؛ آپدیت تأییدشده روی کانال stabl
   در خروجی نسخه، و در اعلان‌هایی که پنلش به کاربرانش نشان می‌دهد داشته باشد:
 
   > Based on BackPack by Amin Mohammadi (AminMGMT)
-  > https://github.com/AminMGMT/BackPack
+  > https://github.com/admin6501/BackPack
 
 - **از نام خودت استفاده کن.** «BackPack»، نام و لوگو همراه کد لایسنس نشده‌اند —
   یک fork به نام خودش نیاز دارد. گفتن این حقیقت که کارت بر پایهٔ BackPack است یا
