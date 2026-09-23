@@ -279,15 +279,24 @@ func TestForwarderKeepsUDPFlows(t *testing.T) {
 
 	buf := make([]byte, 64)
 	ready := false
-	for i := 0; i < 20; i++ {
+	attempts := 0
+	for i := 0; i < 20; {
 		msg := fmt.Sprintf("packet-%d", i)
 		if _, err := conn.Write([]byte(msg)); err != nil {
 			t.Fatalf("write: %v", err)
 		}
-		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		if !ready {
+			_ = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+		} else {
+			_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		}
 		n, err := conn.Read(buf)
 		if err != nil {
 			if !ready {
+				attempts++
+				if attempts >= 60 {
+					break
+				}
 				continue // still coming up
 			}
 			t.Fatalf("read %d: %v", i, err)
@@ -296,6 +305,7 @@ func TestForwarderKeepsUDPFlows(t *testing.T) {
 		if got, want := string(buf[:n]), "U:"+msg; got != want {
 			t.Fatalf("read %q, want %q", got, want)
 		}
+		i++
 	}
 	if !ready {
 		t.Fatal("no reply ever came back through the udp forwarder")
