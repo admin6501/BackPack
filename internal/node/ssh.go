@@ -107,7 +107,30 @@ func dialSSH(ctx context.Context, name string, t SSHTarget) (*ssh.Client, string
 	if err != nil {
 		return nil, "", fmt.Errorf("could not reach %s over SSH: %w", t.addr(), err)
 	}
+	deadline := time.Now().Add(sshDialTimeout)
+	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
+		deadline = d
+	}
+	if err := conn.SetDeadline(deadline); err != nil {
+		conn.Close()
+		return nil, "", err
+	}
+	cancelDone := make(chan struct{})
+	stopCancel := context.AfterFunc(ctx, func() { conn.Close(); close(cancelDone) })
 	c, chans, reqs, err := ssh.NewClientConn(conn, t.addr(), cfg)
+	if !stopCancel() {
+		<-cancelDone
+	}
+	if ctx.Err() != nil {
+		conn.Close()
+		return nil, seen, ctx.Err()
+	}
+	if err == nil {
+		if deadlineErr := conn.SetDeadline(time.Time{}); deadlineErr != nil {
+			c.Close()
+			return nil, seen, deadlineErr
+		}
+	}
 	if err != nil {
 		conn.Close()
 		// A wrong password is the likeliest cause by a distance, and the

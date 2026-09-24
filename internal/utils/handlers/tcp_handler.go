@@ -43,30 +43,40 @@ func TCPConnectionHandler(ctx context.Context, proxyProtocol bool, from net.Conn
 	awaitRelay(ctx, done, from, to)
 }
 
-// awaitRelay waits for a two-directional copy to finish, or for the context to
-// end, and leaves nothing of it running either way.
-//
-// Closing is the only thing that interrupts a blocked Read, so both ends are
-// closed on the way out whichever case wins. Waiting for the second copy
-// afterwards is what makes that a guarantee rather than a hope: the caller
-// releases its connection quota when this returns, so no copy from this
-// connection may still be running at that point.
+// awaitRelay lets both directions finish independently. Cancellation closes
+// both ends before waiting, so idle readers cannot outlive the relay.
 func awaitRelay(ctx context.Context, done <-chan struct{}, ends ...io.Closer) {
 	finished := 0
-	select {
-	case <-ctx.Done():
-	case <-done:
-		finished = 1
+	for finished < 2 {
+		select {
+		case <-done:
+			finished++
+		case <-ctx.Done():
+			for _, end := range ends {
+				end.Close()
+			}
+			for finished < 2 {
+				<-done
+				finished++
+			}
+		}
 	}
-
 	for _, end := range ends {
 		end.Close()
 	}
+}
 
-	for finished < 2 {
-		<-done
-		finished++
+func finishDirection(from, to net.Conn, err error) {
+	if err == nil || errors.Is(err, io.EOF) {
+		target, _ := metrics.Uncount(to)
+		if half, ok := target.(interface{ CloseWrite() error }); ok {
+			if half.CloseWrite() == nil {
+				return
+			}
+		}
 	}
+	from.Close()
+	to.Close()
 }
 
 // transferData moves one direction of a forwarded connection.
@@ -113,8 +123,7 @@ func transferData(from net.Conn, to net.Conn, logger *logrus.Logger, usage *web.
 			} else {
 				logger.Trace("unable to read from the connection: ", err)
 			}
-			from.Close()
-			to.Close()
+			finishDirection(from, to, err)
 			return
 		}
 	}
@@ -195,7 +204,6 @@ func spliceTransfer(from net.Conn, to net.Conn, logger *logrus.Logger, usage *we
 		logger.Trace("zero-copy transfer ended: ", err)
 	}
 
-	from.Close()
-	to.Close()
+	finishDirection(from, to, err)
 	return true
 }

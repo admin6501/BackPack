@@ -425,6 +425,14 @@ func localForwardPort(conn net.Conn) int {
 // lost to a UDP backend anyway, so the header is skipped rather than corrupting
 // the stream.
 func isUDPFlow(conn net.Conn) bool {
-	_, ok := conn.(*udpFlow)
-	return ok
+	for {
+		switch c := conn.(type) {
+		case *udpFlow:
+			return true
+		case *limitedConn:
+			conn = c.Conn
+		default:
+			return false
+		}
+	}
 }

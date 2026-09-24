@@ -162,7 +162,10 @@ func (c *multipathCarrier) pump(p DatagramCarrier) {
 // WriteTo sends on the next path in turn. The address is the caller's idea of
 // the peer and is ignored: each path holds its own, which is what makes the
 // several sockets several flows to the same place.
-func (c *multipathCarrier) WriteTo(p []byte, _ net.Addr) (int, error) {
+func (c *multipathCarrier) WriteTo(p []byte, addr net.Addr) (int, error) {
+	if a, ok := addr.(*receivedPathAddr); ok {
+		return a.path.WriteTo(p, a)
+	}
 	i := int(c.next.Add(1)-1) % len(c.paths)
 	return c.paths[i].WriteTo(p, nil)
 }
@@ -184,6 +187,15 @@ func (c *multipathCarrier) ReadFrom(p []byte) (int, net.Addr, error) {
 	case pkt := <-c.in:
 		// The address reported is the stable one, not the path's: see the
 		// comment on the field.
+		if a, ok := pkt.addr.(*receivedPathAddr); ok {
+			c.mu.Lock()
+			stable := c.reported
+			c.mu.Unlock()
+			if stable == nil {
+				stable = a.Addr
+			}
+			return copy(p, pkt.data), &receivedPathAddr{Addr: stable, path: a.path, source: a.source, group: c}, nil
+		}
 		return copy(p, pkt.data), c.stableAddr(pkt.addr), nil
 	case <-c.closed:
 		return 0, nil, net.ErrClosed

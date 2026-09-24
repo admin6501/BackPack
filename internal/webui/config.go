@@ -67,9 +67,11 @@ func (c Config) Scheme() string {
 }
 
 // Load reads the saved config, filling defaults for missing fields.
+var ConfigPath = app.WebUIConfig
+
 func Load() Config {
 	var c Config
-	if data, err := os.ReadFile(app.WebUIConfig); err == nil {
+	if data, err := os.ReadFile(ConfigPath); err == nil {
 		json.Unmarshal(data, &c)
 	}
 	if c.Port == 0 {
@@ -83,7 +85,7 @@ func Save(c Config) error {
 	data, _ := json.MarshalIndent(c, "", "  ")
 	// Atomic: the panel reads this on every login and the CLI shows the password
 	// from it, so a truncated read would look like a wrong password.
-	return app.WriteFileAtomic(app.WebUIConfig, data, 0600)
+	return app.WriteFileAtomic(ConfigPath, data, 0600)
 }
 
 // EnsurePassword returns the config, generating and saving an 8-digit password

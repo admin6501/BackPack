@@ -72,6 +72,7 @@ func main() {
 		// The version output is one of the places NOTICE's attribution term
 		// names, and it is the one a script or a bug report reaches for.
 		fmt.Println(app.Version)
+		fmt.Println("Maintained by " + app.RepoOwner + " · " + app.RepositoryURL)
 		fmt.Println(app.Attribution)
 		fmt.Println(app.AttributionURL)
 		return

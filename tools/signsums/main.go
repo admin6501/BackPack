@@ -5,8 +5,8 @@
 // signature beside the file. The signature is base64 of the raw 64 bytes, which
 // is what the updater expects; see internal/manage/releasesig.go.
 //
-// With no key in the environment it does nothing and says so, so a fork or a
-// local `make release` still produces a full set of assets.
+// Missing or invalid keys are errors. --public-key prints only the public half
+// so the release workflow can embed the matching trust anchor in the binaries.
 package main
 
 import (
@@ -19,20 +19,18 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: signsums <path to SHA256SUMS>")
+		fmt.Fprintln(os.Stderr, "usage: signsums <path to SHA256SUMS> | --public-key")
 		os.Exit(2)
 	}
 	path := os.Args[1]
-
-	keyB64 := strings.TrimSpace(os.Getenv("RELEASE_SIGNING_KEY"))
-	if keyB64 == "" {
-		fmt.Println("RELEASE_SIGNING_KEY is not set — publishing without a signature.")
-		return
-	}
-	key, err := base64.StdEncoding.DecodeString(keyB64)
-	if err != nil || len(key) != ed25519.PrivateKeySize {
-		fmt.Fprintln(os.Stderr, "RELEASE_SIGNING_KEY is not a base64 Ed25519 private key")
+	key, err := signingKey(os.Getenv("RELEASE_SIGNING_KEY"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	if path == "--public-key" {
+		fmt.Println(base64.StdEncoding.EncodeToString(key.Public().(ed25519.PublicKey)))
+		return
 	}
 
 	sums, err := os.ReadFile(path)
@@ -47,4 +45,17 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println("Signed:", out)
+}
+
+// Regenerate the private key from its seed to reject inconsistent public halves.
+func signingKey(encoded string) (ed25519.PrivateKey, error) {
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
+	if err != nil || len(raw) != ed25519.PrivateKeySize {
+		return nil, fmt.Errorf("RELEASE_SIGNING_KEY must contain a base64 Ed25519 private key")
+	}
+	key := ed25519.NewKeyFromSeed(raw[:ed25519.SeedSize])
+	if !key.Equal(ed25519.PrivateKey(raw)) {
+		return nil, fmt.Errorf("RELEASE_SIGNING_KEY has an inconsistent public key")
+	}
+	return key, nil
 }

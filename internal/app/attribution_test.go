@@ -52,7 +52,7 @@ func TestTheAttributionIsOneSentenceEverywhere(t *testing.T) {
 		!strings.Contains(Attribution, "AminMGMT") {
 		t.Errorf("app.Attribution = %q, which names neither the project nor its author", Attribution)
 	}
-	if AttributionURL != "https://github.com/"+RepoOwner+"/"+RepoName {
+	if AttributionURL != "https://github.com/AminMGMT/BackPack" {
 		t.Errorf("AttributionURL = %q, which does not point at this repository", AttributionURL)
 	}
 

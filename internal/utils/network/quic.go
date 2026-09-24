@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/quic-go/quic-go"
@@ -193,7 +194,8 @@ func QUICDial(ctx context.Context, remoteAddr string, s QUICSettings) (*quic.Con
 // usage counters — with no special-casing.
 type QUICStreamConn struct {
 	*quic.Stream
-	conn *quic.Conn
+	conn        *quic.Conn
+	writeClosed atomic.Bool
 }
 
 // NewQUICStreamConn wraps a stream and its connection as a net.Conn.
@@ -203,3 +205,21 @@ func NewQUICStreamConn(stream *quic.Stream, conn *quic.Conn) net.Conn {
 
 func (q *QUICStreamConn) LocalAddr() net.Addr  { return q.conn.LocalAddr() }
 func (q *QUICStreamConn) RemoteAddr() net.Addr { return q.conn.RemoteAddr() }
+
+// Close interrupts both directions, as net.Conn requires.
+func (q *QUICStreamConn) Close() error {
+	q.Stream.CancelRead(0)
+	if !q.writeClosed.Load() {
+		q.Stream.CancelWrite(0)
+	}
+	return nil
+}
+
+// CloseWrite sends FIN while preserving the response direction.
+func (q *QUICStreamConn) CloseWrite() error {
+	err := q.Stream.Close()
+	if err == nil {
+		q.writeClosed.Store(true)
+	}
+	return err
+}

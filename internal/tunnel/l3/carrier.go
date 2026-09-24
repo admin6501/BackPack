@@ -256,20 +256,68 @@ func openUDPPaths(cfg Config) (DatagramCarrier, net.Addr, error) {
 	return newMultipathCarrier(paths, nil), nil, nil
 }
 
-// pinnedCarrier remembers the address one path talks to, so the multipath layer
-// above can hand it a datagram without saying where it goes.
-//
-// The dialling side is given its peer up front. The listening side learns it
-// from the first datagram that arrives on that path and answers there, which is
-// also how it follows a peer whose address changes — per path, without the
-// tunnel above seeing an address move.
+// pinnedCarrier updates its destination only after the tunnel authenticates
+// a received packet. receivedPathAddr carries provenance through multipath and FEC.
 type pinnedCarrier struct {
 	DatagramCarrier
 	mu   sync.Mutex
 	peer net.Addr
 }
 
+type receivedPathAddr struct {
+	net.Addr
+	path   *pinnedCarrier
+	source net.Addr
+	group  *multipathCarrier
+}
+
+func confirmPath(addr net.Addr) {
+	confirmPathPeer(addr, false)
+}
+
+func confirmPathPeer(addr net.Addr, initialOnly bool) {
+	if a, ok := addr.(*receivedPathAddr); ok && a.source != nil {
+		a.path.mu.Lock()
+		if !initialOnly || a.path.peer == nil {
+			a.path.peer = a.source
+		}
+		a.path.mu.Unlock()
+		if a.group != nil {
+			a.group.mu.Lock()
+			if a.group.reported == nil {
+				a.group.reported = a.Addr
+			}
+			a.group.mu.Unlock()
+		}
+	}
+}
+
+// FEC reconstruction authenticates content, not the source of the missing
+// datagram. It must not establish or move a UDP endpoint.
+func canConfirmPath(addr net.Addr) bool {
+	a, ok := addr.(*receivedPathAddr)
+	return !ok || a.source != nil
+}
+
+func reconstructedAddress(addr net.Addr) net.Addr {
+	if a, ok := addr.(*receivedPathAddr); ok {
+		return &receivedPathAddr{Addr: a.Addr, path: a.path, group: a.group}
+	}
+	return addr
+}
+
+func peerAddress(addr net.Addr) net.Addr {
+	if a, ok := addr.(*receivedPathAddr); ok {
+		return a.Addr
+	}
+	return addr
+}
+
 func (c *pinnedCarrier) WriteTo(p []byte, addr net.Addr) (int, error) {
+	// A handshake response goes back on the incoming path without repinning it.
+	if a, ok := addr.(*receivedPathAddr); ok && a.path == c && a.source != nil {
+		return c.DatagramCarrier.WriteTo(p, a.source)
+	}
 	c.mu.Lock()
 	dst := c.peer
 	c.mu.Unlock()
@@ -277,8 +325,6 @@ func (c *pinnedCarrier) WriteTo(p []byte, addr net.Addr) (int, error) {
 		dst = addr
 	}
 	if dst == nil {
-		// Nothing has arrived on this path yet and nobody said where to send:
-		// dropping is right, and the other paths carry the tunnel meanwhile.
 		return len(p), nil
 	}
 	return c.DatagramCarrier.WriteTo(p, dst)
@@ -287,9 +333,7 @@ func (c *pinnedCarrier) WriteTo(p []byte, addr net.Addr) (int, error) {
 func (c *pinnedCarrier) ReadFrom(p []byte) (int, net.Addr, error) {
 	n, addr, err := c.DatagramCarrier.ReadFrom(p)
 	if err == nil && addr != nil {
-		c.mu.Lock()
-		c.peer = addr
-		c.mu.Unlock()
+		return n, &receivedPathAddr{Addr: addr, path: c, source: addr}, nil
 	}
 	return n, addr, err
 }

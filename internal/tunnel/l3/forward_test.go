@@ -288,6 +288,9 @@ func TestForwarderKeepsUDPFlows(t *testing.T) {
 		n, err := conn.Read(buf)
 		if err != nil {
 			if !ready {
+				// A connected UDP socket can return ICMP refusal immediately
+				// before bind, exhausting all retries before Run is scheduled.
+				time.Sleep(25 * time.Millisecond)
 				continue // still coming up
 			}
 			t.Fatalf("read %d: %v", i, err)

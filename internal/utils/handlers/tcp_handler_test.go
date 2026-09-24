@@ -12,11 +12,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// The forwarded relay: a read/write loop per direction that closes both ends
-// when either finishes. It briefly had a second, zero-copy path; that was
-// removed to keep this identical to the upstream project, whose behaviour is
-// the one proven on real tunnels. These tests cover what the loop must do
-// regardless — carry both directions intact, and never leave one end open.
+// A forwarded connection must carry both directions and release its resources
+// after both peers finish or the context is cancelled.
 
 func quietLogger() *logrus.Logger {
 	l := logrus.New()
@@ -88,8 +85,9 @@ func TestRelayCarriesBothDirections(t *testing.T) {
 			assertReceives(t, backend, upstream, "client to backend")
 			assertReceives(t, client, downstream, "backend to client")
 
-			// Closing one end must bring the whole relay down.
+			// Closing both peers must release the relay.
 			client.Close()
+			backend.Close()
 			select {
 			case <-done:
 			case <-time.After(5 * time.Second):
@@ -99,8 +97,7 @@ func TestRelayCarriesBothDirections(t *testing.T) {
 	}
 }
 
-// When either side goes away the handler closes both connections, so a forwarded
-// connection can never be left half open holding a socket open forever.
+// Closing both peers releases both relay connections.
 func TestRelayClosesBothEnds(t *testing.T) {
 	client, from := tcpPair(t)
 	to, backend := tcpPair(t)
@@ -115,6 +112,7 @@ func TestRelayClosesBothEnds(t *testing.T) {
 	}()
 
 	client.Close()
+	backend.Close()
 
 	select {
 	case <-done:

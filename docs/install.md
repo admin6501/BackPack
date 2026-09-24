@@ -5,7 +5,7 @@
 One command as root on the VPS:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/AminMGMT/BackPack/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/admin6501/BackPack/main/install.sh)
 ```
 
 It downloads the prebuilt release archive for your architecture (amd64/arm64)
@@ -36,7 +36,7 @@ install it there. Nothing is fetched from the VPS.
 
 ![Offline install](../img/offline-install.gif)
 
-From the [releases page](https://github.com/AminMGMT/BackPack/releases/latest),
+From the [releases page](https://github.com/admin6501/BackPack/releases/latest),
 download the archive for the server's architecture — run `uname -m` on it:
 `x86_64` → `backpack_linux_amd64.tar.gz`, `aarch64` → `backpack_linux_arm64.tar.gz`.
 
