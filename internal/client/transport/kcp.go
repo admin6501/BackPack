@@ -521,6 +521,10 @@ func (c *KcpTransport) channelHandler() {
 }
 
 func (c *KcpTransport) tunnelDialer() {
+	ctx := c.state.Ctx()
+	if ctx.Err() != nil {
+		return
+	}
 	addr := c.config.Endpoints.Next()
 	c.logger.Debugf("initiating new tunnel connection to address %s", addr)
 
@@ -529,6 +533,13 @@ func (c *KcpTransport) tunnelDialer() {
 		c.logger.Errorf("tunnel server dialer: %v", err)
 		return
 	}
+
+	// An idle SMUX session blocks in AcceptStream and cannot poll ctx.
+	// Close its KCP socket when this generation ends, otherwise it keeps
+	// retransmitting into the replacement listener after a restart.
+	stop := context.AfterFunc(ctx, func() { tunnelConn.Close() })
+	defer stop()
+	defer tunnelConn.Close()
 
 	// KCP has no connection handshake of its own: the server's listener only
 	// materialises a session once it receives a packet from this socket. So
