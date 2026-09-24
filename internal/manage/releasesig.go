@@ -37,17 +37,17 @@ const sigAssetName = "SHA256SUMS.sig"
 
 // releasesAreSigned reports whether this build has a key to check against.
 //
-// Source builds may not carry a key; verifyChecksumSignature then refuses
-// automatic updates until a signed release has been installed.
+// Without a configured key, the updater still checks the archive SHA256 but
+// does not authenticate the publisher of the checksum list.
 func releasesAreSigned() bool { return strings.TrimSpace(app.ReleasePublicKey) != "" }
 
 // verifyChecksumSignature checks the signature over a release's SHA256SUMS.
 //
-// A build without this fork's public key refuses updates. Release builds
-// inject the key at link time; an upstream key must never authenticate a fork.
+// A build without a public key uses checksum-only updates. A build with a key
+// still requires a valid signature; missing signatures never bypass that check.
 func verifyChecksumSignature(tag string, sums []byte) error {
 	if !releasesAreSigned() {
-		return fmt.Errorf("this build has no trusted release key; install a signed admin6501/BackPack release or rebuild with RELEASE_PUBLIC_KEY")
+		return nil
 	}
 	pub, err := base64.StdEncoding.DecodeString(strings.TrimSpace(app.ReleasePublicKey))
 	if err != nil || len(pub) != ed25519.PublicKeySize {

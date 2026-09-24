@@ -7,28 +7,43 @@ remain compatible. Upstream copyright and provenance notices remain in the legal
 and About surfaces. Upstream channel, group, website and donation promotions have
 been removed from the installer, menus, bot, panel and documentation.
 
-## Publishing signed releases
+## Building AMD64 and ARM64 without a signing key
 
-This fork cannot sign with the upstream publisher's private key. Generate an
-Ed25519 signing pair with `make release-key` in a trusted terminal. Store the
-private half as the repository's GitHub Actions secret `RELEASE_SIGNING_KEY`;
-never commit it. Keep a protected backup of that secret for future releases.
+No GitHub secret is required. Install the Go version specified by go.mod and
+run these commands from the repository root:
 
-`make release` requires that secret in its environment. It derives the public
-half, embeds it in every architecture's binary, signs `SHA256SUMS` and publishes
-`SHA256SUMS.sig` with the release assets. The existing Release workflow invokes
-this target. Missing, malformed or internally inconsistent keys stop the build.
+```sh
+make release ARCHES="amd64 arm64" ARMS=""
+```
 
-A plain source build has no pinned release key and refuses automatic binary
-updates. For a source build that should accept your signed releases, build with
-`make build RELEASE_PUBLIC_KEY=<base64-public-key>` using your verified public
-key. Never use the private half in this argument. Keep the same signing key for
-future releases: changing it requires a deliberate trust migration on installed
-servers. The first installation still relies on the installer and published
-checksums; this change does not add a separate signature verifier to install.sh.
+This cross-compiles Linux binaries for both x86-64 (Intel/AMD) and ARM64 on the
+same build machine. Output binaries are `dist/backpack-linux-amd64` and
+`dist/backpack-linux-arm64`. Release archives are
+`release/backpack_linux_amd64.tar.gz` and `release/backpack_linux_arm64.tar.gz`;
+each contains the `backpack` executable. Upload the archives and
+`release/SHA256SUMS` to a GitHub Release for the installer and updater to use.
 
-No release is created by this source change. Before publishing, configure the
-secret, advance VERSION and app.Version together, then use a matching release tag.
+The Release workflow builds all supported architectures automatically on a
+matching `v*` tag, including these two. Advance VERSION and app.Version together
+before tagging. The code must first be merged into the branch you tag. This PR
+does not create a release or deploy anything.
+
+## Optional release signatures
+
+Without `RELEASE_SIGNING_KEY`, builds and updates work using SHA256 checksums.
+These detect a mismatched/corrupted archive but do not independently authenticate
+the publisher when both the archive and its checksum list are replaced.
+
+Signing can still be enabled later: generate a key pair using `make release-key`
+in a trusted terminal and store the private half as the repository secret
+`RELEASE_SIGNING_KEY`. Never commit it. `make release` derives and embeds the
+public half and signs SHA256SUMS. A malformed configured key fails the build.
+An unsigned build removes any stale SHA256SUMS.sig from an earlier build.
+
+Binaries carrying a public key continue to require valid signatures. Removing a
+secret does not downgrade already installed signed builds; switch those installs
+to a checksum-only build manually if that is intended. For source builds,
+`make build RELEASE_PUBLIC_KEY=<base64-public-key>` enables signature checks.
 
 ## Fixed regressions
 

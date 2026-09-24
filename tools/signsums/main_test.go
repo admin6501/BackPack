@@ -23,9 +23,18 @@ func TestSigningKeyMatchesPublisher(t *testing.T) {
 		t.Fatal("signature did not verify")
 	}
 	priv[len(priv)-1] ^= 1
-	for _, bad := range []string{"", "garbage", base64.StdEncoding.EncodeToString(priv)} {
+	for _, bad := range []string{"garbage", base64.StdEncoding.EncodeToString(priv)} {
 		if _, err := signingKey(bad); err == nil {
 			t.Fatal("invalid release key accepted")
+		}
+	}
+}
+
+func TestSigningKeyIsOptional(t *testing.T) {
+	for _, input := range []string{"", "  \n"} {
+		key, err := signingKey(input)
+		if err != nil || key != nil {
+			t.Fatalf("empty key: got %v, %v", key, err)
 		}
 	}
 }

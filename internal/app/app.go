@@ -92,7 +92,7 @@ func ServiceName(name string) string {
 
 // ReleasePublicKey pins this fork's publisher, not the upstream release key.
 // Release builds inject it with -ldflags from RELEASE_SIGNING_KEY. A plain
-// source build refuses automatic updates until built with a trusted key.
+// build without a key verifies SHA256 checksums only.
 var ReleasePublicKey = ""
 
 // TunnelConfigMode is the permission a tunnel's TOML config is written with.

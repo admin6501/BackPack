@@ -41,16 +41,16 @@ func TestASignatureOverTheChecksumsIsCheckedAgainstThePinnedKey(t *testing.T) {
 	}
 }
 
-// A source build without a publisher key must not accept untrusted updates.
-func TestABuildWithNoPinnedKeyRefusesUpdates(t *testing.T) {
+// A build without a key uses checksum-only verification.
+func TestABuildWithNoPinnedKeyUsesChecksumsOnly(t *testing.T) {
 	restore := withReleaseKey(t, "")
 	defer restore()
 
 	if releasesAreSigned() {
 		t.Fatal("a build with no key reports that releases are signed")
 	}
-	if err := verifyChecksumSignature("v1.8.2", []byte("anything")); err == nil {
-		t.Error("a build with no trusted key accepted an update")
+	if err := verifyChecksumSignature("v1.8.2", []byte("anything")); err != nil {
+		t.Fatalf("optional signature blocked update: %v", err)
 	}
 }
 

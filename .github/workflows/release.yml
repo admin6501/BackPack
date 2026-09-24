@@ -28,9 +28,8 @@ jobs:
         run: go test ./... -timeout 20m
 
       - name: Build release assets
-        # A fork owns its signing key. make release derives its public half,
-        # embeds it in every binary, and signs SHA256SUMS with the same key.
-        # Missing keys fail before assets are built.
+        # No secret is required. When RELEASE_SIGNING_KEY is configured, make
+        # embeds its public half and signs SHA256SUMS; otherwise checksums only.
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: make release

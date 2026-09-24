@@ -55,7 +55,7 @@ release: version
 	@# And a signature over that list. The checksum proves the download is
 	@# intact; the signature proves the list is the publisher's, which the
 	@# checksum cannot, because it travels the same channel as the archive it
-	@# describes. Release builds require this fork's signing key.
+	@# describes. With no signing key, SHA256 verification remains enabled.
 	go run ./tools/signsums release/SHA256SUMS
 	@echo "Release assets ready in ./release"
 	@cat release/SHA256SUMS
