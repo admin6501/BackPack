@@ -199,9 +199,17 @@ func TestLocalBackendDialNeverUsesTheProxy(t *testing.T) {
 	// the proxy would show up here too.
 	time.Sleep(6 * time.Second)
 
-	close(asked)
+	// Proxy handlers can still report requests while the tunnel shuts down.
+	// Drain the current observations without closing a channel they write to.
 	seen := 0
-	for target := range asked {
+observations:
+	for {
+		var target string
+		select {
+		case target = <-asked:
+		default:
+			break observations
+		}
 		seen++
 		if target != fmt.Sprintf("127.0.0.1:%d", tunnelPort) {
 			t.Fatalf("the proxy was asked for %q; only the tunnel server should ever go through it", target)
