@@ -66,7 +66,7 @@ func TestAuthenticatedMultipathWithAndWithoutFEC(t *testing.T) {
 				t.Fatal(err)
 			}
 			packet, from := read(listen)
-			tunnel.route(nil, make([][]byte, 1), packet, from)
+			tunnel.route(nil, packet, from)
 			reply, _ := read(dial)
 			_, body, err := parseHeader(reply)
 			if err != nil {
@@ -85,7 +85,7 @@ func TestAuthenticatedMultipathWithAndWithoutFEC(t *testing.T) {
 					t.Fatal(err)
 				}
 				packet, from = read(listen)
-				tunnel.route(nil, make([][]byte, 1), packet, from)
+				tunnel.route(nil, packet, from)
 			}
 			for i, p := range listeners {
 				pinned := p.(*pinnedCarrier)
