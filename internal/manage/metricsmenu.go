@@ -59,8 +59,9 @@ func printSnapshot(t Tunnel, s metrics.Snapshot) {
 
 	age := time.Since(s.Taken).Round(time.Second)
 	tui.Warn(fmt.Sprintf("  recorded %s ago, tunnel up for %s", age, s.Uptime))
-	tui.Info(fmt.Sprintf("  Traffic       : %s in, %s out",
-		sysstat.HumanBytes(s.BytesIn), sysstat.HumanBytes(s.BytesOut)))
+	tui.Info("  Traffic in    : " + sysstat.HumanBytes(s.BytesIn))
+	tui.Info("  Traffic out   : " + sysstat.HumanBytes(s.BytesOut))
+	tui.Info("  Traffic total : " + sysstat.HumanBytes(s.BytesIn+s.BytesOut))
 	tui.Info("  Traffic quota : " + trafficQuotaStatus(readTrafficLimit(t.Name), s.BytesIn, s.BytesOut))
 
 	if s.KCP == nil {
