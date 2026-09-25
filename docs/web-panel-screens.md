@@ -75,11 +75,11 @@ were on. `fr-relay` below is an example name.
 | Screen | Address | What it is | CLI |
 | --- | --- | --- | --- |
 | Live log | `#/t/fr-relay/logs` | The tunnel's journald output as it happens, coloured by level. The level is read from the line, because journald hands the panel free text. | Manage → Manage Tunnels → Live Log |
-| Metrics | `#/t/fr-relay/metrics` | Everything known about one tunnel: traffic, the peer, limits, the bot relay, the certificate, failover, the connection pool, and on a KCP link what the error correction is repairing. Sections with nothing behind them are removed rather than shown empty. | Manage → Tunnel Metrics |
+| Metrics | `#/t/fr-relay/metrics` | Incoming, outgoing, total, quota and remaining traffic, plus peer, limits and KCP quality. A tunnel at its traffic cap is marked paused. | Manage → Tunnel Metrics |
 | History | `#/t/fr-relay/history` | The long view: speed over the last day, per-day totals for the week, both uptime figures, and the configuration changes inside the window. | Manage → Tunnel Metrics |
 | Link test | `#/t/fr-relay/link` | Twelve TCP connects to the tunnel port, then the transport the measurement argues for. Same branch logic as the CLI's recommendation, in the same order. | Manage → Link Test |
 | Speed test | `#/t/fr-relay/speed` | A throughput measurement through the tunnel itself. | Manage → Speed Test |
-| Edit | `#/t/fr-relay/edit` | Every setting the tunnel has. The values come from the same call the CLI's edit screen makes, so a tunnel edited here is byte for byte a tunnel edited in the terminal. | Manage → Manage Tunnels → Edit |
+| Edit | `#/t/fr-relay/edit` | Edit the traffic quota in whole GiB on the first tab (`0` = unlimited); reverse tunnels also expose their supported connection settings. The quota is saved for direct tunnels too. | Manage → Manage Tunnels → Edit / Traffic quota |
 | Undo | `#/t/fr-relay/undo` | The configuration history for this tunnel, and a restore back to any earlier version of it. | Manage → Manage Tunnels → Config history |
 
 ## Installation screens
@@ -145,4 +145,4 @@ hash همه‌جا درست reload می‌شود. هر صفحه‌ای در ای
 
 ---
 
-*Last verified against Backpack v1.8.4.*
+*Last verified against Backpack v1.8.4; new quota and release guidance describes current main and ships in the next release.*

@@ -116,7 +116,7 @@ once it is up and corrects the interface itself.
 | **Game Latency Test** | Estimates the in-game ping a player would feel through this exit — pings the nearest edge of Dota 2, CS2, Valorant, PUBG, Fortnite and others from the kharej server, adds the tunnel leg, and rates the result. Endpoint list at `/etc/backpack/game-endpoints.list`. |
 | **Exit Health** | Scores and ranks every server address of a tunnel by `rtt + 2·jitter + 20·loss%`, and offers to pin the healthiest as the primary. The manual companion to health failover. |
 | **IP Spoofing Tester** | Two-node test that finds which forged source IPs actually cross the path. [More](ip-spoofing.md#the-ip-spoofing-tester) |
-| **Tunnel Metrics** | Traffic and connections per transport and, on KCP, retransmits, loss and packets repaired by FEC. Totals survive restarts. [More](tunnel-metrics.md) |
+| **Tunnel Metrics** | Incoming, outgoing, total, quota and remaining traffic per tunnel; KCP retransmits, loss and FEC repairs. Totals survive restarts. [More](tunnel-metrics.md) |
 | **Restart ALL** | Restarts every tunnel at once and reports how many failed. |
 | **Auto Refresh** | Restart every tunnel every N hours. `0` disables it. |
 | **Built-in Proxy** | Makes this node its own SOCKS5/HTTP backend, so nothing separate has to be installed behind the tunnel. [↓](#manage--built-in-proxy) |
@@ -130,6 +130,7 @@ Pick a tunnel, then:
 |---|---|
 | **Edit** | Everything about the tunnel's configuration. [↓](#manage--manage-tunnels--edit) |
 | **Start / Stop / Restart** | The systemd service for that tunnel. |
+| **Traffic quota** | Cumulative incoming + outgoing GiB for this tunnel. `0` = unlimited; at the cap the tunnel pauses until the quota is increased or removed. [More](limits.md) |
 | **Live Log** | Streams the journal. Ctrl+C returns. |
 | **Delete** | Removes the tunnel permanently, after a confirm. |
 
@@ -200,7 +201,7 @@ certificates and the auto-refresh schedule** into one portable `.tar.gz` under
 
 ## 5 — Web Panel
 
-A monitoring-only dashboard, recommended on the **Iran** server. The header shows
+A dashboard with a tunnel quota editor, recommended on the **Iran** server. The header shows
 the URL, the login code and the state.
 
 | Option | Notes |
@@ -407,4 +408,4 @@ FEC؛ و zero-copy (فقط روی tcp ساده).
 
 ---
 
-*Last verified against Backpack v1.8.4.*
+*Last verified against Backpack v1.8.4; new quota and release guidance describes current main and ships in the next release.*

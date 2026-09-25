@@ -40,7 +40,7 @@ Reference pages: what each part of Backpack **is**, and every setting it has.
 - [Performance presets](performance-presets.md) — Balance / Turbo / Aggressive / Throughput
 - [Failover & load balancing](failover-load-balancing.md) — backup addresses, health scoring
 - [Real client IP (PROXY protocol)](real-client-ip.md)
-- [Per-tunnel limits](limits.md)
+- [Per-tunnel limits and traffic quota](limits.md) — set GiB caps and see what happens when they run out
 - [TCP MSS clamp](mss-clamp.md)
 
 ### Monitoring
@@ -52,7 +52,7 @@ Reference pages: what each part of Backpack **is**, and every setting it has.
   and no login held for that machine
 - [Telegram bot](telegram-bot.md)
 - [Alerts](alerts.md)
-- [Tunnel Metrics](tunnel-metrics.md)
+- [Tunnel Metrics](tunnel-metrics.md) — incoming, outgoing, total and remaining traffic
 - [Health Check](health-check.md)
 - [Monitor service](monitor-service.md)
 - [Shipping logs off the server](log-schema.md) — JSON logs, the field names, and
@@ -89,4 +89,4 @@ Reference pages: what each part of Backpack **is**, and every setting it has.
 
 ---
 
-*Last verified against Backpack v1.8.4.*
+*Last verified against Backpack v1.8.4; new quota and release guidance describes current main and ships in the next release.*

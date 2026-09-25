@@ -5,13 +5,15 @@ written down, so a release made in a hurry is the same release.
 
 ## Before you tag
 
-- [ ] **The `RELEASE_SIGNING_KEY` secret exists.** Without it the tag publishes
-      no signature, and every updater carrying the pinned public key
-      (`internal/app.ReleasePublicKey`) refuses the release — which is worse
-      than no signing at all. Check first; it is the one step that cannot be
-      fixed after the fact.
-- [ ] `CHANGELOG.md` has a section for this version, and it says what a user
-      would have seen rather than what the diff did.
+- [ ] If this build pins `internal/app.ReleasePublicKey`, the corresponding
+      `RELEASE_SIGNING_KEY` repository secret exists. A signed updater rejects
+      an unsigned release. Builds without a pinned key use checksum-only
+      verification and do not require this secret.
+- [ ] Merge changes through pull requests with clear, user-facing titles and
+      descriptions. GitHub builds release notes from merged PRs since the
+      previous release; direct commits to `main` may be absent from that list.
+      Labels `feature`/`enhancement`, `bug`/`fix`, and `documentation` sort the
+      entries. Unlabelled PRs appear under “Changes and fixes”.
 - [ ] `VERSION` and `internal/app` agree with the tag. CI checks this before it
       builds, deliberately, because a mismatch is only discovered by an operator
       otherwise.
@@ -27,14 +29,21 @@ written down, so a release made in a hurry is the same release.
 ## Tagging
 
 ```
-git tag -a v1.8.2 -m "v1.8.2"
-git push origin v1.8.2
+git tag -a v1.8.5 -m "v1.8.5"
+git push origin v1.8.5
 ```
 
-The release workflow builds every architecture, writes `SHA256SUMS`, signs it
-with the repository secret, and publishes.
+The tag starts the release workflow. It tests the source, builds both
+architectures, writes `SHA256SUMS`, signs it if a signing key is configured,
+and asks GitHub to generate the release description from PRs. The description
+and assets appear together on the [Releases page](https://github.com/admin6501/BackPack/releases).
+To rerun a failed publish, open **Actions → Release → Run workflow** and enter
+the existing tag. It checks out that tag and regenerates its description.
+Review the generated text on the Release page and edit it there when a feature
+needs a fuller explanation. The release body holds the history; there is no
+separate changelog file.
 
-What is signed is the **tag and the list together** (`backpack release <tag>`,
+When signing is enabled, what is signed is the **tag and the list together** (`backpack release <tag>`,
 a newline, then `SHA256SUMS`), not the list alone. The list names archives,
 not versions, so a signature over it alone would let a mirror serve an older
 release's genuine files under a newer tag and have every updater verify and
@@ -44,9 +53,10 @@ over exactly those bytes.
 
 ## After the tag
 
+- [ ] Read the Release description: verify that each significant fix and
+      feature is present, and add details on GitHub if needed.
 - [ ] Download the published binary for your own architecture and check it
-      against `SHA256SUMS`, and check the signature. Verifying your own release
-      is the only way to find out that the signing step silently did nothing.
+      against `SHA256SUMS`. If signing is enabled, verify its signature too.
 - [ ] Install it over an existing tunnel on a real machine and watch it come
       back. The updater takes a snapshot and rolls back on its own, and you want
       to know that it did not have to.
@@ -89,8 +99,8 @@ go version -m ./backpack
 
 ## If the signing key is lost or leaked
 
-There is no graceful path, and it is worth reading before it happens rather than
-after. The public half is **compiled into every installed binary**, so:
+This applies only to signed builds. Their public half is compiled into the
+installed binaries, so:
 
 | | what it means | what to do |
 |---|---|---|
@@ -98,9 +108,8 @@ after. The public half is **compiled into every installed binary**, so:
 | **Leaked** | whoever has it can sign a release every installed updater accepts | the same manual install, urgently |
 
 Both end in the same place, and that is the point: **there is no remote
-recovery**. The private half lives in the `RELEASE_SIGNING_KEY` repository
-secret and nowhere else. It was generated once by `make release-key` and the
-file it came from was deleted.
+recovery** for those signed installs. The private half belongs in the
+`RELEASE_SIGNING_KEY` repository secret. Checksum-only builds do not pin a key.
 
 A second, offline key pinned alongside the first would turn either case into a
 release rather than a fleet-wide manual install. It is not built — it is
@@ -116,12 +125,11 @@ during the incident.
 این صفحه برای کسی است که نسخه منتشر می‌کند، نه برای اپراتور: چک‌لیست انتشار، و
 اینکه اگر کلید امضا گم شود چه باید کرد.
 
-نکتهٔ اصلی: هر انتشار یک فایل `SHA256SUMS` دارد که با کلید **Ed25519** امضا
-می‌شود، و updater قبل از نصب امضا را بررسی می‌کند. نیمهٔ عمومی کلید داخل خود
-باینری pin شده و نیمهٔ خصوصی فقط در یک repository secret زندگی می‌کند و جای
-دیگری نه. **تا وقتی آن secret وجود نداشته باشد، انتشارِ tag شده هیچ امضایی
-منتشر نمی‌کند و هر updaterای که کلید عمومی را دارد آن را رد می‌کند** — که از
-حالتِ قبل از وجود کلید هم بدتر است.
+هر انتشار `SHA256SUMS` دارد. اگر `RELEASE_SIGNING_KEY` تنظیم شده باشد، فهرست
+چک‌سام‌ها با Ed25519 امضا می‌شود. باینری‌ای که کلید عمومی در آن ثبت شده، نسخهٔ
+بدون امضا را رد می‌کند؛ باینری بدون کلید با روش چک‌سام کار می‌کند. توضیح تغییرات
+هر نسخه به‌طور خودکار از PRهای ادغام‌شده ساخته می‌شود و داخل صفحهٔ همان Release
+قرار می‌گیرد؛ نیازی به فایل جداگانهٔ changelog نیست.
 
 **ساخت تکرارپذیر:** انتشار با `CGO_ENABLED=0`، `-trimpath` و نسخه‌ای که از
 `VERSION` می‌آید نه از ساعت ساخته می‌شود، پس دو build از یک سورس بایت‌به‌بایت
@@ -139,4 +147,4 @@ during the incident.
 
 ---
 
-*Last verified against Backpack v1.8.4.*
+*Last verified against Backpack v1.8.4; new quota and release guidance describes current main and ships in the next release.*
