@@ -428,12 +428,22 @@ func TestTunnelStatsCountTraffic(t *testing.T) {
 	packet := ipv4Packet(1, 2, 3, 4)
 	across(t, p.dialDev, p.listenDev, packet)
 
-	out := p.dialer.Stats()
+	// Delivery may unblock the receiving device before the sending pump has
+	// returned from WriteTo and accounted for that packet. Wait for both
+	// counters instead of depending on which goroutine the scheduler runs first.
+	deadline := time.Now().Add(5 * time.Second)
+	var out, in Stats
+	for {
+		out, in = p.dialer.Stats(), p.listener.Stats()
+		if (out.PacketsOut >= 1 && in.PacketsIn >= 1) || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
 	if out.PacketsOut != 1 || out.BytesOut != uint64(len(packet)) {
 		t.Fatalf("dialler sent %d packets / %d bytes, want 1 / %d",
 			out.PacketsOut, out.BytesOut, len(packet))
 	}
-	in := p.listener.Stats()
 	if in.PacketsIn != 1 || in.BytesIn != uint64(len(packet)) {
 		t.Fatalf("listener received %d packets / %d bytes, want 1 / %d",
 			in.PacketsIn, in.BytesIn, len(packet))
