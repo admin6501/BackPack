@@ -2,6 +2,25 @@
 
 All notable changes to Backpack are documented here.
 
+## v1.8.4 — 2026-09-25
+
+This fork now includes the upstream reliability, security, monitoring and fleet
+changes after its previous common ancestor, plus a per-tunnel traffic quota.
+
+- `traffic_limit_gb` caps cumulative inbound plus outbound GiB on reverse,
+  direct and layer-3 tunnels. Usage persists across restarts. At the quota,
+  the tunnel pauses; raising the quota or setting it to zero resumes it.
+  Configure it in the per-tunnel CLI menu or web panel.
+- QUIC reconnect and authentication, layer-3 handshake replay protection,
+  control-channel liveness, KCP idle CPU use and watchdog recovery have been
+  updated from upstream. Layer-3 peers should be upgraded together so they
+  agree on the current handshake and session behavior.
+- Panel credential operations require administrator scope, and optional TOTP
+  protects the panel. Fleet drift checks, backup checks and diagnostics were
+  updated from upstream.
+- The fork's admin6501 panel identity and checksum-only release option remain.
+  The release builds Linux AMD64 and ARM64 assets.
+
 ## v1.8.2 — 2026-09-24
 
 Every finding of a section-by-section audit of the whole project, and the
