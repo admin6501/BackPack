@@ -11,6 +11,8 @@ All notable changes to Backpack are documented here.
   the paused configuration watcher. Final counters are written before the next
   generation starts; increasing or removing the quota resumes the tunnel
   without resetting past usage.
+- CI fuzz checks now use a fixed number of inputs to avoid a Go fuzz deadline
+  failure after successful runs with no crashing input.
 - The web panel now saves direct-tunnel traffic quotas and puts the quota
   editor on the first tab. Empty or fractional limits are rejected before save.
 - Web and terminal metrics show cumulative traffic used and the remaining
