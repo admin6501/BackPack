@@ -145,4 +145,4 @@ hash همه‌جا درست reload می‌شود. هر صفحه‌ای در ای
 
 ---
 
-*Describes current main; publish these changes in the next release after v1.8.4.*
+*Last verified against Backpack v1.8.4; new quota and release guidance describes current main and ships in the next release.*

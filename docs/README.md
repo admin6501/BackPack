@@ -89,4 +89,4 @@ Reference pages: what each part of Backpack **is**, and every setting it has.
 
 ---
 
-*Describes current main; publish these changes in the next release after v1.8.4.*
+*Last verified against Backpack v1.8.4; new quota and release guidance describes current main and ships in the next release.*

@@ -59,4 +59,4 @@ share one link and you want to stop any one of them from taking it all.
 
 ---
 
-*Describes current main; publish these changes in the next release after v1.8.4.*
+*Last verified against Backpack v1.8.4; new quota and release guidance describes current main and ships in the next release.*
