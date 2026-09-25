@@ -74,11 +74,28 @@ const (
 
 	// previousGrace is how long a replaced session keeps decrypting.
 	previousGrace = 30 * time.Second
-
-	// rekeyCheck is how often the dialling side looks at whether the current
-	// session is due for replacement.
-	rekeyCheck = 5 * time.Second
 )
+
+// rekeyCheck is how often the dialling side looks at whether the current
+// session is due for replacement, or has stopped being answered. A variable so
+// the test that restarts a listener under a live dialler need not wait on it.
+var rekeyCheck = 5 * time.Second
+
+// peerSilentAfter is how long the dialling side keeps sending into a session
+// that nothing comes back on before it handshakes again.
+//
+// There was no such limit. A listener that restarted — an update, a config
+// edit, a reboot — came back with no memory of the session, dropped every
+// packet sealed under it, and the dialler went on sealing under it until the
+// routine rekey two minutes later, then logged that rekey as "the tunnel did
+// not drop". Measured: 122 seconds of black hole after a one-second restart.
+//
+// Fifteen seconds is WireGuard's number for the same question (keepalive plus
+// rekey timeout), and for the same reason: long enough that a pause in a
+// reply-less flow is not mistaken for a dead peer, short enough to be a blip.
+// The cost of being wrong is one handshake — the old session keeps decrypting
+// through previousGrace — so erring early is cheap.
+var peerSilentAfter = 15 * time.Second
 
 // Stats is what the tunnel reports about itself.
 type Stats struct {
@@ -235,19 +252,31 @@ type Tunnel struct {
 	// that arrive with nobody waiting are simply dropped.
 	replies chan handshakeReply
 
+	// fresh is the listener's memory of handshake timestamps, and freshClock
+	// the dialler's source of them; legacyUntil is when a dialler that met a
+	// listener without timestamps tries them again. Under mu. See freshness.go.
+	fresh       freshJudge
+	freshClock  freshClock
+	legacyUntil time.Time
+
+	// unanswered is when the dialling side sent the first packet that nothing
+	// has come back after, as unix nanoseconds; zero once anything authentic
+	// arrives. See peerSilentAfter.
+	unanswered atomic.Int64
+	// silentRekey marks the handshake that unanswered started, so it is not
+	// reported as a routine rekey.
+	silentRekey atomic.Bool
+
 	// The listening side answers a retransmitted first message with the
 	// identical reply rather than starting a second handshake, which would
 	// derive keys the initiator has no way to arrive at.
 	lastInitID uint32
 	lastReply  []byte
 
-	// seenInits refuses a handshake this end has already answered. See
-	// initreplay.go: the protocol has no freshness in it, so a recorded
-	// typeInit stays valid for ever and can be replayed to keep a tunnel from
-	// establishing. This does not close that — the proper fix is a timestamp
-	// and it needs a version both ends understand — but it does stop the same
-	// packet being replayed over and over, which is the attack rather than the
-	// theory.
+	// seenInits refuses a handshake this end has already answered, for the
+	// legacy handshake an older dialler still sends; a v2 dialler's handshake
+	// carries a timestamp that fresh judges instead. See initreplay.go and
+	// freshness.go.
 	seenInits seenInits
 
 	stats struct {
@@ -397,10 +426,36 @@ func (t *Tunnel) LocalAddr() net.Addr {
 }
 
 // Stats returns a snapshot for diagnostics.
+//
+// # Why the loads are in this order
+//
+// Six counters cannot be read in one step, so a snapshot is always slightly
+// behind. Behind is fine. *Impossible* is not, and "4 packets, 0 bytes" was
+// reachable: the writer bumped packets first, and a reader landing between the
+// two lines saw a tunnel that had carried packets containing nothing.
+//
+// That is not only ugly on a dashboard. bytesIn and bytesOut are what the
+// watchdog's stall detector watches, and a direction that reads as frozen for
+// an instant is precisely the signal it exists to act on.
+//
+// The fix is a pair of orderings that have to stay opposite:
+//
+//   - every writer adds **bytes, then packets**;
+//   - this reader loads **packets, then bytes**.
+//
+// Then a reader that sees P packets knows the bytes for all P were added before
+// the counter reached P, and the byte load that follows can only be larger. So
+// packets > 0 implies bytes > 0, always, and the snapshot is merely stale
+// rather than self-contradictory.
+//
+// Held by TestStatsAreNeverInternallyImpossible, which found the original by
+// reading flat out while packets crossed.
 func (t *Tunnel) Stats() Stats {
+	packetsIn := t.stats.packetsIn.Load()
+	packetsOut := t.stats.packetsOut.Load()
 	return Stats{
-		PacketsIn:  t.stats.packetsIn.Load(),
-		PacketsOut: t.stats.packetsOut.Load(),
+		PacketsIn:  packetsIn,
+		PacketsOut: packetsOut,
 		BytesIn:    t.stats.bytesIn.Load(),
 		BytesOut:   t.stats.bytesOut.Load(),
 		Dropped:    t.stats.dropped.Load(),
@@ -464,6 +519,14 @@ func (t *Tunnel) installDialed(sess *session) {
 	t.mu.Unlock()
 	t.stats.handshakes.Add(1)
 	t.publishPeer()
+	t.noteAnswered()
+
+	// A handshake the silence started is a recovery, not a routine rekey, and
+	// must not say the tunnel held — it did not.
+	if t.silentRekey.Swap(false) && replaced {
+		t.log.Infof("l3: session %08x re-established after the peer went silent", sess.id)
+		return
+	}
 
 	// A rekey is not a reconnection, and saying "established" for both made a
 	// healthy tunnel look like one that drops every two minutes. Somebody read
@@ -588,7 +651,30 @@ func (t *Tunnel) pumpFromTUN(ctx context.Context) {
 	sizes := make([]int, batch)
 
 	frame := make([]byte, 0, t.cfg.MTU+t.encap.Overhead())
-	out := make([]byte, 0, t.cfg.MTU+t.encap.Overhead()+dataOverhead)
+
+	// Sealed packets, one slot per slot the TUN read filled.
+	//
+	// Separate buffers rather than one reused for every packet, because a batch
+	// send has to hold all of them at once — the single `out` buffer this used
+	// worked only because each packet was written before the next was sealed.
+	sealedSize := t.cfg.MTU + t.encap.Overhead() + dataOverhead
+	sealed := make([][]byte, batch)
+	for i := range sealed {
+		sealed[i] = make([]byte, 0, sealedSize)
+	}
+	// The slice handed to the carrier: the first k sealed packets of this
+	// round, re-sliced rather than rebuilt.
+	ready := make([][]byte, batch)
+	// The inner size of each one. The counters have always meant the bytes the
+	// tunnel *carried*, not the bytes it put on the wire — reporting the sealed
+	// size would make every tunnel look like it was moving more than it was,
+	// by exactly its own overhead.
+	payloads := make([]int, batch)
+
+	// sendmmsg, when the carrier has it. Only the plain UDP carrier does; the
+	// rest keep writing one datagram per syscall exactly as before. See
+	// batchread.go.
+	writer := asBatchWriter(t.carrier)
 
 	for {
 		count, err := t.tun.Read(bufs, sizes)
@@ -605,6 +691,14 @@ func (t *Tunnel) pumpFromTUN(ctx context.Context) {
 		sess := t.sendSession()
 		peer := t.peerAddr()
 
+		// Seal everything this round first, then send it.
+		//
+		// The two used to be interleaved — seal one, write one — which is why
+		// a single sealing buffer sufficed. Separating them is what lets the
+		// whole round leave in one syscall, and it costs nothing when the
+		// carrier cannot batch: the send loop below is the old one.
+		k := 0
+		var payload int
 		for i := 0; i < count; i++ {
 			n := sizes[i]
 			if n == 0 {
@@ -624,24 +718,92 @@ func (t *Tunnel) pumpFromTUN(ctx context.Context) {
 				t.log.Debugf("l3: not forwarding a packet off %s: %v", t.cfg.Iface, err)
 				continue
 			}
-			sealed, err := sess.seal(out[:0], wrapped)
+			out, err := sess.seal(sealed[k][:0], wrapped)
 			if err != nil {
 				t.stats.dropped.Add(1)
 				t.log.Warnf("l3: sealing a packet: %v", err)
 				continue
 			}
-			if _, err := t.carrier.WriteTo(sealed, peer); err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-				t.stats.dropped.Add(1)
-				t.log.Debugf("l3: sending to %s: %v", peer, err)
-				continue
-			}
-			t.stats.packetsOut.Add(1)
-			t.stats.bytesOut.Add(uint64(n))
+			sealed[k] = out
+			ready[k] = out
+			payloads[k] = n
+			payload += n
+			k++
+		}
+		if k == 0 {
+			continue
+		}
+		t.noteSent()
+
+		if !t.send(ctx, writer, ready[:k], payloads[:k], peer, payload) {
+			return
 		}
 	}
+}
+
+// send puts a round of sealed packets on the wire, in one syscall where the
+// carrier allows it.
+//
+// It returns false only when the run is over, so the pump can stop. Everything
+// else — a short write, a refused datagram — is a drop, which is what a UDP
+// carrier does with them in any case.
+func (t *Tunnel) send(ctx context.Context, writer batchWriter, ready [][]byte,
+	payloads []int, peer net.Addr, payload int) bool {
+
+	if writer != nil && len(ready) > 1 {
+		sent, err := writer.WriteBatch(ready, peer)
+		if err == nil {
+			t.account(ready, sent, payload)
+			return true
+		}
+		if !errors.Is(err, errNoBatch) {
+			if ctx.Err() != nil {
+				return false
+			}
+			t.stats.dropped.Add(uint64(len(ready)))
+			t.log.Debugf("l3: sending a batch to %s: %v", peer, err)
+			return true
+		}
+		// The carrier declined to batch after all; fall through and write them
+		// one at a time rather than dropping a round over an optimisation.
+	}
+
+	for i, p := range ready {
+		if _, err := t.carrier.WriteTo(p, peer); err != nil {
+			if ctx.Err() != nil {
+				return false
+			}
+			t.stats.dropped.Add(1)
+			t.log.Debugf("l3: sending to %s: %v", peer, err)
+			continue
+		}
+		// Bytes before packets. See Stats for the pair of orderings this is
+		// half of. The inner size, not len(p): see payloads above.
+		t.stats.bytesOut.Add(uint64(payloads[i]))
+		t.stats.packetsOut.Add(1)
+	}
+	return true
+}
+
+// account records a batch that went out.
+//
+// payload is the inner bytes the round carried, which is what the counter has
+// always meant — not the sealed size, which includes the tunnel's own overhead
+// and would make a tunnel look like it was carrying more than it was.
+func (t *Tunnel) account(ready [][]byte, sent, payload int) {
+	if sent < len(ready) {
+		// The socket buffer filled. The rest are gone, which is what happens to
+		// a UDP datagram there is no room for either way.
+		t.stats.dropped.Add(uint64(len(ready) - sent))
+	}
+	if sent <= 0 {
+		return
+	}
+	// Apportioned, because a short write does not say which ones left. Over a
+	// round of packets that are all about the same size this is exact enough
+	// for a throughput figure, and the packet count is not approximated at all.
+	t.stats.bytesOut.Add(uint64(payload * sent / len(ready)))
+	t.stats.packetsOut.Add(uint64(sent))
 }
 
 // pumpFromCarrier reads datagrams off the carrier and routes them by kind.
@@ -796,7 +958,21 @@ func (t *Tunnel) handleInit(h header, body []byte, from net.Addr) {
 	// The counter on a handshake message is the dialler's announced protocol
 	// version; every build before this one sent 0 there and ignored it. See
 	// version.go.
-	sess, reply, err := respondV(t.cfg.Token, h.session, int(h.counter), body, encapID(t.encap))
+	sess, reply, fresh, err := respondFresh(t.cfg.Token, h.session, int(h.counter), body, encapID(t.encap))
+	if err == nil {
+		// Judged only once the handshake has authenticated: a stranger's
+		// timestamp is not allowed to move what this end remembers. And
+		// refused in silence, like anything else that is not answered — a
+		// replay learns nothing, not even that it was recognised.
+		t.mu.Lock()
+		if why := t.fresh.admit(fresh); why != nil {
+			t.mu.Unlock()
+			t.stats.dropped.Add(1)
+			t.log.Warnf("l3: refusing a handshake from %s: %v", from, why)
+			return
+		}
+		t.mu.Unlock()
+	}
 	if err != nil {
 		// A mismatched encapsulation is a misconfiguration, not an intruder:
 		// the peer proved it holds the token, so it is told, loudly, and its
@@ -821,10 +997,10 @@ func (t *Tunnel) handleInit(h header, body []byte, from net.Addr) {
 	// The address is provisional until a data packet confirms it, which is
 	// also what promotes the session.
 	//
-	// Only when no peer is known at all. The handshake carries no freshness of
-	// any kind — NNpsk0 has none, and the payload holds the encapsulation and
-	// nothing else — so a recorded typeInit datagram stays valid forever and
-	// this end cannot tell a replay from a first contact. It used to be enough
+	// Only when no peer is known at all. A legacy handshake carries no
+	// freshness of any kind — NNpsk0 has none, and its payload holds the
+	// encapsulation and nothing else — so a recorded one stays valid forever
+	// and this end cannot tell its replay from a first contact. It used to be enough
 	// that no session was CURRENT, and retireSessions clears current after
 	// rejectAfterTime: five idle minutes reopened the window on every tunnel,
 	// and one replayed datagram from a forged source then pointed this end's
@@ -834,10 +1010,7 @@ func (t *Tunnel) handleInit(h header, body []byte, from net.Addr) {
 	//
 	// Pinning it to "no peer has ever been seen" narrows that to the first
 	// handshake after a restart, and the first authenticated packet from the
-	// real peer corrects it through notePeer. The residual is the protocol's,
-	// not this function's: closing it properly means putting a monotonic
-	// timestamp in the init payload and refusing one that does not advance,
-	// which is WireGuard's rule and a wire change both ends have to agree on.
+	// real peer corrects it through notePeer. Protocol v2 rejects stale handshakes.
 	if t.current == nil && t.peer == nil && canConfirmPath(from) {
 		t.peer = peerAddress(from)
 	}
@@ -907,6 +1080,7 @@ func (t *Tunnel) handleData(plain []byte, wbuf [][]byte, h header, body []byte, 
 		t.promote(sess)
 	}
 	t.notePeer(from)
+	t.noteAnswered()
 
 	inner, err := t.encap.Unwrap(opened)
 	if err != nil {
@@ -914,14 +1088,22 @@ func (t *Tunnel) handleData(plain []byte, wbuf [][]byte, h header, body []byte, 
 		t.log.Debugf("l3: discarding a malformed inner packet from %s: %v", from, err)
 		return plain
 	}
+	// Counted before the packet is handed on, not after, and bytes before
+	// packets. See Stats for why the order is load-bearing.
+	//
+	// Counting first also matches what the name claims. A packet that arrived,
+	// authenticated and decrypted *was* received; if the interface then refuses
+	// it, that is a drop, and it is counted as one below. Received-and-dropped
+	// is a different fact from never-arrived, and only one of them is true here.
+	t.stats.bytesIn.Add(uint64(len(inner)))
+	t.stats.packetsIn.Add(1)
+
 	wbuf[0] = inner
 	if _, err := t.tun.Write(wbuf); err != nil {
 		t.stats.dropped.Add(1)
 		t.log.Debugf("l3: writing to %s: %v", t.cfg.Iface, err)
 		return plain
 	}
-	t.stats.packetsIn.Add(1)
-	t.stats.bytesIn.Add(uint64(len(inner)))
 	return plain
 }
 
@@ -960,7 +1142,12 @@ func (t *Tunnel) handshakeLoop(ctx context.Context) {
 	defer ticker.Stop()
 
 	for {
-		if t.needsSession() {
+		if t.peerSilent(time.Now()) {
+			t.log.Warnf("l3: nothing has come back from the peer for %s while this end "+
+				"was sending — handshaking again (it may have restarted)", peerSilentAfter)
+			t.silentRekey.Store(true)
+		}
+		if t.silentRekey.Load() || t.needsSession() {
 			if err := t.negotiate(ctx); err != nil {
 				if ctx.Err() != nil {
 					return
@@ -980,6 +1167,36 @@ func (t *Tunnel) handshakeLoop(ctx context.Context) {
 		case <-ticker.C:
 		}
 	}
+}
+
+// noteSent records that the dialling side has sent something that has not
+// been answered yet. Once per batch, and a single load when a send is already
+// outstanding, so the data path pays nothing it would notice.
+func (t *Tunnel) noteSent() {
+	if t.cfg.Mode != ModeDial || t.unanswered.Load() != 0 {
+		return
+	}
+	t.unanswered.CompareAndSwap(0, time.Now().UnixNano())
+}
+
+// noteAnswered records that the peer is demonstrably alive.
+func (t *Tunnel) noteAnswered() {
+	if t.unanswered.Load() != 0 {
+		t.unanswered.Store(0)
+	}
+}
+
+// peerSilent reports whether the dialling side has been sending into silence
+// for long enough to conclude the peer has lost the session.
+func (t *Tunnel) peerSilent(now time.Time) bool {
+	first := t.unanswered.Load()
+	if first == 0 || now.Sub(time.Unix(0, first)) < peerSilentAfter {
+		return false
+	}
+	// Cleared so the next window starts from the next send, not from this one:
+	// a handshake that fails is retried by the loop, not re-triggered here.
+	t.unanswered.Store(0)
+	return true
 }
 
 // needsSession reports whether a handshake should be started.
@@ -1011,7 +1228,16 @@ func (t *Tunnel) negotiate(ctx context.Context) error {
 	}
 	t.mu.RUnlock()
 
-	attempt, err := beginHandshake(t.cfg.Token, avoid, encapID(t.encap))
+	// A timestamp unless this listener was recently found not to read them.
+	// See freshness.go for why falling back is safe to do on its answer.
+	t.mu.Lock()
+	var fresh uint64
+	if time.Now().After(t.legacyUntil) {
+		fresh = t.freshClock.next(time.Now())
+	}
+	t.mu.Unlock()
+
+	attempt, err := beginHandshakeFresh(t.cfg.Token, avoid, encapID(t.encap), fresh)
 	if err != nil {
 		return err
 	}
@@ -1033,6 +1259,15 @@ func (t *Tunnel) negotiate(ctx context.Context) error {
 				continue // an answer to something else
 			}
 			sess, err := attempt.complete(reply.body)
+			if errors.Is(err, errPeerLegacy) {
+				t.mu.Lock()
+				t.legacyUntil = time.Now().Add(legacyRetry)
+				t.mu.Unlock()
+				t.log.Infof("l3: %s runs a build without handshake timestamps; using the older "+
+					"handshake with it, and trying again in %s. Upgrading it closes handshake "+
+					"replay for good", peer, legacyRetry)
+				return t.negotiate(ctx)
+			}
 			if err != nil {
 				return err
 			}

@@ -117,7 +117,7 @@ func TestTheLicenceTextIsUnmodifiedAGPL(t *testing.T) {
 }
 
 func TestWebPanelIdentifiesForkMaintainer(t *testing.T) {
-	for _, path := range []string{"internal/webui/assets/login.html", "internal/webui/panel/views/support.html"} {
+	for _, path := range []string{"internal/webui/assets/login.html", "internal/webui/assets/twofactor.html", "internal/webui/panel/views/support.html"} {
 		body := read(t, path)
 		for _, want := range []string{"Maintained by " + RepoOwner, RepositoryURL} {
 			if !strings.Contains(body, want) {

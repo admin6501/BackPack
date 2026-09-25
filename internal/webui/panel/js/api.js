@@ -94,6 +94,14 @@ export const tunnelOptions = () => get('/api/tunnel/options');
    thing — the fleet — and each returns the state that follows, so the screen
    never has to guess what changed. */
 export const nodes = () => get('/api/nodes');
+
+/* What the fleet is supposed to be running, against what it is.
+ *
+ * Every fleet operation used to be imperative: the panel told a server to
+ * create a tunnel and nothing remembered the instruction, so nothing could
+ * notice it had stopped being true. This is the other half — it changes
+ * nothing, it only reports. */
+export const fleetDrift = () => get('/api/fleet/drift');
 /* The same fleet, answered from what the panel already knows and contacting no
    server. The fleet page draws this first — otherwise the page stands empty
    until the slowest machine in the fleet has answered — and then replaces it
@@ -214,12 +222,26 @@ export const sessionRevoke = id =>
 export const sessionRevokeOthers = () =>
   post('/api/sessions', new URLSearchParams({ action: 'others' }));
 export const setPassword = payload => post('/api/password', payload);
+
+/* Two-factor. The panel is root on this machine and a password is the
+   credential most likely to be reused or phished, so the second factor is the
+   one thing here that is about the panel itself rather than about a tunnel.
+
+   Four calls because it is four separate decisions: look at the state, begin
+   enrolling, prove the app holds the secret, and turn it off again — and the
+   last two are the ones that must not be one call, because confirming needs a
+   code and disabling needs the password. */
+export const totp         = () => get('/api/totp');
+export const totpStart    = () => post('/api/totp', new URLSearchParams({ action: 'start' }));
+export const totpConfirm  = code => post('/api/totp', new URLSearchParams({ action: 'confirm', code }));
+export const totpDisable  = password => post('/api/totp', new URLSearchParams({ action: 'disable', password }));
+export const totpRecovery = password => post('/api/totp', new URLSearchParams({ action: 'recovery', password }));
 export const setPanelPort = port => post('/api/panelport', new URLSearchParams({ port }));
 export const panelCertRead = () => get('/api/panelcert');
 /* Form-encoded, because the handler reads r.FormValue. `mode` is not optional:
    without it the endpoint has nothing to apply and refuses the whole request. */
-export const panelCert   = ({ mode, domain = '', email = '' }) =>
-  post('/api/panelcert', new URLSearchParams({ mode, domain, email }));
+export const panelCert   = ({ mode, domain = '', email = '', certFile = '', keyFile = '' }) =>
+  post('/api/panelcert', new URLSearchParams({ mode, domain, email, certFile, keyFile }));
 
 /* ---- CLI: 7 Telegram Bot ------------------------------------------------- */
 export const telegram     = () => get('/api/telegram');

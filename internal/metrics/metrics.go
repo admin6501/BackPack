@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -232,6 +233,10 @@ func Path(dir, name string) string {
 
 // Collector periodically writes a tunnel's snapshot to disk.
 type Collector struct {
+	writeMu sync.Mutex
+	// A config reload starts a new generation in the same process; global
+	// traffic counters do not reset, so subtract their value at generation start.
+	startIn, startOut uint64
 	// baseIn/baseOut are the totals this tunnel had already accumulated before
 	// this process started, read from the last written snapshot.
 	baseIn, baseOut uint64
@@ -251,7 +256,9 @@ type Collector struct {
 // NewCollector builds a collector for one tunnel. The byte accessors may be
 // nil when a transport does not track them.
 func NewCollector(dir, name, transport, role string, bytesIn, bytesOut func() uint64) *Collector {
+	startIn, startOut := Traffic()
 	c := &Collector{
+		startIn: startIn, startOut: startOut,
 		dir:       dir,
 		name:      name,
 		transport: transport,
@@ -290,12 +297,14 @@ func (c *Collector) Snapshot() Snapshot {
 	}
 	// The persisted baseline plus what this process has carried.
 	liveIn, liveOut := Traffic()
+	liveIn -= c.startIn
+	liveOut -= c.startOut
 	s.BytesIn, s.BytesOut = c.baseIn+liveIn, c.baseOut+liveOut
 	if c.bytesIn != nil {
-		s.BytesIn = c.bytesIn()
+		s.BytesIn = c.baseIn + c.bytesIn()
 	}
 	if c.bytesOut != nil {
-		s.BytesOut = c.bytesOut()
+		s.BytesOut = c.baseOut + c.bytesOut()
 	}
 	if live, target, configured, mbps := PoolState(); configured > 0 {
 		s.Pool = &PoolStats{Live: live, Target: target, Configured: configured, Mbps: mbps}
@@ -325,6 +334,8 @@ func (c *Collector) Snapshot() Snapshot {
 // Write persists one snapshot. Failures are returned but are not worth
 // stopping a tunnel over — metrics are diagnostics, not function.
 func (c *Collector) Write() error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	s := c.Snapshot()
 	b, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {

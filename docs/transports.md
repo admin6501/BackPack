@@ -9,6 +9,10 @@ Not sure which to pick? Run **Manage → Link Test** on the kharej server; it
 measures your route and recommends one. See
 [Choosing a transport](choosing-a-transport.md).
 
+**Twelve of them.** IP Spoofing used to be a thirteenth and is not any more —
+it is a carrier of the [direct tunnel](l3-direct-tunnel.md) now, for the reason
+given at the bottom of this page.
+
 | Transport | Family | Encrypted handshake | PROXY protocol | Needs | Setup guide |
 |-----------|--------|:--:|:--:|-------|---|
 | TCP | TCP | — | ✅ | — | [→](../tutorial/tcp.md) |
@@ -17,17 +21,26 @@ measures your route and recommends one. See
 | **TCP + PCK** | TCP | ✅ (token key) | ✅ | Linux, root | [→](../tutorial/tcp-pck.md) |
 | UDP | UDP | — | — | UDP open | [→](../tutorial/udp.md) |
 | **UDP + KCP + FEC** | UDP | ✅ (token key) | ✅ | UDP open | [→](../tutorial/udp-kcp-fec.md) |
-| UDP + QUIC | UDP | ✅ (TLS 1.3) | ✅ | UDP open | [→](../tutorial/udp-quic.md) |
+| UDP + QUIC | UDP | ✅ (TLS 1.3, session-bound) | ✅ | UDP open | [→](../tutorial/udp-quic.md) |
 | WS | WebSocket | — | — | — | [→](../tutorial/websocket.md) |
 | WS Mux | WebSocket | — | ✅ | — | [→](../tutorial/websocket.md) |
 | WSS | WebSocket | ✅ (TLS) | — | certificate | [→](../tutorial/websocket-tls.md) |
 | WSS Mux | WebSocket | ✅ (TLS) | ✅ | certificate | [→](../tutorial/websocket-tls.md) |
 | **xDi (ICMP)** | Experimental | ✅ (token key) | ✅ | Linux, root, ICMP open | [→](../tutorial/xdi-icmp.md) |
-| **IP Spoofing** | Experimental | ✅ (token key) | ✅ | Linux, root, a path that passes forged sources | [→](../tutorial/ip-spoofing.md) |
 
 "Encrypted handshake" means the tunnel's own credential is protected on the
 wire. On the plain transports (TCP, TCP Mux, UDP, WS, WS Mux) the token is sent
 as-is, so use one of the encrypted transports on an untrusted path.
+
+QUIC binds the credential to its TLS session, as WSS does. The client does
+not verify the server's certificate — the tunnel trusts its token — so it does
+not send the token either: it proves it holds it with an HMAC over keying
+material exported from the TLS session, and the server answers with a proof of
+its own. Something that terminates the TLS on the path holds a different
+session with each end, so neither proof means anything to it and neither
+reveals the token. **Upgrade the Iran server first**: a new server still takes
+an older client's plain token, but a new client never sends one, so an older
+server refuses it (the client's log says so).
 
 Every transport can carry **UDP on its forwarded ports** — it is a per-tunnel
 setting, off by default, and independent of the transport. See
@@ -82,8 +95,10 @@ ends must be on it. See [TCP + PCK](tcp-pck.md).
 ## UDP family
 
 ### UDP
-Raw datagrams, for forwarding UDP-based services. No reliability layer — packets
-that are lost stay lost, which is correct for protocols that expect that.
+Raw datagrams, for forwarding UDP-based services — and only those: the exposed
+ports listen on UDP and nothing else, so a TCP service is not carried at all.
+No reliability layer — packets that are lost stay lost, which is correct for
+protocols that expect that.
 
 ### UDP + KCP + FEC
 A **low-latency gaming tunnel**: a reliable, ordered protocol built on top of
@@ -228,3 +243,7 @@ UDP را می‌بندد ولی ICMP را نه) و *IP Spoofing* که مبدأ �
 
 ---
 [← Back to the docs index](README.md) · [Setup walkthroughs →](../tutorial/README.md)
+
+---
+
+*Last verified against Backpack v1.8.3.*

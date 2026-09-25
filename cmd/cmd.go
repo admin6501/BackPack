@@ -51,10 +51,21 @@ func startMetricsWithTraffic(
 	bytesIn, bytesOut func() uint64,
 ) {
 	name := tunnelNameFromPath(configPath)
+
+	// The same three facts identify a line in a shipped log as identify a
+	// snapshot on disk, and both are known exactly here and nowhere earlier —
+	// so they are set together rather than derived twice. It has to happen
+	// before the engine builds its logger, which is why this call comes before
+	// NewServer and NewClient in every path. See utils/logident.go.
+	utils.SetLogIdentity(utils.LogIdentity{Tunnel: name, Role: role, Transport: transport})
+
 	if name == "" {
 		return
 	}
 	c := metrics.NewCollector(filepath.Dir(configPath), name, transport, role, bytesIn, bytesOut)
+	if guard, ok := ctx.Value(quotaContextKey{}).(*quotaGuard); ok && guard.limit > 0 {
+		go guard.watch(ctx, c)
+	}
 	go func() {
 		done := make(chan struct{})
 		go func() { <-ctx.Done(); close(done) }()
@@ -82,7 +93,30 @@ func Run(configPath string, ctx context.Context) {
 	// reload.
 	tuned := false
 
+	// The local control socket, so that whatever is watching this tunnel has a
+	// rung below `systemctl restart`. It lives for the whole process rather
+	// than for one generation: a caller asking what the engine is doing while
+	// it is between transports should get an answer, not a closed socket.
+	// See internal/enginectl.
+	ctl := &engineControl{name: tunnelNameFromPath(configPath)}
+	serveEngineControl(ctx, ctl)
+
 	for {
+		// A quota survives service restarts. Stay idle until the operator
+		// raises/removes it in the config; never reopen forwarded listeners.
+		if paused, err := quotaExhausted(configPath, cfg); err != nil || paused {
+			if err != nil {
+				logger.Errorf("traffic quota cannot be checked: %v", err)
+			} else {
+				logger.Warnf("traffic quota reached for %s; waiting for config change", tunnelNameFromPath(configPath))
+			}
+			next, why := awaitConfigChange(ctx, ctx, configPath, cfg)
+			if why == wakeShutdown {
+				return
+			}
+			cfg = next
+			continue
+		}
 		// The engine mutates the configuration it is given — the transports
 		// write their status back into it — so it gets its own copy and the
 		// pristine one is kept for comparing against the file.
@@ -95,17 +129,30 @@ func Run(configPath string, ctx context.Context) {
 
 		runCtx, cancel := context.WithCancel(ctx)
 		done := make(chan struct{})
+		// Ending this generation is exactly what a configuration change does,
+		// so a restart asked for over the socket takes the path a reload takes
+		// rather than a second way of stopping a transport.
+		ctl.setGeneration(cancel)
 		go func() {
 			defer close(done)
 			runEngine(&running, runCtx, configPath, applyTuning)
 		}()
 
-		next := awaitConfigChange(ctx, configPath, cfg)
+		next, why := awaitConfigChange(ctx, runCtx, configPath, cfg)
 		cancel()
 		<-done
 
-		if next == nil {
-			return // ctx ended: shutting down, not reloading
+		switch why {
+		case wakeShutdown:
+			return
+
+		case wakeRestart:
+			// A restart asked for over the control socket. It is not a reload
+			// and is not reported as one: the same configuration starts again,
+			// after its ports come free.
+			logger.Info("the transport was asked to restart; starting it again")
+			waitForPorts(ctx, portsInUse(cfg))
+			continue
 		}
 
 		logger.Info("the configuration file changed; restarting the tunnel with it")
@@ -116,6 +163,12 @@ func Run(configPath string, ctx context.Context) {
 
 // runEngine runs one tunnel until ctx ends.
 func runEngine(cfg *config.Config, ctx context.Context, configPath string, applyTuning bool) {
+	if cfg.TrafficLimitGB > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		defer cancel()
+		ctx = context.WithValue(ctx, quotaContextKey{}, &quotaGuard{limit: uint64(cfg.TrafficLimitGB) << 30, cancel: cancel})
+	}
 	// A layer-3 tunnel is a different thing from a port forwarder and shares
 	// none of the machinery below. It is dispatched here, before any of it, so
 	// that the reverse path is reached by exactly the configurations that

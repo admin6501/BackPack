@@ -297,7 +297,17 @@ function syncControls(root) {
   });
   root.querySelectorAll('.sel[data-name]').forEach(sel => {
     const input = root.querySelector(`input[name="${sel.dataset.name}"]`);
-    if (!input || !input.value) return;
+    if (!input) return;
+    /* A tunnel whose numbers no longer match any profile has no preset, and
+       the menu used to keep the label it was drawn with — "Balanced" — so a
+       custom tunnel read as Balance whatever it really ran — reported as "it
+       always goes back to Balance". Say what it is. */
+    if (!input.value && sel.dataset.name === 'preset') {
+      sel.dataset.value = '';
+      sel.childNodes[0].textContent = 'Custom — tuned by hand';
+      return;
+    }
+    if (!input.value) return;
     sel.dataset.value = input.value;
     const opt = [...sel.querySelectorAll('.selopt')]
       .find(o => o.textContent.trim().toLowerCase() === input.value.trim().toLowerCase());
@@ -325,7 +335,12 @@ export async function editView(ctx) {
       let settings = {};
       try {
         settings = await api.tunnelSettings(name);
-        if (settings.kind === 'direct') settings = settings.direct || {};
+        if (settings.kind === 'direct') {
+          settings = settings.direct || {};
+          // Direct settings use a flat JSON shape; reverse settings nest limits.
+          const quota = root.querySelector('[name="limits.trafficLimitGB"]');
+          if (quota) quota.name = 'trafficLimitGB';
+        }
       } catch (e) { oops(e); }
       /* The switches and the menus were drawings.
        *

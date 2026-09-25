@@ -82,15 +82,6 @@ func TestQUICCloseBeforeAnyPeer(t *testing.T) {
 	defer q.Close()
 	readDone := make(chan struct{})
 	go func() { defer close(readDone); q.ReadFrom(make([]byte, 32)) }()
-	// Wait until session has entered its accept section.
-	deadline := time.Now().Add(time.Second)
-	for q.acceptMu.TryLock() {
-		q.acceptMu.Unlock()
-		if time.Now().After(deadline) {
-			t.Fatal("reader never started")
-		}
-		time.Sleep(time.Millisecond)
-	}
 	done := make(chan struct{})
 	go func() { q.Close(); close(done) }()
 	select {
@@ -104,7 +95,7 @@ func TestQUICCloseBeforeAnyPeer(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("ReadFrom survived Close")
 	}
-	if _, err := q.session(); err == nil {
+	if _, _, err := q.ReadFrom(make([]byte, 32)); err == nil {
 		t.Fatal("closed carrier reopened")
 	}
 }

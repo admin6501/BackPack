@@ -99,8 +99,9 @@ type NewDirectTunnel struct {
 	GREKey uint32 `json:"greKey"`
 
 	// MaxConnections and BandwidthMbps cap the forwarded ports (0 = unlimited).
-	MaxConnections int `json:"maxConnections"`
-	BandwidthMbps  int `json:"bandwidthMbps"`
+	MaxConnections int   `json:"maxConnections"`
+	BandwidthMbps  int   `json:"bandwidthMbps"`
+	TrafficLimitGB int64 `json:"trafficLimitGB"`
 }
 
 // DirectCarriers is what the panel offers, in the order it offers them. It is
@@ -308,6 +309,9 @@ func writeDirectConfig(name, body string) error {
 // the wizard refuses, this refuses, with the same wording — the two paths write
 // the same file and must reject the same input.
 func (n NewDirectTunnel) spec() (l3Spec, error) {
+	if n.TrafficLimitGB < 0 || uint64(n.TrafficLimitGB) > ^uint64(0)>>30 {
+		return l3Spec{}, fmt.Errorf("traffic quota must be between 0 and %d GiB", ^uint64(0)>>30)
+	}
 	var side directSide
 	switch strings.ToLower(strings.TrimSpace(n.Side)) {
 	case "iran":
@@ -367,7 +371,8 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 	}
 
 	spec := l3Spec{
-		Name: name, Side: side, Carrier: carrier,
+		TrafficLimitGB: n.TrafficLimitGB,
+		Name:           name, Side: side, Carrier: carrier,
 		// Always Backpack's own GRE inside the Noise session. There is no
 		// choice here and the panel does not offer one; see askL3Encap's
 		// removal in the CLI wizard for why.
@@ -448,20 +453,21 @@ func SuggestDirectPort() string {
 // all three have to match the other end, so changing one here alone would only
 // break the tunnel.
 type DirectSettings struct {
-	Name      string `json:"name"`
-	Side      string `json:"side"`
-	Carrier   string `json:"carrier"`
-	Encap     string `json:"encap"`
-	Addr      string `json:"addr"`
-	Token     string `json:"token"`
-	Iface     string `json:"iface"`
-	LocalIP   string `json:"localIp"`
-	PeerIP    string `json:"peerIp"`
-	MTU       int    `json:"mtu"`
-	AutoMTU   bool   `json:"autoMtu"`
-	Preset    string `json:"preset"`
-	Ports     string `json:"ports"`
-	AcceptUDP bool   `json:"acceptUdp"`
+	TrafficLimitGB int64  `json:"trafficLimitGB"`
+	Name           string `json:"name"`
+	Side           string `json:"side"`
+	Carrier        string `json:"carrier"`
+	Encap          string `json:"encap"`
+	Addr           string `json:"addr"`
+	Token          string `json:"token"`
+	Iface          string `json:"iface"`
+	LocalIP        string `json:"localIp"`
+	PeerIP         string `json:"peerIp"`
+	MTU            int    `json:"mtu"`
+	AutoMTU        bool   `json:"autoMtu"`
+	Preset         string `json:"preset"`
+	Ports          string `json:"ports"`
+	AcceptUDP      bool   `json:"acceptUdp"`
 
 	MaxConnections int `json:"maxConnections"`
 	BandwidthMbps  int `json:"bandwidthMbps"`
@@ -485,6 +491,7 @@ type DirectSettings struct {
 
 // DirectEdit is what the panel may change.
 type DirectEdit struct {
+	TrafficLimitGB *int64  `json:"trafficLimitGB"`
 	Ports          *string `json:"ports"`
 	AcceptUDP      *bool   `json:"acceptUdp"`
 	Preset         *string `json:"preset"`
@@ -515,7 +522,9 @@ func DirectSettingsOf(name string) (DirectSettings, error) {
 	if !cfg.L3.Enabled() {
 		return DirectSettings{}, fmt.Errorf("%q is not a direct tunnel", name)
 	}
-	return directSettingsFrom(name, cfg.L3), nil
+	out := directSettingsFrom(name, cfg.L3)
+	out.TrafficLimitGB = cfg.TrafficLimitGB
+	return out, nil
 }
 
 // directSettingsFrom is the mapping, with no filesystem in it.
@@ -575,6 +584,13 @@ func EditDirectSettings(name string, e DirectEdit) error {
 		return err
 	}
 	spec := directSpecFrom(name, l)
+	spec.TrafficLimitGB = cfg.TrafficLimitGB
+	if e.TrafficLimitGB != nil {
+		if *e.TrafficLimitGB < 0 || *e.TrafficLimitGB > int64(^uint64(0)>>30) {
+			return fmt.Errorf("traffic quota must be between 0 and %d GiB", uint64(^uint64(0)>>30))
+		}
+		spec.TrafficLimitGB = *e.TrafficLimitGB
+	}
 	if e.Preset != nil {
 		findL3Preset(strings.ToLower(strings.TrimSpace(*e.Preset))).apply(&spec)
 	}
@@ -687,19 +703,20 @@ func directSpecFrom(name string, l config.L3Config) l3Spec {
 		side = sideKharej
 	}
 	return l3Spec{
-		Name:    name,
-		Side:    side,
-		Carrier: orDefault(l.Carrier, "udp"),
-		Encap:   orDefault(l.Encap, "gre"),
-		GREKey:  l.GREKey,
-		Addr:    l.Addr,
-		Token:   l.Token,
-		Iface:   orDefault(l.Iface, "bp0"),
-		LocalIP: l.LocalIP,
-		PeerIP:  l.PeerIP,
-		MTU:     l.MTU,
-		AutoMTU: l.AutoMTU,
-		SockBuf: l.SockBuf, MSSClamp: l.MSSClamp,
+		TrafficLimitGB: readTrafficLimit(name),
+		Name:           name,
+		Side:           side,
+		Carrier:        orDefault(l.Carrier, "udp"),
+		Encap:          orDefault(l.Encap, "gre"),
+		GREKey:         l.GREKey,
+		Addr:           l.Addr,
+		Token:          l.Token,
+		Iface:          orDefault(l.Iface, "bp0"),
+		LocalIP:        l.LocalIP,
+		PeerIP:         l.PeerIP,
+		MTU:            l.MTU,
+		AutoMTU:        l.AutoMTU,
+		SockBuf:        l.SockBuf, MSSClamp: l.MSSClamp,
 		FECData: l.FECData, FECParity: l.FECParity,
 		Paths:  l.Paths,
 		Preset: l.Preset, TxQueueLen: l.TxQueueLen, Qdisc: l.Qdisc,

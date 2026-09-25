@@ -1,8 +1,11 @@
 package webui
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/backpack/backpack/internal/alerthist"
 	"github.com/backpack/backpack/internal/app"
 )
 
@@ -45,6 +49,68 @@ type auditEntry struct {
 	// distinguishable from one that went through. A failed attempt is often
 	// the more interesting line.
 	Status int `json:"status,omitempty"`
+
+	// Prev and Hash chain the record: Hash covers this entry and Prev, and
+	// Prev is the Hash of the entry before. See chainAudit.
+	Prev string `json:"prev,omitempty"`
+	Hash string `json:"hash,omitempty"`
+}
+
+// The record is a hash chain.
+//
+// The file is root's on a box the panel is root on, so nothing stops somebody
+// who has taken the box from rewriting it — that is what forwarding is for.
+// What the chain adds is that a rewrite can no longer be quiet. Deleting or
+// editing a line breaks every link after it, and the panel says so where the
+// record is read. And the head of the chain travels with every line that is
+// forwarded off the machine, so even a rewrite that recomputes the whole chain
+// disagrees with the heads already sitting in Telegram, where the intruder
+// cannot reach them.
+//
+// Entries written before the chain existed carry no hash and are skipped by
+// verification rather than counted as tampering; the chain starts at the first
+// entry that has one.
+
+// auditHash is what an entry's Hash is: SHA-256 over the entry with Hash
+// cleared, which includes Prev.
+func auditHash(e auditEntry) string {
+	e.Hash = ""
+	data, _ := json.Marshal(e)
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:16])
+}
+
+// chainAudit links e to the entry before it.
+func chainAudit(prev []auditEntry, e auditEntry) auditEntry {
+	if n := len(prev); n > 0 {
+		e.Prev = prev[n-1].Hash
+	}
+	e.Hash = auditHash(e)
+	return e
+}
+
+// verifyAudit reports whether the chain holds, and if not, the index of the
+// first entry that does not follow from the one before it. The oldest kept
+// entry's Prev points at one the cap has already dropped, so it is not held to
+// it.
+func verifyAudit(all []auditEntry) (intact bool, brokenAt int) {
+	started := false
+	for i, e := range all {
+		if e.Hash == "" {
+			if started {
+				return false, i // a line without a hash after the chain began
+			}
+			continue
+		}
+		if auditHash(e) != e.Hash {
+			return false, i
+		}
+		if started && e.Prev != all[i-1].Hash {
+			return false, i
+		}
+		started = true
+	}
+	return true, -1
 }
 
 // auditKeep is how many entries are held. Enough to cover the window anyone
@@ -70,7 +136,15 @@ func readAudit() []auditEntry {
 		return nil
 	}
 	var out []auditEntry
-	_ = json.Unmarshal(data, &out)
+	if err := json.Unmarshal(data, &out); err != nil {
+		// Reading a damaged record as empty is right — the panel must not stop
+		// working because its history did — but doing it silently is not. An
+		// audit record that has quietly become empty is indistinguishable from
+		// one nobody has written to, and the whole value of the thing is that
+		// it can be trusted after the fact.
+		log.Printf("audit: %s is damaged and is being read as empty: %v", AuditPath, err)
+		return nil
+	}
 	return out
 }
 
@@ -106,7 +180,13 @@ func record(e auditEntry) {
 	defer auditMu.Unlock()
 
 	all := readAudit()
+	e = chainAudit(all, e)
 	all = append(all, e)
+
+	// Off the machine before the local write, for the entries that are worth
+	// it: if the disk is what is wrong, the copy somewhere else is the one
+	// that still happens. After the chaining, so the copy carries the head.
+	forward(e)
 	if len(all) > auditKeep {
 		all = all[len(all)-auditKeep:]
 	}
@@ -197,4 +277,112 @@ func describeAudit(e auditEntry) string {
 		line += fmt.Sprintf("  — refused (%d)", e.Status)
 	}
 	return line
+}
+
+// Getting the record off the machine it describes.
+//
+// The audit file lives at /etc/backpack/audit.json, owned by root, on the box
+// the panel runs on — and the panel is root on that box. So an attacker who
+// reaches it can rewrite the record of how they got there, and the record's
+// whole value is that it can be trusted afterwards.
+//
+// There is no way to make a local file tamper-proof against local root. What
+// there is, is a copy somewhere else, written *as it happens*, so that
+// rewriting the local one no longer rewrites the truth.
+//
+// # What is forwarded, and what is not
+//
+// Not everything. The panel is polled and most of what it records is somebody
+// looking at a page — forwarding that would be thousands of messages a day, and
+// a channel nobody reads is a channel that hides the one line that mattered.
+//
+// So: the actions that change who can do what, the ones that change the fleet,
+// and every refusal. Those are the lines somebody would want to alter, which is
+// exactly the test for whether they are worth copying.
+
+// worthForwarding reports whether an entry should leave the machine.
+func worthForwarding(e auditEntry) bool {
+	// Every refusal. A run of these is somebody trying credentials, and it is
+	// the earliest signal there is.
+	if e.Status >= 400 {
+		return true
+	}
+	switch e.Path {
+	case "/api/tokens":
+		// Issuing and revoking credentials.
+		return true
+	case "/api/password", "/api/totp", "/api/sessions", "/api/telegram",
+		"/api/backup/import", "/api/panelport", "/api/panelcert":
+		// Everything guarded at admin: the password, the second factor, the
+		// signed-in devices, the Telegram admins, a restore that replaces every
+		// credential file, and where and how the panel answers.
+		//
+		// This named "/api/security", which is not a route. The password and
+		// the second factor are separate endpoints, so changing either was
+		// recorded here and never left the machine — the one line an intruder
+		// who had just taken the panel would most want to rewrite.
+		return true
+	case "/api/nodes":
+		// Adding, removing or upgrading a managed server. A fleet that gains a
+		// machine nobody added is the thing this is for.
+		switch e.Action {
+		case "add", "remove", "credentials", "upgradeall", "pin", "unpin":
+			return true
+		}
+	}
+	return false
+}
+
+// forward copies one entry to the alert history, which the monitor relays to
+// Telegram — off the machine, within seconds, over a channel the attacker on
+// this box does not control.
+//
+// It reuses the alert path rather than adding a second delivery mechanism,
+// because a second one is a second thing to configure, to break, and to
+// discover was never working.
+func forward(e auditEntry) {
+	if !worthForwarding(e) {
+		return
+	}
+	what := e.Path
+	if e.Action != "" {
+		what += " (" + e.Action + ")"
+	}
+	from := e.IP
+	if from == "" {
+		from = "an unknown address"
+	}
+	if e.Status >= 400 {
+		alerthist.RecordEvent(fmt.Sprintf(
+			"🔒 Panel refused %s %s from %s (%s) — %d · record #%s",
+			e.Method, what, from, e.Who, e.Status, shortHash(e.Hash)))
+		return
+	}
+	alerthist.RecordEvent(fmt.Sprintf(
+		"🔑 Panel: %s %s by %s from %s · record #%s", e.Method, what, e.Who, from, shortHash(e.Hash)))
+}
+
+// shortHash is the head as it is shown off the machine: enough to compare by
+// eye against the panel, short enough not to crowd the message.
+func shortHash(h string) string {
+	if len(h) > 12 {
+		return h[:12]
+	}
+	return h
+}
+
+// AuditIntegrity verifies the whole record and returns the head of the chain.
+// brokenAt counts from the newest entry, as the panel lists them, or -1.
+func AuditIntegrity() (intact bool, brokenAt int, head string) {
+	auditMu.Lock()
+	defer auditMu.Unlock()
+	all := readAudit()
+	intact, at := verifyAudit(all)
+	if n := len(all); n > 0 {
+		head = all[n-1].Hash
+	}
+	if at >= 0 {
+		at = len(all) - 1 - at
+	}
+	return intact, at, head
 }

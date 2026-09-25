@@ -29,6 +29,9 @@ type quicGen struct {
 	localChannel   chan LocalTCPConn
 	reqNewConnChan chan struct{}
 	usageMonitor   *web.Usage
+	// bye is said once the client has been told this run is ending. See
+	// farewell.
+	bye *farewell
 }
 
 // QuicTransport is the server side of the QUIC transport. One QUIC connection
@@ -37,6 +40,10 @@ type quicGen struct {
 // congestion control and loss recovery, so there is no smux, no FEC and no
 // hand-tuning here — the protocol does what KCP needed a stack of settings for.
 type QuicTransport struct {
+	// The listeners this transport is holding right now. Start waits on it, so
+	// "Start returned" means "the ports are free". See listeners.go.
+	listeners listenerSet
+
 	// The status shown in the panel. Behind a lock because the run being
 	// replaced and the run replacing it both write it. See tunnelStatus.
 	status       tunnelStatus
@@ -134,6 +141,7 @@ func (s *QuicTransport) Start() {
 		reqNewConnChan: make(chan struct{}, s.config.ChannelSize),
 		usageMonitor: web.NewDataStore(fmt.Sprintf(":%v", s.config.WebPort), ctx,
 			s.config.SnifferLog, s.config.Sniffer, s.status.get, s.logger),
+		bye: newFarewell(),
 	})
 }
 
@@ -198,13 +206,42 @@ func (s *QuicTransport) Restart() {
 		s.controlChannel.Close()
 	}
 
-	time.Sleep(2 * time.Second)
+	// Wait for the listeners rather than guessing at how long they take.
+	//
+	// This was a flat two-second sleep, and the comment next to it said what it
+	// was for: the run being replaced still holds the ports, and binding them
+	// again before it lets go fails. A sleep is a guess — usually long enough,
+	// never a guarantee, and silently wrong on a loaded machine, which is
+	// exactly when a restart is most likely to be happening.
+	//
+	// listenerSet answers the question instead of approximating it. It is also
+	// faster in the ordinary case: a listener closes in microseconds, so this
+	// returns at once rather than always costing two seconds.
+	s.listeners.wait(s.parentctx)
 
 	// The whole tunnel may have been shut down while this restart was waiting —
 	// on a reload, or on the process going down. Rebuilding from a finished
 	// parent context would bind the listener only to close it again.
 	if s.parentctx.Err() != nil {
+		// The level was turned down to hide the timeouts a teardown produces;
+		// leaving it there would silence the shutdown itself.
 		s.logger.SetLevel(level)
+		// Abandoning is not a reason to keep claiming a peer.
+		//
+		// This branch used to return before the two lines below, which sit on
+		// the path that carries on — so a restart that gave up left the status
+		// reading "Connected" and left the peer published in the metrics
+		// snapshot. The process usually exits straight afterwards and the
+		// snapshot goes stale, which is why this was invisible; with a
+		// transport fallback chain it is not, because the chain cancels a
+		// candidate's context and the *process keeps running*. The snapshot
+		// then carries a fresh timestamp and a connected peer for a tunnel that
+		// is mid-rotation with nothing connected at all, and the watchdog
+		// reads that and calls it healthy.
+		//
+		// The run is over. Whatever ended it, there is no peer.
+		s.status.set("")
+		metrics.ClearPeer()
 		s.logger.Debug("restart abandoned: the tunnel is shutting down")
 		return
 	}
@@ -224,6 +261,7 @@ func (s *QuicTransport) Restart() {
 		localChannel:   make(chan LocalTCPConn, s.config.ChannelSize),
 		reqNewConnChan: make(chan struct{}, s.config.ChannelSize),
 		usageMonitor:   web.NewDataStore(fmt.Sprintf(":%v", s.config.WebPort), ctx, s.config.SnifferLog, s.config.Sniffer, s.status.get, s.logger),
+		bye:            newFarewell(),
 	}
 
 	// Re-initialise the per-run state.
@@ -238,12 +276,23 @@ func (s *QuicTransport) Restart() {
 	go s.start(g)
 }
 
+// quicFarewellFlush is how long a goodbye is given to leave before what carries
+// it is closed: SG_Closed before the connection, CONNECTION_CLOSE before the
+// socket. Each is a write handed to a sender goroutine, not a write that has
+// happened.
+const quicFarewellFlush = 150 * time.Millisecond
+
 // tunnelListener accepts QUIC connections for the whole run and hands each to
 // handleConn, which sorts its streams into the control stream and data streams.
 // The re-adopt decision lives on the control stream instead of here, because a
 // connection has proved nothing until its control stream passes the token — a
 // peer that has not is not a reason to disturb the running tunnel.
 func (s *QuicTransport) tunnelListener(g *quicGen, handshake chan<- net.Conn) {
+	// Counted while this goroutine holds a listener, so Start can wait for the
+	// port rather than sleeping and hoping. See listeners.go.
+	s.listeners.hold()
+	defer s.listeners.release()
+
 	// The tunnel's own port: retried rather than fatal. See bindfail.go.
 	var backoff listenBackoff
 	var listener *network.QUICListener
@@ -261,23 +310,66 @@ func (s *QuicTransport) tunnelListener(g *quicGen, handshake chan<- net.Conn) {
 
 	s.logger.Infof("server started successfully, listening on address: %s (QUIC)", listener.Addr().String())
 
+	// Every connection this listener accepted is told the server is going
+	// before the socket goes.
+	//
+	// Closing the listener closes the transport under it, and quic-go ends the
+	// connections on a closed transport without a word to the peer. Over TCP a
+	// closed socket is a FIN the client reads at once; over QUIC it was
+	// silence, so a client whose server had merely restarted — a config edit,
+	// an update, systemctl restart — sat on a dead connection until its control
+	// deadline ran out: a minute and fifty-three seconds of outage, measured,
+	// for a restart that took one. CloseWithError sends CONNECTION_CLOSE, which
+	// the client reads as an error on the control stream and redials at once.
+	var connsMu sync.Mutex
+	conns := map[*quic.Conn]struct{}{}
+
 	defer listener.Close()
-	go func() {
-		<-g.ctx.Done()
-		listener.Close()
-	}()
+
+	// goodbye runs on the way out, in this goroutine and before the deferred
+	// Close — which is what releases the port and lets Start return and the
+	// process exit. It used to run in a goroutine of its own, and lost that
+	// race every time: Accept takes the context and returns the instant it is
+	// cancelled, so the listener was gone before the goodbye had begun.
+	goodbye := func() {
+		// First the client's own goodbye, SG_Closed on the control stream,
+		// which channelHandler writes. It is the one the client acts on by
+		// itself; CONNECTION_CLOSE below is the second chance.
+		if s.controlChannel.IsSet() {
+			g.bye.wait(farewellWait)
+		}
+		connsMu.Lock()
+		told := len(conns) > 0
+		for conn := range conns {
+			_ = conn.CloseWithError(0, "server stopping")
+		}
+		connsMu.Unlock()
+		if told {
+			time.Sleep(quicFarewellFlush)
+		}
+	}
 
 	for {
 		conn, err := listener.Accept(g.ctx)
 		if err != nil {
 			if g.ctx.Err() != nil {
+				goodbye()
 				return
 			}
 			s.logger.Debugf("failed to accept quic connection on %s: %v", listener.Addr().String(), err)
 			continue
 		}
 
-		go s.handleConn(g, conn, handshake)
+		connsMu.Lock()
+		conns[conn] = struct{}{}
+		connsMu.Unlock()
+
+		go func() {
+			s.handleConn(g, conn, handshake)
+			connsMu.Lock()
+			delete(conns, conn)
+			connsMu.Unlock()
+		}()
 	}
 }
 
@@ -314,7 +406,14 @@ func (s *QuicTransport) acceptStream(g *quicGen, conn *quic.Conn, stream *quic.S
 	}
 	stream.SetReadDeadline(time.Time{})
 
-	if !tokenMatches(token, s.config.Token) {
+	// A client from v1.8.2 on proves the token, bound to this connection's TLS
+	// session; an older one sends the token itself. Both are accepted, so the
+	// server can be upgraded first and its old clients keep working until they
+	// are upgraded too. What a bound client never does is fall back to sending
+	// the token — that would let anything between them force the old handshake
+	// by dropping the new one. See network/quicbind.go.
+	bound := network.QUICProofMatches(conn, s.config.Token, token)
+	if !bound && !tokenMatches(token, s.config.Token) {
 		s.logger.Warnf("invalid security token received from %s — telling it so, rather than "+
 			"closing without a word, which reads to the client exactly like an old server", conn.RemoteAddr())
 		// wrapped, not the bare stream: it is what every other read and write
@@ -325,9 +424,20 @@ func (s *QuicTransport) acceptStream(g *quicGen, conn *quic.Conn, stream *quic.S
 
 	switch signal {
 	case utils.SG_Chan:
-		// The control stream. Answering with the token proves to the client that
-		// this server knows the secret too.
-		if err := utils.SendBinaryTransportString(wrapped, s.config.Token, utils.SG_Chan); err != nil {
+		// The control stream. The answer proves this server holds the token
+		// too: to a bound client, the server's own proof; to an old client, the
+		// token, which is what that client already sent in the clear.
+		answer := s.config.Token
+		if bound {
+			proof, err := network.QUICServerProof(conn, s.config.Token)
+			if err != nil {
+				s.logger.Errorf("could not bind the answer to the QUIC session: %v", err)
+				stream.Close()
+				return
+			}
+			answer = proof
+		}
+		if err := utils.SendBinaryTransportString(wrapped, answer, utils.SG_Chan); err != nil {
 			s.logger.Errorf("failed to send security token: %v", err)
 			stream.Close()
 			return
@@ -374,7 +484,11 @@ func (s *QuicTransport) acceptStream(g *quicGen, conn *quic.Conn, stream *quic.S
 }
 
 func (s *QuicTransport) channelHandler(g *quicGen) {
-	ticker := time.NewTicker(s.config.Heartbeat)
+	// Every way out releases the listener, including the ones that never say
+	// goodbye. See farewell.
+	defer g.bye.said()
+
+	ticker := newLivenessTicker(s.config.Heartbeat)
 	defer ticker.Stop()
 
 	messageChan := make(chan byte, 1)
@@ -410,7 +524,10 @@ func (s *QuicTransport) channelHandler(g *quicGen) {
 	for {
 		select {
 		case <-g.ctx.Done():
-			_ = utils.SendBinaryByteWithin(s.controlChannel.Get(), utils.SG_Closed, controlWriteTimeout)
+			// The listener holds the connection open until this has left.
+			if utils.SendBinaryByteWithin(s.controlChannel.Get(), utils.SG_Closed, controlWriteTimeout) == nil {
+				time.Sleep(quicFarewellFlush)
+			}
 			return
 
 		case <-g.reqNewConnChan:
@@ -481,6 +598,11 @@ func (s *QuicTransport) parsePortMappings(g *quicGen) {
 }
 
 func (s *QuicTransport) localListener(g *quicGen, localAddr string, remoteAddr string) {
+	// Counted while this goroutine holds a listener, so Start can wait for the
+	// port rather than sleeping and hoping. See listeners.go.
+	s.listeners.hold()
+	defer s.listeners.release()
+
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		// One forwarded port, not the tunnel. See bindfail.go.

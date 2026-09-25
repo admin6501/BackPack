@@ -1,7 +1,10 @@
 package manage
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/backpack/backpack/internal/app"
@@ -31,17 +34,25 @@ import (
 //
 // # Why the response is graduated
 //
-// Restarting is the only lever this side of the fence actually has: an engine
-// runs as its own process with no control socket, so "re-dial", "rebuild the
-// pool" and "restart the transport" are not available to ask for without
-// building an IPC channel first. Pretending otherwise would mean a ladder whose
-// rungs are all the same rung.
+// The engine has a control socket now, so there is a rung below restarting the
+// process: ask it to restart its own transport. That keeps the process, its
+// metrics history, its uptime, its accumulated counters and its log continuity,
+// and it clears every stall that is about the transport rather than about the
+// path — which is most of them. See internal/enginectl, and note that an engine
+// too old to have a socket falls straight through to the next rung rather than
+// costing the tunnel an interval.
 //
-// What is available is knowing when to stop. A stall that survives a restart is
-// not a tunnel that got stuck; it is a path, an MTU or a far-end service, and
-// restarting it every three minutes makes it worse while burying the evidence.
-// So the ladder here is: notice it and say so, restart once it has persisted,
-// and if restarting does not fix it, stop restarting and say what to look at.
+// "Rebuild the pool" is still not available and is deliberately not faked: an
+// op that reports success and changes nothing is worse than one that does not
+// exist, because a rung that does nothing is a rung whose failure is invisible.
+//
+// What is also available is knowing when to stop. A stall that survives a
+// restart is not a tunnel that got stuck; it is a path, an MTU or a far-end
+// service, and restarting it every three minutes makes it worse while burying
+// the evidence.
+// So the ladder here is: notice it and say so; ask the engine to restart its
+// transport; restart the process once that has not helped; and if restarting
+// does not fix it, stop restarting and say what to look at.
 
 const (
 	// stallProgress is how many bytes one direction must advance before its
@@ -103,6 +114,12 @@ type flowReading struct {
 	direction string
 	// restarts is how many restarts this stall has cost.
 	restarts int
+	// reloaded is whether the cheaper rung — asking the engine to restart its
+	// own transport — has already been spent on this stall. It is worth one
+	// attempt and not more: a transport restart that did not clear it is
+	// evidence about the path, and repeating it only delays the rung that
+	// might say something new.
+	reloaded bool
 	// quietUntil suppresses action after giving up.
 	quietUntil time.Time
 	// reported is whether the current stall has been announced.
@@ -184,6 +201,7 @@ type stallAction int
 const (
 	stallWatch   stallAction = iota // nothing yet
 	stallReport                     // say it out loud, take no action
+	stallReload                     // ask the engine to restart its transport
 	stallRestart                    // restart the unit
 	stallGiveUp                     // stop restarting and say why
 )
@@ -207,6 +225,18 @@ func (w *flowWatch) decide(name string, now time.Time) (stallAction, string) {
 	}
 	if now.Sub(r.since) < stallRestartAfter {
 		return stallWatch, ""
+	}
+	// The cheap rung first. A transport restart keeps the process, its metrics
+	// history, its uptime and its log continuity, and it clears every stall
+	// that is about the transport rather than about the path — which is most
+	// of them. Only when it has been tried does this spend a process restart.
+	if !r.reloaded {
+		r.reloaded = true
+		r.since = now
+		return stallReload, fmt.Sprintf(
+			"🟠 Tunnel %s has been connected but %s for %s — asking it to restart its "+
+				"transport, which keeps the process and everything it is holding.",
+			name, r.direction, stallRestartAfter)
 	}
 	if r.restarts >= stallGiveUpAfter {
 		r.quietUntil = now.Add(stallQuietFor)
@@ -253,4 +283,112 @@ func tunnelFlow(name string) (in, out uint64, ok bool) {
 		return 0, 0, false
 	}
 	return snap.BytesIn, snap.BytesOut, true
+}
+
+// Keeping the ladder across a watchdog restart.
+//
+// flowWatch lived only in the watchdog's memory, so restarting the monitor
+// service — an update, a crash, an operator — reset every ladder mid-climb.
+// That is wrong in both directions, and one of them is much worse than the
+// other.
+//
+// A tunnel two restarts into a stall getting its count back is merely
+// forgetful. A tunnel the watchdog had *given up on* is not: giving up is a
+// decision, made because the stall survived two restarts and therefore is not
+// something restarting fixes. The quiet period exists to stop the churn that
+// follows. Forgetting it turns a decision into a loop, and the loop restarts a
+// tunnel every few minutes for as long as the fault lasts.
+//
+// So the state is written down. It is small, it is rewritten a few times an
+// hour at most, and it is read once at start.
+
+// flowStatePath is where the ladder is kept. A variable so a test can point it
+// somewhere harmless rather than at the machine running the test.
+var flowStatePath = filepath.Join(app.ConfigDir, "stall-state.json")
+
+// persistedReading is flowReading in a shape that survives a round trip.
+// flowReading's fields are unexported and two of them are times, which is
+// exactly what JSON is bad at guessing.
+type persistedReading struct {
+	// One tag per field. Writing `json:"in,out"` for both — which is what this
+	// said first — is one tag applied to two fields, so both serialise as "in"
+	// and the second silently overwrites the first. staticcheck caught it
+	// within an hour of being added to CI.
+	In         uint64 `json:"in"`
+	Out        uint64 `json:"out"`
+	Runs       int    `json:"runs"`
+	Since      int64  `json:"since,omitempty"`
+	Direction  string `json:"direction,omitempty"`
+	Restarts   int    `json:"restarts"`
+	QuietUntil int64  `json:"quietUntil,omitempty"`
+	Reported   bool   `json:"reported,omitempty"`
+	// Reloaded has to survive with the rest of the ladder. Without it a
+	// watchdog restart would hand the tunnel a second free transport restart,
+	// which is the forgetfulness this file exists to stop — in miniature.
+	Reloaded bool `json:"reloaded,omitempty"`
+}
+
+// save writes the current ladders.
+//
+// A failure is not reported anywhere: the watchdog's job is to notice things,
+// and a full disk must not be a reason it stops. The cost of losing this file
+// is the forgetfulness described above, which is what happened every time
+// before it existed.
+func (w *flowWatch) save() {
+	out := make(map[string]persistedReading, len(w.seen))
+	for name, r := range w.seen {
+		p := persistedReading{
+			In: r.in, Out: r.out, Runs: r.runs,
+			Direction: r.direction, Restarts: r.restarts, Reported: r.reported,
+			Reloaded: r.reloaded,
+		}
+		if !r.since.IsZero() {
+			p.Since = r.since.Unix()
+		}
+		if !r.quietUntil.IsZero() {
+			p.QuietUntil = r.quietUntil.Unix()
+		}
+		out[name] = p
+	}
+	data, err := json.Marshal(out)
+	if err != nil {
+		return
+	}
+	// Written whole or not at all: the next start reads this, and a half-written
+	// file would be a corrupt ladder rather than an absent one.
+	tmp := flowStatePath + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return
+	}
+	if err := os.Rename(tmp, flowStatePath); err != nil {
+		_ = os.Remove(tmp)
+	}
+}
+
+// load reads them back. Anything unreadable is treated as nothing, because
+// starting from nothing is the behaviour this replaces and is never worse than
+// refusing to start.
+func (w *flowWatch) load() {
+	data, err := os.ReadFile(flowStatePath)
+	if err != nil {
+		return
+	}
+	var in map[string]persistedReading
+	if err := json.Unmarshal(data, &in); err != nil {
+		return
+	}
+	for name, p := range in {
+		r := &flowReading{
+			in: p.In, out: p.Out, runs: p.Runs,
+			direction: p.Direction, restarts: p.Restarts, reported: p.Reported,
+			reloaded: p.Reloaded,
+		}
+		if p.Since != 0 {
+			r.since = time.Unix(p.Since, 0)
+		}
+		if p.QuietUntil != 0 {
+			r.quietUntil = time.Unix(p.QuietUntil, 0)
+		}
+		w.seen[name] = r
+	}
 }

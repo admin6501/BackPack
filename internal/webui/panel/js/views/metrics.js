@@ -39,7 +39,8 @@ function values(t) {
     'Role': t.role === 'client' ? 'Client — dials out' : 'Server — waits to be dialled',
 
     'Limits': [t.maxConnections ? `${t.maxConnections} connections` : null,
-               t.bandwidthMbps ? `${t.bandwidthMbps} Mbit/s` : null]
+               t.bandwidthMbps ? `${t.bandwidthMbps} Mbit/s` : null,
+               t.trafficLimitGB ? `${bytes(t.totalBytes || 0)} / ${t.trafficLimitGB} GiB quota` : null]
               .filter(Boolean).join(' · ') || 'none set',
     'Real client IP': t.proxyProtocol ? 'On (PROXY protocol v2)' : 'Off',
 

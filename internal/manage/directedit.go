@@ -293,7 +293,8 @@ func saveDirect(t Tunnel, d config.DirectConfig) {
 		side = sideKharej
 	}
 	spec := directSpec{
-		Name: t.Name, Side: side,
+		TrafficLimitGB: readTrafficLimit(t.Name),
+		Name:           t.Name, Side: side,
 		Transport: orDefault(d.Transport, "tcp"),
 		Addr:      d.Addr, Token: d.Token,
 		Ports: d.Ports, AcceptUDP: d.AcceptUDP,
@@ -322,7 +323,8 @@ func saveL3(t Tunnel, l config.L3Config) {
 		side = sideKharej
 	}
 	spec := l3Spec{
-		Name: t.Name, Side: side,
+		TrafficLimitGB: readTrafficLimit(t.Name),
+		Name:           t.Name, Side: side,
 		Carrier: orDefault(l.Carrier, "udp"),
 		Encap:   "gre", GREKey: l.GREKey,
 		Addr: l.Addr, Token: l.Token,

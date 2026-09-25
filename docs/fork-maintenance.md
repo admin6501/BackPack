@@ -66,3 +66,17 @@ to a checksum-only build manually if that is intended. For source builds,
 Regression tests exercise loopback sockets, authentication scopes, cancellation,
 response completion and signed-release key validation. Protocols that do not
 support half-close still use full closure on EOF.
+
+---
+
+<div dir="rtl">
+
+## خلاصهٔ فارسی
+
+این راهنما می‌گوید فورک admin6501 چگونه ساخته و به‌روزرسانی می‌شود،
+نسخه‌های AMD64 و ARM64 چطور بیلد می‌شوند و چرا کلید امضای ریلیز
+اختیاری است. برای راه‌اندازی سرور، تنظیمات و سرویس‌های قبلی حفظ می‌شوند.
+
+</div>
+
+*Last verified against Backpack v1.8.3.*

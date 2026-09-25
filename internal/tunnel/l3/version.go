@@ -66,9 +66,14 @@ const (
 	// impossible.
 	version1 = 1
 
+	// version2 puts a monotonic timestamp inside the dialler's encrypted
+	// handshake payload, and a listener that speaks it refuses one that does
+	// not advance. See freshness.go.
+	version2 = 2
+
 	// versionCurrent is what this build announces and the highest it
 	// understands.
-	versionCurrent = version1
+	versionCurrent = version2
 )
 
 // versionSep separates the encapsulation identifier from the version block in
@@ -82,13 +87,26 @@ const versionSep = "\x00"
 //
 // saw is the version the listener read out of the dialler's header. Echoing it
 // is what lets the dialler notice a header that was rewritten in flight.
-func replyPayload(encap string, saw, mine int) string {
+// The parameter order matches what parseReplyPayload hands back — mine first,
+// then what was seen — on purpose. It used to be the other way round, and the
+// two being mirror images is a trap somebody falls into exactly once per
+// reading of this file: the writer took (saw, mine) while the reader returned
+// (theirs, sawMine), which are the same two numbers in the opposite order and
+// are both plain ints, so swapping them compiles and produces a tunnel that
+// negotiates the wrong version in one direction only.
+func replyPayload(encap string, mine, saw int) string {
 	if saw <= versionLegacy {
 		// The dialler said nothing, so it is an old build and the reply has to
 		// be the shape it expects: the encapsulation and nothing else.
 		return encap
 	}
-	return encap + versionSep + "v" + strconv.Itoa(mine) + "," + strconv.Itoa(saw)
+	return replyPayloadBlock(encap, mine, saw)
+}
+
+// replyPayloadBlock is the reply with its version block, even for a header
+// that announced nothing. See respondFresh for when that is the right answer.
+func replyPayloadBlock(encap string, mine, saw int) string {
+	return encap + versionSep + "v" + strconv.Itoa(mine) + "," + strconv.Itoa(max(saw, 0))
 }
 
 // parseReplyPayload splits a reply into the encapsulation and what the peer
@@ -109,6 +127,20 @@ func parseReplyPayload(payload string) (encap string, theirs, sawMine int, err e
 	sawMine, err2 := strconv.Atoi(saw)
 	if err1 != nil || err2 != nil {
 		return "", 0, 0, fmt.Errorf("l3: the peer's version block is not a pair of numbers")
+	}
+	// A version is a count, so a negative one is not a version at all.
+	//
+	// Atoi is happy with "-1", and a negative number travels straight through
+	// agreedVersion — which takes the lower of the two — so a peer claiming
+	// v-1 negotiated the session down to a version that does not exist. It
+	// then behaves as legacy, which is the one outcome the negotiation was
+	// built to make impossible, and the downgrade check does not catch it
+	// because that check looks at the echo of *our* announcement rather than
+	// at the sanity of theirs.
+	//
+	// Found by FuzzParseReplyPayload on its first seed.
+	if theirs < 0 || sawMine < 0 {
+		return "", 0, 0, fmt.Errorf("l3: the peer announced a negative protocol version")
 	}
 	return encap, theirs, sawMine, nil
 }
