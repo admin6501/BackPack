@@ -21,6 +21,13 @@ changes after its previous common ancestor, plus a per-tunnel traffic quota.
 - The fork's admin6501 panel identity and checksum-only release option remain.
   The release builds Linux AMD64 and ARM64 assets.
 
+## v1.8.3 — 2026-09-25
+
+- Updated the web panel login and support pages to identify the fork maintainer
+  instead of displaying the original developer's contact information.
+- Added regression checks for the panel branding and fixed a send/close race in
+  the proxy observation test.
+
 ## v1.8.2 — 2026-09-24
 
 Every finding of a section-by-section audit of the whole project, and the
