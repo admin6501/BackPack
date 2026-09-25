@@ -4,6 +4,15 @@ All notable changes to Backpack are documented here.
 
 ## Unreleased
 
+- Traffic metrics label incoming, outgoing and total usage separately in the
+  terminal and web panel. An exhausted tunnel is shown as paused in panel
+  metrics.
+- Reaching a traffic quota now ends the current engine generation and enters
+  the paused configuration watcher. Final counters are written before the next
+  generation starts; increasing or removing the quota resumes the tunnel
+  without resetting past usage.
+- CI fuzz checks now use a fixed number of inputs to avoid a Go fuzz deadline
+  failure after successful runs with no crashing input.
 - The web panel now saves direct-tunnel traffic quotas and puts the quota
   editor on the first tab. Empty or fractional limits are rejected before save.
 - Web and terminal metrics show cumulative traffic used and the remaining

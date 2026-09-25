@@ -154,7 +154,10 @@ jobs:
           cache: true
 
       - name: Fuzz
-        # Short runs, every push.
+        # Bounded runs, every push. Use a fixed number of inputs: with the
+        # 30-second wall clock budget Go 1.26.6 reported "context deadline
+        # exceeded" after hundreds of thousands of successful fuzz calls,
+        # without a crashing input, on two separate CI attempts.
         #
         # This is not here to find deep bugs — an hour per target would, and
         # that belongs in a nightly. It is here so the targets keep compiling
@@ -167,14 +170,14 @@ jobs:
         # when these were written were found in the first minute.
         run: |
           set -eux
-          go test ./internal/tunnel/l3/        -run=X -fuzz=FuzzParseHeader        -fuzztime=30s
-          go test ./internal/tunnel/l3/        -run=X -fuzz=FuzzParseReplyPayload  -fuzztime=30s
-          go test ./internal/utils/network/    -run=X -fuzz=FuzzParsePckFrame      -fuzztime=30s
-          go test ./internal/utils/network/    -run=X -fuzz=FuzzDecodeXdiPayload   -fuzztime=30s
-          go test ./internal/utils/network/    -run=X -fuzz=FuzzParseTCPFlags      -fuzztime=20s
-          go test ./internal/utils/network/    -run=X -fuzz=FuzzParseSpoofProfile  -fuzztime=20s
-          go test ./internal/manage/           -run=X -fuzz=FuzzDecodeShareLink    -fuzztime=30s
-          go test ./internal/manage/           -run=X -fuzz=FuzzShareLinkRoundTrip -fuzztime=30s
+          go test ./internal/tunnel/l3/        -run=X -fuzz=FuzzParseHeader        -fuzztime=200000x
+          go test ./internal/tunnel/l3/        -run=X -fuzz=FuzzParseReplyPayload  -fuzztime=200000x
+          go test ./internal/utils/network/    -run=X -fuzz=FuzzParsePckFrame      -fuzztime=200000x
+          go test ./internal/utils/network/    -run=X -fuzz=FuzzDecodeXdiPayload   -fuzztime=200000x
+          go test ./internal/utils/network/    -run=X -fuzz=FuzzParseTCPFlags      -fuzztime=150000x
+          go test ./internal/utils/network/    -run=X -fuzz=FuzzParseSpoofProfile  -fuzztime=150000x
+          go test ./internal/manage/           -run=X -fuzz=FuzzDecodeShareLink    -fuzztime=200000x
+          go test ./internal/manage/           -run=X -fuzz=FuzzShareLinkRoundTrip -fuzztime=200000x
 
       - name: Report a crasher
         if: failure()

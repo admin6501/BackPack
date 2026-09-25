@@ -32,8 +32,8 @@ func tunnelNameFromPath(configPath string) string {
 // startMetrics records what the tunnel carries so the CLI can show it later.
 // It is best-effort: a tunnel must never fail because diagnostics could not be
 // written.
-func startMetrics(ctx context.Context, configPath, transport, role string) {
-	startMetricsWithTraffic(ctx, configPath, transport, role, nil, nil)
+func startMetrics(ctx context.Context, configPath, transport, role string) func() {
+	return startMetricsWithTraffic(ctx, configPath, transport, role, nil, nil)
 }
 
 // startMetricsWithTraffic is the same, for an engine that counts its own
@@ -49,8 +49,10 @@ func startMetricsWithTraffic(
 	ctx context.Context,
 	configPath, transport, role string,
 	bytesIn, bytesOut func() uint64,
-) {
+) func() {
 	name := tunnelNameFromPath(configPath)
+	metricsCtx, stop := context.WithCancel(ctx)
+	finished := make(chan struct{})
 
 	// The same three facts identify a line in a shipped log as identify a
 	// snapshot on disk, and both are known exactly here and nowhere earlier —
@@ -60,18 +62,27 @@ func startMetricsWithTraffic(
 	utils.SetLogIdentity(utils.LogIdentity{Tunnel: name, Role: role, Transport: transport})
 
 	if name == "" {
-		return
+		close(finished)
+		return stop
 	}
 	c := metrics.NewCollector(filepath.Dir(configPath), name, transport, role, bytesIn, bytesOut)
 	if guard, ok := ctx.Value(quotaContextKey{}).(*quotaGuard); ok && guard.limit > 0 {
-		go guard.watch(ctx, c)
+		go guard.watch(metricsCtx, c)
 	}
 	go func() {
-		done := make(chan struct{})
-		go func() { <-ctx.Done(); close(done) }()
+		defer close(finished)
 		_ = c.Write() // an immediate first reading, so the file exists right away
-		c.Run(done, 30*time.Second)
+		c.Run(metricsCtx.Done(), 30*time.Second)
 	}()
+	return func() {
+		stop()
+		<-finished
+		// The engine may still finish in-flight I/O after cancellation. Save
+		// its last counters before the next generation reads this baseline.
+		if err := c.Write(); err != nil {
+			logger.Errorf("could not save final traffic counters: %v", err)
+		}
+	}
 }
 
 // Run keeps one tunnel running from a configuration file, restarting it in
@@ -128,6 +139,13 @@ func Run(configPath string, ctx context.Context) {
 		tuned = true
 
 		runCtx, cancel := context.WithCancel(ctx)
+		// The quota guard ends this generation, just like a transport restart.
+		// Keep its cancel function on the context awaited below; cancelling a
+		// private child inside runEngine leaves the outer loop waiting forever.
+		if cfg.TrafficLimitGB > 0 {
+			runCtx = context.WithValue(runCtx, quotaContextKey{},
+				&quotaGuard{limit: uint64(cfg.TrafficLimitGB) << 30, cancel: cancel})
+		}
 		done := make(chan struct{})
 		// Ending this generation is exactly what a configuration change does,
 		// so a restart asked for over the socket takes the path a reload takes
@@ -163,12 +181,6 @@ func Run(configPath string, ctx context.Context) {
 
 // runEngine runs one tunnel until ctx ends.
 func runEngine(cfg *config.Config, ctx context.Context, configPath string, applyTuning bool) {
-	if cfg.TrafficLimitGB > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithCancel(ctx)
-		defer cancel()
-		ctx = context.WithValue(ctx, quotaContextKey{}, &quotaGuard{limit: uint64(cfg.TrafficLimitGB) << 30, cancel: cancel})
-	}
 	// A layer-3 tunnel is a different thing from a port forwarder and shares
 	// none of the machinery below. It is dispatched here, before any of it, so
 	// that the reverse path is reached by exactly the configurations that
@@ -200,7 +212,8 @@ func runEngine(cfg *config.Config, ctx context.Context, configPath string, apply
 			ApplyTCPTuning()
 		}
 
-		startMetrics(ctx, configPath, string(cfg.Server.Transport), "server")
+		finishMetrics := startMetrics(ctx, configPath, string(cfg.Server.Transport), "server")
+		defer finishMetrics()
 
 		srv := server.NewServer(&cfg.Server, ctx) // server
 		reportZeroCopy(ctx)
@@ -219,7 +232,8 @@ func runEngine(cfg *config.Config, ctx context.Context, configPath string, apply
 			ApplyTCPTuning()
 		}
 
-		startMetrics(ctx, configPath, string(cfg.Client.Transport), "client")
+		finishMetrics := startMetrics(ctx, configPath, string(cfg.Client.Transport), "client")
+		defer finishMetrics()
 
 		clnt := client.NewClient(&cfg.Client, ctx) // client
 		reportZeroCopy(ctx)

@@ -34,10 +34,10 @@ function values(t) {
   const used = Number(t.totalBytes) || 0;
   const limit = (Number(t.trafficLimitGB) || 0) * 1024 ** 3;
   return {
-    'State': t.state,
+    'State': limit && used >= limit ? 'Paused — traffic quota exhausted' : t.state,
     'Tunnel uptime': t.uptime || '—',
-    'Traffic in': bytes(t.inBytes || 0),
-    'Traffic out': bytes(t.outBytes || 0),
+    'Traffic in': quotaBytes(Number(t.inBytes) || 0),
+    'Traffic out': quotaBytes(Number(t.outBytes) || 0),
     'Traffic total': quotaBytes(used),
     'Traffic quota': limit ? `${t.trafficLimitGB} GiB` : 'Unlimited',
     'Traffic remaining': limit
