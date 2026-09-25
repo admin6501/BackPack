@@ -2,6 +2,13 @@
 
 All notable changes to Backpack are documented here.
 
+## Unreleased
+
+- The web panel now saves direct-tunnel traffic quotas and puts the quota
+  editor on the first tab. Empty or fractional limits are rejected before save.
+- Web and terminal metrics show cumulative traffic used and the remaining
+  allowance, including the exhausted and unlimited states.
+
 ## v1.8.4 — 2026-09-25
 
 This fork now includes the upstream reliability, security, monitoring and fleet

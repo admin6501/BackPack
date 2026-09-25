@@ -61,6 +61,7 @@ func printSnapshot(t Tunnel, s metrics.Snapshot) {
 	tui.Warn(fmt.Sprintf("  recorded %s ago, tunnel up for %s", age, s.Uptime))
 	tui.Info(fmt.Sprintf("  Traffic       : %s in, %s out",
 		sysstat.HumanBytes(s.BytesIn), sysstat.HumanBytes(s.BytesOut)))
+	tui.Info("  Traffic quota : " + trafficQuotaStatus(readTrafficLimit(t.Name), s.BytesIn, s.BytesOut))
 
 	if s.KCP == nil {
 		fmt.Println()
@@ -95,6 +96,23 @@ func printSnapshot(t Tunnel, s metrics.Snapshot) {
 		tui.Warn("      on a link this good, TCP Mux would be faster and lighter on CPU")
 	}
 	fmt.Println()
+}
+
+// trafficQuotaStatus uses the persisted counters that the quota enforcer reads.
+// Raising the limit keeps those counters, so the balance changes without reset.
+func trafficQuotaStatus(gb int64, in, out uint64) string {
+	if gb <= 0 {
+		return "unlimited"
+	}
+	limit := uint64(gb) << 30
+	used := in + out
+	if used < in { // saturate rather than wrapping after an extreme counter
+		used = ^uint64(0)
+	}
+	if used >= limit {
+		return fmt.Sprintf("%s used of %d GiB; 0 B remaining (exhausted)", sysstat.HumanBytes(used), gb)
+	}
+	return fmt.Sprintf("%s used of %d GiB; %s remaining", sysstat.HumanBytes(used), gb, sysstat.HumanBytes(limit-used))
 }
 
 // humanBytes renders a byte count the way a person reads it.

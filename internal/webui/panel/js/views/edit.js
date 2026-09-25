@@ -333,15 +333,32 @@ export async function editView(ctx) {
       if (sub && t) sub.textContent = kindLabel(t) + ' · ' + (t.addr || '');
 
       let settings = {};
+      let direct = false;
       try {
         settings = await api.tunnelSettings(name);
         if (settings.kind === 'direct') {
+          direct = true;
           settings = settings.direct || {};
           // Direct settings use a flat JSON shape; reverse settings nest limits.
           const quota = root.querySelector('[name="limits.trafficLimitGB"]');
           if (quota) quota.name = 'trafficLimitGB';
         }
       } catch (e) { oops(e); }
+      if (direct) {
+        // This form is built for reverse tunnels. The direct edit endpoint
+        // accepts a nested `direct` object, and the other preview controls do
+        // not map to its settings. Present only the quota we can safely edit.
+        root.querySelectorAll('.pane[data-tab]').forEach(p => {
+          if (p.dataset.tab !== 'Connection') p.remove();
+        });
+        root.querySelectorAll('.pane[data-tab="Connection"] .f, .pane[data-tab="Connection"] .two')
+          .forEach(row => { if (!row.querySelector('[name="trafficLimitGB"]')) row.remove(); });
+        root.querySelectorAll('.tabs button').forEach(b => {
+          if (b.textContent.trim() !== 'Connection' && !b.classList.contains('hist')) b.remove();
+        });
+        const lede = root.querySelector('.lede');
+        if (lede) lede.textContent = 'Set the traffic allowance for this tunnel. Existing usage is kept when you change the limit.';
+      }
       /* The switches and the menus were drawings.
        *
        * Ten <div class="sww"> and four <div class="sel">, none of them a
@@ -404,7 +421,15 @@ export async function editView(ctx) {
         });
       }
       save?.addEventListener('click', async () => {
-        const payload = { name, ...read(root) };
+        const quota = root.querySelector('[name="trafficLimitGB"], [name="limits.trafficLimitGB"]');
+        if (quota && (!quota.value.trim() || !quota.validity.valid || !Number.isSafeInteger(Number(quota.value)))) {
+          quota.focus();
+          toast('Enter a whole number of GiB, or 0 for unlimited.', true);
+          return;
+        }
+        const payload = direct
+          ? { name, direct: { trafficLimitGB: Number(quota.value) } }
+          : { name, ...read(root) };
         save.disabled = true;
         try {
           const r = await api.tunnelEdit(payload);
