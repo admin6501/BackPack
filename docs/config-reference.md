@@ -239,4 +239,4 @@ them both ends have to agree on. This says what exists.
 
 ---
 
-*Generated from `config/` on 2026-09-25. Last verified against Backpack v1.8.4.*
+*Generated from `config/` on 2026-09-25. Last verified against Backpack v1.8.5.*

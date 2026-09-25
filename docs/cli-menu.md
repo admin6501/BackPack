@@ -408,4 +408,4 @@ FEC؛ و zero-copy (فقط روی tcp ساده).
 
 ---
 
-*Last verified against Backpack v1.8.4; new quota and release guidance describes current main and ships in the next release.*
+*Last verified against Backpack v1.8.5.*
