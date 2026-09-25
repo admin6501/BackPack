@@ -111,6 +111,17 @@ sudo backpack   →  2. Setup Kharej
 Then `Manage → Status` to see both ends, and `Manage → Health Check` if anything
 looks wrong — it prints a fix under each problem.
 
+To cap one tunnel's cumulative traffic, use **Manage → Manage Tunnels → choose
+the tunnel → Traffic quota**, or its **Edit** screen in the web panel. Enter a
+whole number of GiB; `0` means unlimited. **Manage → Tunnel Metrics** and the
+panel's **Metrics** screen show incoming, outgoing, total and remaining traffic.
+At the cap the tunnel pauses and closes its forwarded listeners. Raise or
+remove the cap to resume; past usage is kept. Set the cap on the **Iran entry
+end** when you want to restrict traffic arriving from users. Each machine keeps
+its own counters, so do not add the two ends together.
+
+**→ [Traffic quotas and limits](docs/limits.md)**
+
 **→ [Before you start](tutorial/before-you-start.md)** covers the roles, the
 token, the port mapping and the firewall in full. Every transport then has its
 own step-by-step page.
@@ -162,6 +173,8 @@ Thirteen to choose from, so you match the route instead of fighting it. Not sure
   its own service.
 - **It tells you what is wrong** — Health Check prints a fix under each problem;
   Link Test measures the route and recommends a transport and its timers.
+- **Traffic allowances** — per-tunnel cumulative incoming plus outgoing GiB,
+  remaining balance in CLI and panel Metrics, and automatic pause at the cap.
 - **Telegram from Iran** — status and alerts reach Telegram by going out through
   a tunnel peer, choosing the tunnel itself and moving when one dies.
 - **Offline installer** — install or update with **no internet at all**.
@@ -180,8 +193,8 @@ watchdog; automatic rollback; systemd services that survive reboots.
 
 **Security** — the token never travels in the clear on an encrypted transport
 (Stealth and KCP derive keys from it, WSS binds the credential to the TLS
-session); PROXY protocol v2 for real client IPs; per-tunnel connection and
-bandwidth caps; login-protected dashboard; SHA-256 verified downloads, and
+session); PROXY protocol v2 for real client IPs; per-tunnel connection,
+bandwidth and traffic caps; login-protected dashboard; SHA-256 verified downloads, and
 anything unverifiable is refused rather than installed.
 
 **Management** — an interactive CLI where every option explains itself; setup

@@ -22,6 +22,10 @@ back up. You can also roll back on demand from **Update → Restore points**.
 ## Channels
 
 Follow **stable** (default) or **beta** under **Update → Release channel**.
+The version's features and fixes are listed in its [GitHub Release
+description](https://github.com/admin6501/BackPack/releases), alongside the
+AMD64/ARM64 archives and checksums. GitHub generates this description from
+merged pull requests when a new version is tagged.
 
 ## Upgrading a very old install
 
@@ -57,4 +61,4 @@ release-based.
 
 ---
 
-*Last verified against Backpack v1.8.4.*
+*Describes current main; publish these changes in the next release after v1.8.4.*

@@ -1,11 +1,16 @@
 # Web panel
 
-A **monitoring-only** dashboard on **port 7777**, matching the CLI's look. It
+A dashboard and tunnel editor on **port 7777**, matching the CLI's look. It
 shows live CPU / RAM / disk / traffic, each tunnel's state, real ping, and logs.
-Backup, Telegram setup and the panel password live in **Settings**.
+Open a tunnel's **Edit** screen to set a cumulative traffic quota in whole GiB
+(`0` = unlimited). Its **Metrics** screen shows inbound, outbound, total, quota
+and remaining traffic, and marks an exhausted tunnel as paused. Backup,
+Telegram setup and the panel password live in **Settings**.
 
-Run it on the **Iran** server, where you watch things from. It does not create
-or change tunnels — that is the CLI's job.
+Run it on the **Iran** server, where you watch things from. To limit user
+traffic on a reverse tunnel, set its quota on this entry server. The service
+keeps watching its configuration after the tunnel pauses at the cap, so raising
+the quota resumes it without erasing past usage.
 
 ## Getting in
 
@@ -86,12 +91,14 @@ the same Security pane if that matters.
 
 ## خلاصهٔ فارسی
 
-یک داشبورد **فقط-پایشی** روی **پورت ۷۷۷۷** با ظاهری هماهنگ با CLI: پردازنده،
+یک داشبورد و ویرایشگر تونل روی **پورت ۷۷۷۷** با ظاهری هماهنگ با CLI: پردازنده،
 حافظه، دیسک و ترافیک زنده، وضعیت هر تونل، پینگ واقعی و لاگ‌ها. پشتیبان‌گیری،
 تنظیمات تلگرام و رمز پنل در بخش **Settings** است.
 
-روی سرور **ایران** اجرایش کن، همان‌جا که از آن نظارت می‌کنی. تونل نمی‌سازد و
-تغییر نمی‌دهد — آن کارِ CLI است.
+روی سرور **ایران** اجرایش کن؛ در صفحهٔ **Edit** تونل می‌توانی سقف حجم را به
+گیگابایت تنظیم کنی و در **Metrics** ورودی، خروجی، مصرف کل، سقف و باقیمانده را
+ببینی. وقتی حجم تمام شود، تونل متوقف می‌شود؛ افزایش سقف آن را با حفظ مصرف قبلی
+راه می‌اندازد.
 
 **ورود دو مرحله‌ای:** پنل روی این سرور root است و به‌صورت پیش‌فرض فقط یک رمز
 جلوی آن است. از `Settings → Security → Two-factor sign-in` می‌توانی کد یک‌بارمصرف
@@ -116,4 +123,4 @@ that does the same job — is in
 
 ---
 
-*Last verified against Backpack v1.8.4.*
+*Describes current main; publish these changes in the next release after v1.8.4.*

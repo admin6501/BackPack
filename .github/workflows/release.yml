@@ -7,6 +7,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to publish or republish (for example v1.8.5)
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,8 +19,12 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - uses: actions/setup-go@v7
         with:
@@ -36,7 +45,7 @@ jobs:
 
       - name: Verify the tag matches the built version
         run: |
-          tag="${GITHUB_REF_NAME}"
+          tag="${RELEASE_TAG}"
           declared="$(tr -d ' \n' < VERSION)"
           # A pre-release tag (v1.6.0-beta.1) carries the version it is a
           # pre-release of, so compare only the part before the suffix.
@@ -49,24 +58,22 @@ jobs:
       - name: Mark pre-releases
         id: kind
         run: |
-          case "${GITHUB_REF_NAME}" in
+          case "${RELEASE_TAG}" in
             *-*) echo "prerelease=true"  >> "$GITHUB_OUTPUT" ;;
             *)   echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
           esac
 
-      - name: Release notes from CHANGELOG
-        # The release description is this tag's section of CHANGELOG.md — from
-        # its "## <tag>" heading up to the next version heading.
+      - name: Generate release notes from merged pull requests
+        # GitHub compares this tag to the previous release. The generated
+        # body is written to a file so re-running Publish replaces the body
+        # rather than appending duplicate notes to an existing release.
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${GITHUB_REF_NAME}"
-          awk -v h="## ${tag}" '
-            index($0, h) == 1 { f = 1; next }
-            f && /^## v/ { exit }
-            f { print }
-          ' CHANGELOG.md > RELEASE_NOTES.md
-          if [ ! -s RELEASE_NOTES.md ]; then
-            echo "Backpack ${tag}" > RELEASE_NOTES.md
-          fi
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="${RELEASE_TAG}" \
+            --jq '.body' > RELEASE_NOTES.md
+          test -s RELEASE_NOTES.md
 
       - name: Publish
         # Pinned to a commit, not the moving v2 tag: this job holds
@@ -76,6 +83,7 @@ jobs:
         # SHA belongs to written beside it.
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           prerelease: ${{ steps.kind.outputs.prerelease }}
           body_path: RELEASE_NOTES.md
           # Every archive make release produced, by glob rather than by name.
