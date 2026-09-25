@@ -1,6 +1,9 @@
 BIN      := backpack
 BIN_PATH := /usr/local/bin/backpack
 LDFLAGS  := -s -w
+ifneq ($(strip $(RELEASE_PUBLIC_KEY)),)
+LDFLAGS += -X github.com/backpack/backpack/internal/app.ReleasePublicKey=$(RELEASE_PUBLIC_KEY)
+endif
 
 .PHONY: all build install uninstall clean tidy run vendor release-linux release version
 
@@ -40,7 +43,8 @@ release-linux:
 
 # GitHub release assets: backpack_linux_<arch>.tar.gz, each containing a single
 # `backpack` binary. These are what install.sh and the in-app updater download.
-release: version release-linux
+release: version
+	@pub="$$(go run ./tools/signsums --public-key)" && $(MAKE) release-linux RELEASE_PUBLIC_KEY="$$pub"
 	mkdir -p release
 	@for a in $(ARCHES) $(addprefix armv,$(ARMS)); do 	  cp dist/backpack-linux-$$a dist/backpack && 	  tar -czf release/backpack_linux_$$a.tar.gz -C dist backpack && 	  rm dist/backpack || exit 1; 	done
 	@# A checksum file published beside the assets is what lets the installer and
@@ -51,15 +55,14 @@ release: version release-linux
 	@# And a signature over that list. The checksum proves the download is
 	@# intact; the signature proves the list is the publisher's, which the
 	@# checksum cannot, because it travels the same channel as the archive it
-	@# describes. Nothing happens without RELEASE_SIGNING_KEY in the
-	@# environment, so a fork and a local build still produce a full set.
+	@# describes. With no signing key, SHA256 verification remains enabled.
 	go run ./tools/signsums release/SHA256SUMS
 	@echo "Release assets ready in ./release"
 	@cat release/SHA256SUMS
 
 # release-key generates the signing pair, once. It prints both halves and keeps
-# neither: the public half is pasted into app.ReleasePublicKey, the private half
-# goes into the RELEASE_SIGNING_KEY repository secret and nowhere else.
+# neither: release builds derive the public half automatically; the private
+# half goes into the RELEASE_SIGNING_KEY repository secret and nowhere else.
 release-key:
 	@go run ./tools/releasekey
 

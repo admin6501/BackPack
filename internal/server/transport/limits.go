@@ -159,3 +159,10 @@ func waitFor(ctx context.Context, bucket *rate.Limiter, n int) {
 		n -= chunk
 	}
 }
+
+func (c *limitedConn) CloseWrite() error {
+	if half, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return half.CloseWrite()
+	}
+	return c.Conn.Close()
+}

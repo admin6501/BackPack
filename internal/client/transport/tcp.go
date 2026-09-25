@@ -465,18 +465,23 @@ func (c *TcpTransport) channelHandler() {
 
 // Dialing to the tunnel server, chained functions, without retry
 func (c *TcpTransport) tunnelDialer() {
+	ctx := c.state.Ctx()
 	c.logger.Debugf("initiating new connection to tunnel server at %s", c.config.RemoteAddr)
 
 	// Dial to the tunnel server
 	// Next() rather than Current(): with load balancing enabled the pool
 	// spreads its connections over every configured endpoint, so one
 	// congested route only slows its own share of the traffic.
-	rawConn, err := network.TcpDialerVia(c.state.Ctx(), c.config.Outbound, c.config.Endpoints.Next(), c.config.DialTimeOut, c.config.KeepAlive, c.config.Nodelay, 3, c.config.SO_RCVBUF, c.config.SO_SNDBUF, c.config.MSS)
+	rawConn, err := network.TcpDialerVia(ctx, c.config.Outbound, c.config.Endpoints.Next(), c.config.DialTimeOut, c.config.KeepAlive, c.config.Nodelay, 3, c.config.SO_RCVBUF, c.config.SO_SNDBUF, c.config.MSS)
 	if err != nil {
 		c.logger.Error("tunnel server dialer: ", err)
 
 		return
 	}
+
+	stopClose := context.AfterFunc(ctx, func() { rawConn.Close() })
+	defer stopClose()
+	defer rawConn.Close()
 
 	// Same stealth upgrade as the control channel: the data connection carries
 	// its bytes through the Noise record layer when the tunnel is in that mode.

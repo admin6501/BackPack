@@ -41,9 +41,8 @@ func TestASignatureOverTheChecksumsIsCheckedAgainstThePinnedKey(t *testing.T) {
 	}
 }
 
-// A build with no pinned key installs as it always did: the checksum is still
-// mandatory, and nothing pretends to more than that.
-func TestABuildWithNoPinnedKeyStillInstalls(t *testing.T) {
+// A build without a key uses checksum-only verification.
+func TestABuildWithNoPinnedKeyUsesChecksumsOnly(t *testing.T) {
 	restore := withReleaseKey(t, "")
 	defer restore()
 
@@ -51,7 +50,7 @@ func TestABuildWithNoPinnedKeyStillInstalls(t *testing.T) {
 		t.Fatal("a build with no key reports that releases are signed")
 	}
 	if err := verifyChecksumSignature("v1.8.2", []byte("anything")); err != nil {
-		t.Errorf("a build with no pinned key refused an update: %v", err)
+		t.Fatalf("optional signature blocked update: %v", err)
 	}
 }
 

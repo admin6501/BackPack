@@ -2,8 +2,8 @@
 //
 // Run it once, with `make release-key`. It prints two things and keeps neither:
 //
-//   - the public half, which goes into app.ReleasePublicKey and ships in every
-//     binary from then on
+//   - the public half, which can be passed as RELEASE_PUBLIC_KEY for source
+//     builds (release builds derive and embed it automatically)
 //   - the private half, which goes into the repository's RELEASE_SIGNING_KEY
 //     secret and must not go anywhere else
 //
@@ -32,7 +32,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "could not generate a key:", err)
 		os.Exit(1)
 	}
-	fmt.Println("Public key — paste into ReleasePublicKey in internal/app/app.go:")
+	fmt.Println("Public key — use as RELEASE_PUBLIC_KEY for source builds:")
 	fmt.Println()
 	fmt.Println("    " + base64.StdEncoding.EncodeToString(pub))
 	fmt.Println()

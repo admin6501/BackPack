@@ -29,7 +29,17 @@ func ApplyTCPTuning() {
 	}
 	logger.Info("Applying TCP optimizations for Linux...")
 
-	for _, kv := range optimize.EngineStartupTuning() {
+	tuning := optimize.EngineStartupTuning()
+	// If the operator has explicitly run Optimize before, preserve the full
+	// policy they chose across reboot. Some distro/cloud sysctl files are loaded
+	// after 99-backpack.conf and can restore the old 1024-65535 ephemeral range;
+	// tunnel startup is late enough to repair that live value. Untuned machines
+	// still receive only the safe per-engine subset below.
+	if optimize.WasApplied() {
+		tuning = optimize.FullTuning()
+	}
+
+	for _, kv := range tuning {
 		if err := exec.Command("sysctl", "-w", kv[0]+"="+kv[1]).Run(); err != nil {
 			// Warn, not error: a container without CAP_SYS_ADMIN refuses these
 			// and the tunnel runs perfectly well without them. A log full of

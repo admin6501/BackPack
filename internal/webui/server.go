@@ -247,13 +247,10 @@ func Serve() error {
 	mux.HandleFunc("/api/tunnel/adopt", srv.requireAuth(srv.handleTunnelAdopt))
 	mux.HandleFunc("/api/tunnel/edit", srv.requireAuth(srv.handleTunnelEdit))
 	mux.HandleFunc("/api/tunnel/action", srv.requireAuth(srv.handleTunnelAction))
-	mux.HandleFunc("/api/password", srv.requireAuth(srv.handlePassword))
 	mux.HandleFunc("/api/update", srv.requireAuth(srv.handleUpdate))
 	mux.HandleFunc("/api/update/status", srv.requireAuth(srv.handleUpdateStatus))
 	mux.HandleFunc("/api/panelport", srv.requireAuth(srv.handlePanelPort))
 	mux.HandleFunc("/api/panelcert", srv.requireAuth(srv.handlePanelCert))
-	mux.HandleFunc("/api/backup/export", srv.requireAuth(srv.handleBackupExport))
-	mux.HandleFunc("/api/backup/import", srv.requireAuth(srv.handleBackupImport))
 	mux.HandleFunc("/api/telegram", srv.requireAuth(srv.handleTelegram))
 	mux.HandleFunc("/api/telegram/test", srv.requireAuth(srv.handleTelegramTest))
 	mux.HandleFunc("/api/relays", srv.requireAuth(srv.handleRelayOptions))
@@ -264,9 +261,9 @@ func Serve() error {
 	mux.HandleFunc("/api/confhist/restore", srv.requireAuth(srv.handleConfRestore))
 	mux.HandleFunc("/api/speedtest/plan", srv.requireAuth(srv.handleSpeedTestPlan))
 	mux.HandleFunc("/api/speedtest", srv.requireAuth(srv.handleSpeedTestRun))
-	mux.HandleFunc("/api/restorepoints", srv.requireAuth(srv.handleRestorePoints))
 	// Access control. Issuing a credential is guarded harder than using one:
 	// a write token must not be able to mint itself a better one. See access.go.
+	srv.registerCredentialRoutes(mux)
 	mux.HandleFunc("/api/tokens", srv.guard(ScopeAdmin, srv.handleTokens))
 	mux.HandleFunc("/api/audit", srv.guard(ScopeAdmin, srv.handleAudit))
 	mux.HandleFunc("/api/sessions", srv.requireAuth(srv.handleSessions))
@@ -371,6 +368,15 @@ func Serve() error {
 	}
 	httpServer.TLSConfig = tlsCfg
 	return httpServer.ListenAndServeTLS("", "")
+}
+
+// Credential-bearing operations use one registration path in production and
+// tests. A write token must not replace or download the administrator password.
+func (srv *server) registerCredentialRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/password", srv.guard(ScopeAdmin, srv.handlePassword))
+	mux.HandleFunc("/api/backup/export", srv.guard(ScopeAdmin, srv.handleBackupExport))
+	mux.HandleFunc("/api/backup/import", srv.guard(ScopeAdmin, srv.handleBackupImport))
+	mux.HandleFunc("/api/restorepoints", srv.guard(ScopeAdmin, srv.handleRestorePoints))
 }
 
 // requireAuth wraps a handler, redirecting unauthenticated users to /login
@@ -589,8 +595,23 @@ func (s *server) handlePassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	r.ParseForm()
-	pw := strings.TrimSpace(r.FormValue("password"))
+	var payload struct {
+		Password string `json:"password"`
+	}
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "invalid password request", http.StatusBadRequest)
+			return
+		}
+	} else {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "invalid password request", http.StatusBadRequest)
+			return
+		}
+		payload.Password = r.FormValue("password")
+	}
+	pw := strings.TrimSpace(payload.Password)
 	if len(pw) < 4 || len(pw) > 128 {
 		http.Error(w, "password must be 4–128 characters", http.StatusBadRequest)
 		return

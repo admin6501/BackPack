@@ -5,11 +5,11 @@
 # بک‌پک 🎒
 
 <p align="center">
-  <a href="go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/AminMGMT/BackPack?logo=go&label=Go"></a>
-  <a href="https://github.com/AminMGMT/BackPack/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/AminMGMT/BackPack?logo=github&label=release&color=blue"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/AminMGMT/BackPack?color=green"></a>
-  <a href="https://github.com/AminMGMT/BackPack/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/AminMGMT/BackPack?style=flat&logo=github&color=yellow"></a>
-  <a href="https://github.com/AminMGMT/BackPack/releases"><img alt="Total downloads across all releases" src="https://img.shields.io/github/downloads/AminMGMT/BackPack/total?logo=github&label=total%20downloads&color=orange"></a>
+  <a href="go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/admin6501/BackPack?logo=go&label=Go"></a>
+  <a href="https://github.com/admin6501/BackPack/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/admin6501/BackPack?logo=github&label=release&color=blue"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/admin6501/BackPack?color=green"></a>
+  <a href="https://github.com/admin6501/BackPack/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/admin6501/BackPack?style=flat&logo=github&color=yellow"></a>
+  <a href="https://github.com/admin6501/BackPack/releases"><img alt="Total downloads across all releases" src="https://img.shields.io/github/downloads/admin6501/BackPack/total?logo=github&label=total%20downloads&color=orange"></a>
 </p>
 
 **بک‌پک** یک هستهٔ تونل با کارایی بالاست که کاملاً با **Go** نوشته شده و برای
@@ -26,8 +26,7 @@
 <p align="center">
   <b><a href="tutorial/README.md">📘 آموزش‌های راه‌اندازی</a></b> ·
   <b><a href="docs/README.md">📚 مستندات</a></b> ·
-  <b><a href="README.md">🇬🇧 English</a></b> ·
-  <b><a href="https://t.me/BlackProtocols">✈️ تلگرام</a></b>
+  <b><a href="README.md">🇬🇧 English</a></b>
 </p>
 
 <div dir="rtl">
@@ -86,7 +85,7 @@ carrier. بعد از بالا آمدن، MTU خودش را اندازه می‌�
 </div>
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/AminMGMT/BackPack/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/admin6501/BackPack/main/install.sh)
 ```
 
 <div dir="rtl">
@@ -238,23 +237,13 @@ TLS و زمان‌بندی؛ آپدیت تأییدشده روی کانال stabl
 
 ---
 
-## حمایت و دونیت
+## پشتیبانی
 
-اگر بک‌پک برات مفید بود، یه ستاره یا یه دونیت کوچیک خیلی ارزشمنده. 🙏
-
-- کانال تلگرام: **[@BlackProtocols](https://t.me/BlackProtocols)**
-
-</div>
-
-| کوین | آدرس |
-|------|------|
-| **Tron (TRX)** | `TTzuUAtsEsrLgNpFVLNTyLVJVRRFNWESYc` |
-| **USDT (BEP20)** | `0xc112AE9bfF7c59dEcFb34E988A397848D3093E82` |
-| **Toncoin (TON)** | `UQD9g40QubAICJ6zPqegtCY7s-joMx2DB8aIqA0xF1aHoCDs` |
-
-<div dir="rtl">
+گزارش مشکلات: https://github.com/admin6501/BackPack/issues
 
 ## لایسنس
+
+نگهداری این فورک: **admin6501**؛ https://github.com/admin6501/BackPack
 
 **کپی‌رایت © ۲۰۲۶ امین محمدی (AminMGMT).**
 تحت **GNU Affero General Public License v3.0 (AGPL-3.0)** منتشر شده — فایل

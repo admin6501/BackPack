@@ -14,8 +14,9 @@ const (
 
 	// RepoOwner/RepoName identify the GitHub repository used by the installer
 	// and the release-based updater.
-	RepoOwner = "AminMGMT"
-	RepoName  = "BackPack"
+	RepoOwner     = "admin6501"
+	RepoName      = "BackPack"
+	RepositoryURL = "https://github.com/" + RepoOwner + "/" + RepoName
 
 	// Attribution is the line NOTICE requires a modified version to keep.
 	//
@@ -31,7 +32,7 @@ const (
 	Attribution = "Based on BackPack by Amin Mohammadi (AminMGMT)"
 
 	// AttributionURL accompanies it wherever there is room for a link.
-	AttributionURL = "https://github.com/" + RepoOwner + "/" + RepoName
+	AttributionURL = "https://github.com/AminMGMT/BackPack"
 
 	// InstallDir is where the release bundle lives on the VPS.
 	InstallDir = "/root/BackPack"
@@ -89,34 +90,10 @@ func ServiceName(name string) string {
 	return ServicePrefix + name + ".service"
 }
 
-// ReleasePublicKey is the Ed25519 key that release signatures are checked
-// against, base64 of the raw 32 bytes.
-//
-// A release is published with a SHA256SUMS file and the updater verifies
-// every archive against it, which is what stops a mirror handing over a
-// different binary. What it does not stop is a mirror handing over a
-// different SHA256SUMS as well: the list travels the same channel as the
-// thing it describes, over the third-party proxies these machines are
-// obliged to use. Signing the list closes that, because the signature is
-// checked against a key that travelled with the binary already running.
-//
-// Empty meant this build checked checksums and nothing more, which is what
-// every build before v1.8.2 did. It is no longer empty, and that changes the
-// updater's behaviour in a way worth being exact about: **from a build
-// carrying this key, a release without a valid signature is refused rather
-// than warned about.** So the RELEASE_SIGNING_KEY secret has to be in place
-// before the next tag is pushed, or that release will not install anywhere.
-//
-// Rotating is the same operation and is not free: a machine running an older
-// binary trusts the old key and will refuse a release signed with a new one
-// until it has been updated by some other route. Publish one release carrying
-// the new public key while still signing with the old private key, then
-// switch.
-//
-// A var rather than a const so a test can pin a key of its own — the same
-// reason node.StorePath and optimize.sysctlFile are vars. Nothing at runtime
-// writes it.
-var ReleasePublicKey = "uDVeC9NUFceAuhg53ZWbBNTVSaMC8tEvtwWmcDZmV9Q="
+// ReleasePublicKey pins this fork's publisher, not the upstream release key.
+// Release builds inject it with -ldflags from RELEASE_SIGNING_KEY. A plain
+// build without a key verifies SHA256 checksums only.
+var ReleasePublicKey = ""
 
 // TunnelConfigMode is the permission a tunnel's TOML config is written with.
 //

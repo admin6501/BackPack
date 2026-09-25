@@ -415,7 +415,7 @@ func (t *Tunnel) setPeer(addr net.Addr) {
 		return
 	}
 	t.mu.Lock()
-	t.peer = addr
+	t.peer = peerAddress(addr)
 	t.mu.Unlock()
 }
 
@@ -813,6 +813,7 @@ func (t *Tunnel) handleInit(h header, body []byte, from net.Addr) {
 		return
 	}
 
+	confirmPathPeer(from, true)
 	t.mu.Lock()
 	t.pending = sess
 	t.lastInitID = h.session
@@ -837,8 +838,8 @@ func (t *Tunnel) handleInit(h header, body []byte, from net.Addr) {
 	// not this function's: closing it properly means putting a monotonic
 	// timestamp in the init payload and refusing one that does not advance,
 	// which is WireGuard's rule and a wire change both ends have to agree on.
-	if t.current == nil && t.peer == nil {
-		t.peer = from
+	if t.current == nil && t.peer == nil && canConfirmPath(from) {
+		t.peer = peerAddress(from)
 	}
 	t.mu.Unlock()
 
@@ -927,6 +928,11 @@ func (t *Tunnel) handleData(plain []byte, wbuf [][]byte, h header, body []byte, 
 // notePeer follows a peer that has moved, which is safe only because the
 // caller has already authenticated the packet the address came from.
 func (t *Tunnel) notePeer(from net.Addr) {
+	if !canConfirmPath(from) {
+		return
+	}
+	confirmPath(from)
+	from = peerAddress(from)
 	if from == nil {
 		return
 	}
@@ -938,7 +944,7 @@ func (t *Tunnel) notePeer(from net.Addr) {
 	}
 	t.mu.Lock()
 	previous := t.peer
-	t.peer = from
+	t.peer = peerAddress(from)
 	t.mu.Unlock()
 	if previous != nil {
 		t.log.Infof("l3: peer moved from %s to %s", previous, from)

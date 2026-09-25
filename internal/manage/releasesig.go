@@ -37,18 +37,14 @@ const sigAssetName = "SHA256SUMS.sig"
 
 // releasesAreSigned reports whether this build has a key to check against.
 //
-// False is what every build before signing existed does, and it is not a
-// failure: the checksum is still mandatory. It is said out loud once per update
-// so nobody reads "checksum verified" as more than it is.
+// Without a configured key, the updater still checks the archive SHA256 but
+// does not authenticate the publisher of the checksum list.
 func releasesAreSigned() bool { return strings.TrimSpace(app.ReleasePublicKey) != "" }
 
 // verifyChecksumSignature checks the signature over a release's SHA256SUMS.
 //
-// It returns nil when this build pins no key, so an older release published
-// before signing began still installs. Once a key is pinned, a missing
-// signature is a refusal rather than a warning: a release that cannot be
-// checked is exactly the case this exists for, and "warn and install anyway" is
-// the same as not checking.
+// A build without a public key uses checksum-only updates. A build with a key
+// still requires a valid signature; missing signatures never bypass that check.
 func verifyChecksumSignature(tag string, sums []byte) error {
 	if !releasesAreSigned() {
 		return nil

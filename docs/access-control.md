@@ -18,6 +18,8 @@ Every request is authorised at one function — `guard` in
 
 Signing in with the panel password is `admin`. Handing out a credential is
 separate from using one, so a `write` token cannot mint itself a better one.
+Changing the panel password and exporting, importing or restoring full backups
+require `admin`, because backups contain the panel credentials.
 
 The vocabulary is the Telegram bot's, deliberately. The bot has had
 `ReadOnly` / `canWrite` for a while; two permission models in one product is

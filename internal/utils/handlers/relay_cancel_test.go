@@ -89,8 +89,9 @@ func TestRelayReturnsOnlyAfterBothCopiesStop(t *testing.T) {
 		TCPConnectionHandler(ctx, false, from, to, quietLogger(), &web.Usage{}, 8080, false)
 	}()
 
-	// Ending one direction must take the whole relay down with it.
+	// Ending both peers must take the whole relay down.
 	client.Close()
+	backend.Close()
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):

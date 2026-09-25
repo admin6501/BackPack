@@ -773,6 +773,7 @@ func (s *UdpTransport) localListener(g *udpGen, localAddr, remoteAddr string) {
 }
 
 func (s *UdpTransport) handleLoop(g *udpGen, udpChan chan *LocalUDPConn, activeConnections *map[string]*LocalUDPConn, mu *sync.Mutex) {
+flows:
 	for {
 		select {
 		case <-g.ctx.Done():
@@ -815,7 +816,8 @@ func (s *UdpTransport) handleLoop(g *udpGen, udpChan chan *LocalUDPConn, activeC
 					return
 
 				case <-timer.C:
-					continue loop
+					s.dropLocalFlow(localConn, activeConnections, mu)
+					continue flows
 
 				case tunnelConn := <-g.tunnelChannel:
 					timer.Stop()

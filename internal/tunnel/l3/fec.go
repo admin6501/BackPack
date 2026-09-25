@@ -386,7 +386,7 @@ func (c *fecCarrier) rebuild(g *fecGroup) {
 		}
 		if payload, ok := trimShard(work[i]); ok {
 			g.delivered[i] = true
-			c.pending = append(c.pending, fecReady{data: append([]byte(nil), payload...), addr: g.addr})
+			c.pending = append(c.pending, fecReady{data: append([]byte(nil), payload...), addr: reconstructedAddress(g.addr)})
 		}
 	}
 }

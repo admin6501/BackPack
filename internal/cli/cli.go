@@ -262,9 +262,11 @@ func runVersion(args []string) Result {
 			Attribution string `json:"attribution"`
 			Source      string `json:"source"`
 			Licence     string `json:"licence"`
-		}{app.Version, app.Attribution, app.AttributionURL, "AGPL-3.0"})
+			Maintainer  string `json:"maintainer"`
+			Upstream    string `json:"upstream"`
+		}{app.Version, app.Attribution, app.RepositoryURL, "AGPL-3.0", app.RepoOwner, app.AttributionURL})
 	}
-	return ok(app.Version + "\n" + app.Attribution + "\n" + app.AttributionURL + "\n")
+	return ok(app.Version + "\nMaintained by " + app.RepoOwner + "\n" + app.RepositoryURL + "\n" + app.Attribution + "\n" + app.AttributionURL + "\n")
 }
 
 func jsonResult(v any) Result {

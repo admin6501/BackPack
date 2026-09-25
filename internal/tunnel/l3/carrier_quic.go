@@ -141,6 +141,8 @@ type quicCarrier struct {
 
 	mu       sync.Mutex
 	accepted bool
+	acceptMu sync.Mutex
+	closed   bool
 
 	deadlineMu sync.Mutex
 	readAt     time.Time
@@ -151,21 +153,36 @@ func (c *quicCarrier) Overhead() int       { return quicOverhead }
 
 // session returns the connection, accepting one first on the listening side.
 func (c *quicCarrier) session() (*quic.Conn, error) {
+	c.acceptMu.Lock()
+	defer c.acceptMu.Unlock()
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.conn != nil {
-		return c.conn, nil
-	}
-	if c.ln == nil {
+	if c.closed {
+		c.mu.Unlock()
 		return nil, net.ErrClosed
 	}
-	conn, err := c.ln.Accept(context.Background())
+	if c.conn != nil {
+		conn := c.conn
+		c.mu.Unlock()
+		return conn, nil
+	}
+	ln := c.ln
+	c.mu.Unlock()
+	if ln == nil {
+		return nil, net.ErrClosed
+	}
+	conn, err := ln.Accept(context.Background())
 	if err != nil {
 		return nil, err
 	}
 	if err := datagramsAgreed(conn); err != nil {
 		conn.CloseWithError(0, "no datagrams")
 		return nil, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		conn.CloseWithError(0, "closed")
+		return nil, net.ErrClosed
 	}
 	c.conn, c.peer, c.accepted = conn, conn.RemoteAddr(), true
 	return conn, nil
@@ -211,6 +228,7 @@ func (c *quicCarrier) WriteTo(p []byte, _ net.Addr) (int, error) {
 
 func (c *quicCarrier) Close() error {
 	c.mu.Lock()
+	c.closed = true
 	conn, ln := c.conn, c.ln
 	c.conn, c.ln = nil, nil
 	c.mu.Unlock()
