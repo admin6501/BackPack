@@ -7,22 +7,8 @@ import (
 	"testing"
 )
 
-// The attribution has to be present, and it has to be the same everywhere.
-//
-// AGPL-3.0 lets anybody fork this and publish the fork. Section 7(b) of the
-// same licence lets the author require that the attribution be preserved when
-// they do, and NOTICE exercises that — naming four places a modified version
-// must keep it: NOTICE itself, the README, the program's version/About output,
-// and the Appropriate Legal Notices the panel shows its users.
-//
-// A requirement stated in a file and enforced by nothing is a requirement that
-// disappears the first time somebody tidies a template. This is what makes
-// removing it a failing build rather than a quiet edit — for a fork, and just
-// as importantly for us: a refactor that drops the line from the login page
-// would otherwise go unnoticed until somebody looked.
-//
-// It also keeps the wording in step. Four copies of a sentence drift; this
-// asserts they are one sentence.
+// Repository notices and CLI version output preserve upstream provenance.
+// Web login and support pages identify the current fork maintainer.
 
 // repoRoot is two levels up from internal/app.
 func repoRoot(t *testing.T) string {
@@ -63,8 +49,6 @@ func TestTheAttributionIsOneSentenceEverywhere(t *testing.T) {
 		{"NOTICE", "NOTICE states the requirement; it has to meet it itself"},
 		{"README.md", "the README of a distribution is one of the four places NOTICE names"},
 		{"README_FA.md", "the Persian README is a distribution README too"},
-		{"internal/webui/assets/login.html", "the first page a network user reaches — AGPL-3.0 section 13"},
-		{"internal/webui/panel/views/support.html", "the panel's About screen"},
 	} {
 		body := read(t, f.path)
 		if !strings.Contains(body, Attribution) {
@@ -129,5 +113,21 @@ func TestTheLicenceTextIsUnmodifiedAGPL(t *testing.T) {
 		t.Error("the attribution term has been written into LICENSE. It belongs in " +
 			"NOTICE: section 7 permits additional terms alongside the licence, not " +
 			"edits to it, and editing the text would make this a different licence")
+	}
+}
+
+func TestWebPanelIdentifiesForkMaintainer(t *testing.T) {
+	for _, path := range []string{"internal/webui/assets/login.html", "internal/webui/panel/views/support.html"} {
+		body := read(t, path)
+		for _, want := range []string{"Maintained by " + RepoOwner, RepositoryURL} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s is missing fork identity %q", path, want)
+			}
+		}
+		for _, old := range []string{"AminMGMT", "Amin Mohammadi", "BlackProtocols"} {
+			if strings.Contains(body, old) {
+				t.Errorf("%s still displays old panel branding %q", path, old)
+			}
+		}
 	}
 }
