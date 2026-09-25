@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"net"
 	"strings"
@@ -149,7 +150,15 @@ func (c *QuicTransport) Restart() {
 	// The whole tunnel may have been shut down while this restart was waiting.
 	// Rebuilding from a finished parent context would bind and close for nothing.
 	if c.parentctx.Err() != nil {
+		// The level was turned down to hide the timeouts a teardown produces;
+		// leaving it there would silence the shutdown itself.
 		c.logger.SetLevel(level)
+		// Abandoning is not a reason to keep claiming a peer. See the same
+		// branch in internal/server/transport — this end publishes the status
+		// the panel reads and the "connected" flag the watchdog reads, and both
+		// used to survive a restart that gave up.
+		c.status.set("")
+		metrics.ClearPeer()
 		c.logger.Debug("restart abandoned: the tunnel is shutting down")
 		return
 	}
@@ -204,10 +213,20 @@ func (c *QuicTransport) channelDialer() {
 			}
 			control := network.NewQUICStreamConn(stream, conn)
 
-			// Sending security token
-			if err := utils.SendBinaryTransportString(control, c.config.Token, utils.SG_Chan); err != nil {
-				c.logger.Errorf("failed to send security token: %v", err)
-				_ = conn.CloseWithError(0, "token send failed")
+			// A proof of the token, bound to this TLS session, rather than the
+			// token itself — see network/quicbind.go. The certificate is not
+			// verified, so whatever answered this dial may not be the server,
+			// and the token is the one thing it must not be handed.
+			proof, err := network.QUICClientProof(conn, c.config.Token)
+			if err != nil {
+				c.logger.Errorf("could not bind the credential to the QUIC session: %v", err)
+				_ = conn.CloseWithError(0, "binding failed")
+				bo.Wait(c.state.Ctx())
+				continue
+			}
+			if err := utils.SendBinaryTransportString(control, proof, utils.SG_Chan); err != nil {
+				c.logger.Errorf("failed to send the control channel claim: %v", err)
+				_ = conn.CloseWithError(0, "claim send failed")
 				bo.Wait(c.state.Ctx())
 				continue
 			}
@@ -219,7 +238,7 @@ func (c *QuicTransport) channelDialer() {
 				continue
 			}
 
-			message, _, err := utils.ReceiveBinaryTransportString(control)
+			message, answer, err := utils.ReceiveBinaryTransportString(control)
 			if err != nil {
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 					c.logger.Warn("timeout while waiting for control channel response")
@@ -238,9 +257,25 @@ func (c *QuicTransport) channelDialer() {
 
 			control.SetReadDeadline(time.Time{})
 
-			if message != c.config.Token {
-				c.logger.Errorf("invalid token received (does not match the server's token). Retrying...")
-				_ = conn.CloseWithError(0, "bad token")
+			if why, refused := refusalReason(message, answer); refused {
+				// A server before v1.8.2 compares what it is sent with the
+				// token and so refuses a proof as a wrong token. Said here
+				// because it is the likelier reading right after an upgrade.
+				c.logger.Errorf("%s. If the server runs a version older than v1.8.2, upgrade "+
+					"it: since then this client proves the token instead of sending it, and an "+
+					"older server reads the proof as a wrong token. Retrying...", why)
+				_ = conn.CloseWithError(0, "refused")
+				bo.Wait(c.state.Ctx())
+				continue
+			}
+			want, err := network.QUICServerProof(conn, c.config.Token)
+			if err != nil || subtle.ConstantTimeCompare([]byte(message), []byte(want)) != 1 {
+				// Not the server's proof: whatever answered does not hold the
+				// token, or holds a different TLS session from ours — which is
+				// what something terminating the TLS in between looks like.
+				c.logger.Errorf("the server did not prove it holds the token (a different token, or " +
+					"something between here and the server terminating the TLS). Retrying...")
+				_ = conn.CloseWithError(0, "bad proof")
 				bo.Wait(c.state.Ctx())
 				continue
 			}
@@ -264,71 +299,25 @@ func (c *QuicTransport) channelDialer() {
 	}
 }
 
+// poolMaintainer keeps the pool the right size. The policy is poolSizer's,
+// shared with every other client transport — see poolmaintain.go.
 func (c *QuicTransport) poolMaintainer() {
-	for i := 0; i < c.config.ConnPoolSize; i++ { // initial pool filling
-		go c.tunnelDialer()
-	}
-
-	// factors
-	a := 4
-	b := 5
-	x := 3
-	y := 4.0
-
-	if c.config.AggressivePool {
-		c.logger.Info("aggressive pool management enabled")
-		a = 1
-		b = 2
-		x = 0
-		y = 0.75
-	}
-
-	tickerPool := time.NewTicker(time.Second * 1)
-	defer tickerPool.Stop()
-
-	tickerLoad := time.NewTicker(time.Second * 10)
-	defer tickerLoad.Stop()
-
-	newPoolSize := c.config.ConnPoolSize // initial value
-	var load poolLoad                    // throughput signal, see poolload.go
-	var poolConnectionsSum int32 = 0
-
-	for {
-		select {
-		case <-c.state.Ctx().Done():
-			return
-
-		case <-tickerPool.C:
-			atomic.AddInt32(&poolConnectionsSum, atomic.LoadInt32(&c.poolConnections))
-
-		case <-tickerLoad.C:
-			loadConnections := (int(atomic.LoadInt32(&c.loadConnections)) + 9) / 10
-			atomic.StoreInt32(&c.loadConnections, 0)
-
-			poolConnectionsAvg := (int(atomic.LoadInt32(&poolConnectionsSum)) + 9) / 10
-			atomic.StoreInt32(&poolConnectionsSum, 0)
-
-			mbps := load.mbps()
-
-			metrics.ReportPool(poolConnectionsAvg, newPoolSize, c.config.ConnPoolSize, mbps)
-
-			if ((loadConnections+a) > poolConnectionsAvg*b && poolCanGrow(newPoolSize, c.config.ConnPoolSize)) ||
-				load.wantsMore(mbps, poolConnectionsAvg, newPoolSize, c.config.ConnPoolSize) {
-				c.logger.Debugf("increasing pool size: %d -> %d, avg pool conn: %d, avg load conn: %d, throughput: %d Mbit/s", newPoolSize, newPoolSize+1, poolConnectionsAvg, loadConnections, mbps)
-				newPoolSize++
-
-				go c.tunnelDialer()
-			} else if float64(loadConnections+x) < float64(poolConnectionsAvg)*y && newPoolSize > c.config.ConnPoolSize {
-				c.logger.Debugf("decreasing pool size: %d -> %d, avg pool conn: %d, avg load conn: %d", newPoolSize, newPoolSize-1, poolConnectionsAvg, loadConnections)
-				newPoolSize--
-
-				c.controlFlow <- struct{}{}
-			}
-		}
-	}
+	poolSizer{
+		ctx:        c.state.Ctx(),
+		log:        c.logger,
+		size:       c.config.ConnPoolSize,
+		aggressive: c.config.AggressivePool,
+		open:       &c.poolConnections,
+		taken:      &c.loadConnections,
+		shrink:     c.controlFlow,
+		dial:       c.tunnelDialer,
+	}.maintain()
 }
 
 func (c *QuicTransport) channelHandler() {
+	// See beatClock: learns how often the server really heartbeats.
+	beats := newBeatClock(time.Now())
+
 	msgChan := make(chan byte, 1000)
 
 	// The generation this handler belongs to, captured once.
@@ -357,13 +346,16 @@ func (c *QuicTransport) channelHandler() {
 				// The server heartbeats regularly, so silence for longer than the
 				// keepalive period means the peer is gone. QUIC's own idle timeout
 				// would eventually notice too, but this reconnects promptly.
-				if err := c.state.Conn().SetReadDeadline(time.Now().Add(controlDeadline(c.config.KeepAlive))); err != nil {
+				if err := c.state.Conn().SetReadDeadline(time.Now().Add(beats.deadline(c.config.KeepAlive))); err != nil {
 					c.logger.Errorf("failed to set control channel deadline: %v", err)
 					go c.Restart()
 					return
 				}
 				msg, err := utils.ReceiveBinaryByte(c.state.Conn())
 				if err != nil {
+					if hint := beats.explain(err, c.config.KeepAlive); hint != "" && ctx.Err() == nil {
+						c.logger.Warn(hint)
+					}
 					if ctx.Err() == nil {
 						if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 							c.logger.Warn("no heartbeat from the server within the keepalive period, reconnecting")
@@ -373,6 +365,9 @@ func (c *QuicTransport) channelHandler() {
 						go c.Restart()
 					}
 					return
+				}
+				if msg == utils.SG_HB {
+					beats.beat(time.Now())
 				}
 				msgChan <- msg
 			}
@@ -430,9 +425,16 @@ func (c *QuicTransport) tunnelDialer() {
 	}
 	data := network.NewQUICStreamConn(stream, qc)
 
-	// Announce the stream with the token so the server can authenticate it and
-	// file it as a data stream.
-	if err := utils.SendBinaryTransportString(data, c.config.Token, utils.SG_TCP); err != nil {
+	// Announce the stream with the connection's proof so the server can
+	// authenticate it and file it as a data stream. The proof, not the token,
+	// for the reason the control claim uses one.
+	proof, err := network.QUICClientProof(qc, c.config.Token)
+	if err != nil {
+		c.logger.Errorf("could not bind the credential to the QUIC session: %v", err)
+		stream.Close()
+		return
+	}
+	if err := utils.SendBinaryTransportString(data, proof, utils.SG_TCP); err != nil {
 		c.logger.Errorf("failed to announce tunnel stream: %v", err)
 		stream.Close()
 		return

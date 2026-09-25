@@ -101,10 +101,13 @@ const SHELL = `
     <span class="cnt" id="nCount">0</span>
     <span class="sp"></span>
     <button class="sb" id="nrollb" hidden>Upgrade the fleet</button>
+    <button class="sb warn" id="nrollstop" hidden>Stop the rollout</button>
+    <button class="sb" id="ndriftb">Check the fleet</button>
     <button class="sb primary" id="naddb">Add a server</button>
   </div>
 
   <pre class="rollout7" id="nroll" hidden></pre>
+  <pre class="rollout7" id="ndrift" hidden></pre>
 
   <form class="addsv" id="addform" hidden autocomplete="off">
     <div class="asv-map">${MAP_SVG}</div>
@@ -161,7 +164,54 @@ export function serversView(ctx) {
   const goB    = $('#asvgo', root);
   const fleet  = $('#fleet', root);
   const rollB  = $('#nrollb', root);
+  const stopB  = $('#nrollstop', root);
   const rollOut = $('#nroll', root);
+  const driftB  = $('#ndriftb', root);
+  const driftOut = $('#ndrift', root);
+
+  /* What the fleet is supposed to be running, against what it is.
+   *
+   * Every fleet operation is imperative: the panel tells a server to create a
+   * tunnel, the server says it has, and nothing remembers the instruction — so
+   * nothing notices when it stops being true. A tunnel removed on the far
+   * machine, a unit disabled during an incident and never re-enabled, an apply
+   * that reported success and did not last: all of them leave a fleet that
+   * looks correct on this page and is not.
+   *
+   * It is a button rather than a poll on purpose. This asks every server in
+   * turn over SSH, which is minutes on a large fleet and is not something to
+   * do behind somebody's back every few seconds. And it changes nothing — it
+   * says what differs, and what to do about it is a decision with a hand on
+   * it. */
+  driftB.addEventListener('click', async () => {
+    driftB.disabled = true;
+    driftOut.hidden = false;
+    driftOut.textContent = 'Asking every server what it is running…';
+    try {
+      const rep = await api.fleetDrift();
+      driftOut.textContent = describeDrift(rep);
+    } catch (e) {
+      driftOut.textContent = 'Could not check the fleet: ' + (e?.message || e);
+    } finally { driftB.disabled = false; }
+  });
+
+  /* Stopping a rollout that is under way.
+   *
+   * It stops *between* servers, never in the middle of one — interrupting an
+   * upgrade is how a machine ends up on neither version — so the wording says
+   * that rather than promising an immediate halt it cannot deliver. The
+   * servers already upgraded stay upgraded; this is not a rollback. */
+  stopB.addEventListener('click', async () => {
+    if (!await confirmBox({
+      title: 'Stop the rollout?',
+      body: 'It will finish the server it is on and then stop. Servers already '
+          + 'upgraded stay upgraded — this does not roll anything back.',
+      go: 'Stop it' })) return;
+    stopB.disabled = true;
+    try {
+      rollOut.textContent = (await api.nodeRolloutCancel()).message || 'Stopping…';
+    } catch (e) { oops(e); } finally { stopB.disabled = false; }
+  });
 
   /* Upgrading the whole fleet, staged.
    *
@@ -191,6 +241,7 @@ export function serversView(ctx) {
       go: 'Start the rollout' })) { rollB.disabled = false; return; }
 
     rollB.textContent = 'Rolling out…';
+    stopB.hidden = false;
     try {
       rollOut.textContent = (await api.nodeUpgradeAll()).message || 'Started.';
       /* The rollout outlives this request by design — a soak window and a
@@ -200,6 +251,7 @@ export function serversView(ctx) {
     } catch (e) { oops(e); } finally {
       rollB.disabled = false;
       rollB.textContent = 'Upgrade the fleet';
+      stopB.hidden = true;
     }
   });
 
@@ -215,9 +267,11 @@ export function serversView(ctx) {
       if (!r) return;
       if (r.running) {
         rollB.textContent = 'Rolling out…';
+        stopB.hidden = false;
         rollOut.textContent = r.step || 'Working…';
         continue;
       }
+      stopB.hidden = true;
       rollOut.textContent = r.message || `Rollout ${r.state}.`;
       return;
     }
@@ -859,4 +913,40 @@ async function offerPairs(suggestions) {
       toast(`${s.name} is linked to ${s.peerName} on ${s.node}.`);
     } catch (e) { oops(e); }
   }
+}
+
+/* The drift report as a person reads it.
+ *
+ * Silence is the important case and gets a sentence of its own: a report that
+ * says nothing at all reads as one that failed. A server that could not be
+ * reached is listed apart from one that has drifted, because a machine that is
+ * down has not changed — it is simply not answering, and mixing the two fills
+ * the report with the one thing the operator already knows. */
+function describeDrift(rep) {
+  const nodes = rep?.nodes || [];
+  if (!nodes.length) return 'No servers are registered with this panel.';
+
+  const lines = [];
+  const unreachable = nodes.filter(n => !n.reachable);
+  const drifted = nodes.filter(n => n.reachable && (n.drift || []).length);
+  const clean = nodes.filter(n => n.reachable && !(n.drift || []).length);
+
+  for (const n of drifted) {
+    lines.push(`${n.node}:`);
+    for (const d of n.drift) lines.push(`  ${d.kind.padEnd(11)} ${d.detail}`);
+    lines.push('');
+  }
+  if (clean.length) {
+    lines.push(`Running exactly what this panel asked for: ${clean.map(n => n.node).join(', ')}`);
+  }
+  if (unreachable.length) {
+    lines.push('');
+    lines.push('Could not be asked — a server that is down has not drifted, it is');
+    lines.push('simply not answering:');
+    for (const n of unreachable) lines.push(`  ${n.node}: ${n.error || 'no answer'}`);
+  }
+  if (!drifted.length && !unreachable.length) {
+    return `Every server is running exactly what this panel asked for (${clean.length} checked).`;
+  }
+  return lines.join('\n').trim();
 }

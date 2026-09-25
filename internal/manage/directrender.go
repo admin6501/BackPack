@@ -3,7 +3,6 @@ package manage
 import (
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 
 	"github.com/backpack/backpack/config"
@@ -22,6 +21,7 @@ import (
 
 // directSpec is everything the wizard collected for a [direct] tunnel.
 type directSpec struct {
+	TrafficLimitGB   int64
 	Name             string
 	Side             directSide
 	Transport        string
@@ -65,6 +65,9 @@ func (s directSpec) render() string {
 	} else {
 		b.WriteString("# This is the KHAREJ side: it listens for the tunnel and holds the real\n")
 		b.WriteString("# service. It needs no port list — the Iran side names each target.\n")
+	}
+	if s.TrafficLimitGB > 0 {
+		fmt.Fprintf(&b, "traffic_limit_gb = %d\n", s.TrafficLimitGB)
 	}
 	b.WriteString("\n[direct]\n")
 
@@ -147,9 +150,10 @@ func (s directSpec) render() string {
 
 // l3Spec is everything the wizard collected for an [l3] tunnel.
 type l3Spec struct {
-	Name    string
-	Side    directSide
-	Carrier string
+	TrafficLimitGB int64
+	Name           string
+	Side           directSide
+	Carrier        string
 	// SNIDomain is the server name the "sni" carrier announces. Ignored by
 	// every other carrier, and empty means the engine's default.
 	SNIDomain      string
@@ -200,6 +204,9 @@ func (s l3Spec) render() string {
 	b.WriteString("# the carrier, and each other's tunnel addresses.\n")
 	b.WriteString("#\n")
 	b.WriteString("# Needs root: it creates a TUN network interface.\n")
+	if s.TrafficLimitGB > 0 {
+		fmt.Fprintf(&b, "traffic_limit_gb = %d\n", s.TrafficLimitGB)
+	}
 	b.WriteString("\n[l3]\n")
 
 	mode := "dial"
@@ -327,7 +334,6 @@ func writeSpoofKeys(b *strings.Builder, s config.SpoofConfig) {
 		writeKV(b, "spoof_src_pool", tomlList(s.SpoofSrcPool))
 	}
 	str("spoof_peer_ip", s.SpoofPeerIP)
-	str("spoof_dst_ip", s.SpoofDstIP)
 	str("spoof_interface", s.SpoofInterface)
 	str("spoof_xdp_interface", s.SpoofXDPInterface)
 	num("spoof_sockbuf", s.SpoofSockBuf)
@@ -442,9 +448,6 @@ func writeKV(b *strings.Builder, key, value string) {
 // typed. A mismatched token is answered with silence by design, so that second
 // case presents as a blocked port. This is what the reverse renderer has always
 // done, with %q.
-func quote(s string) string {
-	return strconv.Quote(s)
-}
 
 func tomlList(items []string) string {
 	quoted := make([]string, len(items))

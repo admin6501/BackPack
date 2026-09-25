@@ -12,7 +12,7 @@ import (
 	"github.com/backpack/backpack/internal/app"
 )
 
-// Systemctl runs a Systemctl subcommand and returns combined output.
+// Systemctl runs a systemctl subcommand and returns combined output.
 func Systemctl(args ...string) (string, error) {
 	out, err := exec.Command("systemctl", args...).CombinedOutput()
 	return strings.TrimSpace(string(out)), err

@@ -246,3 +246,137 @@ func writeControl(conn *websocket.Conn, payload []byte) error {
 }
 
 var errNoControlChannel = errors.New("no control channel")
+
+// farewell is how a datagram transport's listener knows the client has been
+// told the server is going.
+//
+// Over TCP the goodbye is free: the socket closes and the client reads a FIN.
+// Over KCP there is no connection for the kernel to close — the listener is one
+// unconnected UDP socket — so the only goodbye the client can hear is the
+// SG_Closed the channel handler writes. That write only queues a segment, and
+// the listener closing the socket in the same instant is what used to drop it.
+// A client whose server had only restarted then sat on a dead session until its
+// control deadline ran out: a minute and fifty-three seconds, measured, with the
+// default keepalive.
+//
+// The listener waits for this before it lets go of the socket, bounded, so a
+// channel handler that is stuck cannot hold a restart hostage.
+type farewell struct {
+	once sync.Once
+	done chan struct{}
+}
+
+func newFarewell() *farewell { return &farewell{done: make(chan struct{})} }
+
+// said marks the goodbye as sent, or as never going to be. Safe to call more
+// than once and from any exit path.
+func (f *farewell) said() { f.once.Do(func() { close(f.done) }) }
+
+// wait blocks until said, or for at most d.
+func (f *farewell) wait(d time.Duration) {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-f.done:
+	case <-t.C:
+	}
+}
+
+// farewellWait bounds how long a listener holds its socket for the goodbye.
+// The goodbye itself costs one write and kcpFarewellFlush; the bound is for
+// the handler that never gets there.
+const farewellWait = time.Second
+
+// livenessBeat is how often the control channel carries a heartbeat: the
+// configured interval, but never longer than maxLivenessBeat.
+//
+// The heartbeat was only ever a keepalive, and forty seconds is plenty for
+// that. It is also the only thing a client over KCP or QUIC can hear from a
+// server that has died — there is no kernel on the far side to send a reset —
+// and a client can only conclude "dead" after a few missed beats. At forty
+// seconds that was the client's whole 112-second fallback; at ten, a client
+// that has learned the rhythm (see beatClock on the client side) gives up after
+// thirty.
+//
+// A byte every ten seconds is nothing on any path this runs over, and a client
+// too old to learn the rhythm is not affected at all: it waits exactly as long
+// as it always did, for beats that now arrive more often.
+func livenessBeat(configured time.Duration) time.Duration {
+	if configured <= 0 || configured > maxLivenessBeat {
+		return maxLivenessBeat
+	}
+	return configured
+}
+
+// maxLivenessBeat is the longest the control channel goes without a heartbeat.
+const maxLivenessBeat = 10 * time.Second
+
+// livenessWarmup is the spacing of the first few heartbeats on a new control
+// channel, before it settles to livenessBeat.
+//
+// A client trusts the rhythm only after it has seen three gaps (beatClock).
+// At ten seconds a beat that took half a minute, and until then it could only
+// wait its long fallback — made for servers older than this one, whose beat
+// could be forty seconds or more. So a server that crashed in the first half
+// minute of a connection cost the client 115 seconds, measured on KCP, pck and
+// xdi alike. The warm-up doubles from a tenth of a second up to the steady
+// beat, which gives the client its three gaps within 1.5 seconds of the
+// channel opening; a crash from then on is noticed after fifteen seconds (the
+// client's floor), then thirty once the steady beat is learnt. Seven extra
+// bytes per channel.
+//
+// It changes nothing for an older client, which only ever resets its deadline
+// on a heartbeat, and an older server simply never sends them, which leaves a
+// new client exactly as patient as it was.
+var livenessWarmup = []time.Duration{
+	100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond,
+	1600 * time.Millisecond, 3200 * time.Millisecond, 6400 * time.Millisecond,
+}
+
+// livenessTicker delivers the heartbeat schedule on C: livenessWarmup, then
+// every livenessBeat. It stands in for the time.Ticker the control loops used.
+type livenessTicker struct {
+	C    <-chan time.Time
+	stop chan struct{}
+	once sync.Once
+}
+
+func newLivenessTicker(configured time.Duration) *livenessTicker {
+	steady := livenessBeat(configured)
+	c := make(chan time.Time, 1)
+	t := &livenessTicker{C: c, stop: make(chan struct{})}
+	go t.run(c, steady)
+	return t
+}
+
+func (t *livenessTicker) run(c chan<- time.Time, steady time.Duration) {
+	timer := time.NewTimer(livenessGap(0, steady))
+	defer timer.Stop()
+	for i := 1; ; i++ {
+		select {
+		case <-t.stop:
+			return
+		case now := <-timer.C:
+			// Like a time.Ticker: a beat the loop has not taken yet is not
+			// queued twice.
+			select {
+			case c <- now:
+			default:
+			}
+			timer.Reset(livenessGap(i, steady))
+		}
+	}
+}
+
+// livenessGap is the wait before heartbeat i (from zero) of a channel whose
+// steady beat is steady. A heartbeat set shorter than the warm-up keeps its
+// own pace throughout.
+func livenessGap(i int, steady time.Duration) time.Duration {
+	if i < len(livenessWarmup) {
+		return min(livenessWarmup[i], steady)
+	}
+	return steady
+}
+
+// Stop ends the schedule. Safe to call more than once.
+func (t *livenessTicker) Stop() { t.once.Do(func() { close(t.stop) }) }

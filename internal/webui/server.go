@@ -27,6 +27,9 @@ import (
 //go:embed assets/login.html
 var loginHTML []byte
 
+//go:embed assets/twofactor.html
+var twoFactorHTML []byte
+
 const sessionCookie = "backpack_session"
 
 // sessionTTL is how long a signed-in browser stays signed in. It was written
@@ -158,6 +161,21 @@ func (s *sessionStore) clear() {
 type server struct {
 	sessions *sessionStore
 
+	// pending holds logins that have passed the password and not yet the
+	// second factor. See totpauth.go for why it is a store of its own rather
+	// than a flag on a session.
+	pending *pendingStore
+
+	// enrolling is the secret being set up right now, held in memory until a
+	// code proves the authenticator app has it.
+	//
+	// Not written to the file, on purpose: a secret on disk that is not in
+	// force yet is a panel in a state nothing else understands, and an operator
+	// who closes the tab half way through should find the second factor off
+	// rather than half on. A panel restart loses it, which is the same thing.
+	enrolMu   sync.Mutex
+	enrolling string
+
 	// The things this panel operates on, which it reads rather than owns. They
 	// used to be package-level variables sitting beside the handlers; see
 	// internal/control for why they are not any more.
@@ -167,6 +185,10 @@ type server struct {
 	nodes *control.Fleet
 	net   *control.Net
 	jobs  *control.Jobs
+	// want is what the fleet is supposed to be running, so that a node which
+	// has drifted from it can be noticed rather than discovered. See
+	// internal/control/desired.go.
+	want *control.Desired
 
 	// ctx is the panel's own lifetime, which is what a background job is tied
 	// to. A job tied to the request that started it would be cancelled the
@@ -208,76 +230,9 @@ func Serve() error {
 
 	// The panel shows live stats, tunnel state and logs, and — through the
 	// /api/tunnel/* endpoints below — creates, edits and drives tunnels the same
-	// way the CLI menu does. Every mutating endpoint sits behind a browser
-	// session; the remote access token reaches the read-only ones only.
-	mux := http.NewServeMux()
-	mux.HandleFunc("/login", srv.handleLogin)
-	mux.HandleFunc("/logout", srv.handleLogout)
-	// The panel, and everything it loads. Registered at "/", so it is also
-	// the catch-all for anything no other route claims. See panel.go.
-	mux.HandleFunc("/", srv.requireAuth(srv.handlePanel))
-	// Where the panel answered while there were two of them.
-	mux.HandleFunc(panelPrefix, srv.requireAuth(srv.handleOldPanelPath))
-	// Read-only endpoints also accept the remote access token, so a peer panel
-	// or a Prometheus scraper can watch without holding a browser session.
-	mux.HandleFunc("/api/stats", srv.requireReadAuth(srv.handleStats))
-	mux.HandleFunc("/api/tunnels", srv.requireReadAuth(srv.handleTunnels))
-	mux.HandleFunc("/metrics", srv.requireReadAuth(srv.handlePrometheus))
-	mux.HandleFunc("/api/logs", srv.requireAuth(srv.handleLogs))
-	// Tunnel management — the CLI's setup wizard, edit screen and service
-	// actions, reachable from the browser.
-	mux.HandleFunc("/api/tunnel/options", srv.requireAuth(srv.handleTunnelOptions))
-	mux.HandleFunc("/api/tunnel/suggest", srv.requireAuth(srv.handleTunnelSuggest))
-	mux.HandleFunc("/api/tunnel/defaults", srv.requireAuth(srv.handleTunnelDefaults))
-	mux.HandleFunc("/api/tunnel/create", srv.requireAuth(srv.handleTunnelCreate))
-	// The direct half, on its own endpoints so the reverse ones are untouched.
-	mux.HandleFunc("/api/direct/options", srv.requireAuth(srv.handleDirectOptions))
-	mux.HandleFunc("/api/direct/defaults", srv.requireAuth(srv.handleDirectDefaults))
-	mux.HandleFunc("/api/direct/create", srv.requireAuth(srv.handleDirectCreate))
-	mux.HandleFunc("/api/tunnel/settings", srv.requireAuth(srv.handleTunnelSettings))
-	// Handing a tunnel's paired settings to the other server, and taking them
-	// from it. See handleShareLink.
-	// Managed servers: the fleet, the login each one is reached with, and
-	// building both ends of a tunnel in a single submission. See
-	// handlers_nodes.go.
-	mux.HandleFunc("/api/nodes", srv.requireAuth(srv.handleNodes))
-	mux.HandleFunc("/api/node/pair", srv.requireAuth(srv.handleNodePair))
-	// Linking a tunnel that already exists to the server holding its other
-	// end. See handlers_adopt.go.
-	mux.HandleFunc("/api/tunnel/adopt", srv.requireAuth(srv.handleTunnelAdopt))
-	mux.HandleFunc("/api/tunnel/edit", srv.requireAuth(srv.handleTunnelEdit))
-	mux.HandleFunc("/api/tunnel/action", srv.requireAuth(srv.handleTunnelAction))
-	mux.HandleFunc("/api/update", srv.requireAuth(srv.handleUpdate))
-	mux.HandleFunc("/api/update/status", srv.requireAuth(srv.handleUpdateStatus))
-	mux.HandleFunc("/api/panelport", srv.requireAuth(srv.handlePanelPort))
-	mux.HandleFunc("/api/panelcert", srv.requireAuth(srv.handlePanelCert))
-	mux.HandleFunc("/api/telegram", srv.requireAuth(srv.handleTelegram))
-	mux.HandleFunc("/api/telegram/test", srv.requireAuth(srv.handleTelegramTest))
-	mux.HandleFunc("/api/relays", srv.requireAuth(srv.handleRelayOptions))
-	mux.HandleFunc("/api/health", srv.requireAuth(srv.handleHealth))
-	mux.HandleFunc("/api/alerts", srv.requireReadAuth(srv.handleAlerts))
-	mux.HandleFunc("/api/linktest", srv.requireAuth(srv.handleLinkTest))
-	mux.HandleFunc("/api/confhist", srv.requireAuth(srv.handleConfHistory))
-	mux.HandleFunc("/api/confhist/restore", srv.requireAuth(srv.handleConfRestore))
-	mux.HandleFunc("/api/speedtest/plan", srv.requireAuth(srv.handleSpeedTestPlan))
-	mux.HandleFunc("/api/speedtest", srv.requireAuth(srv.handleSpeedTestRun))
-	// Access control. Issuing a credential is guarded harder than using one:
-	// a write token must not be able to mint itself a better one. See access.go.
-	srv.registerCredentialRoutes(mux)
-	mux.HandleFunc("/api/tokens", srv.guard(ScopeAdmin, srv.handleTokens))
-	mux.HandleFunc("/api/audit", srv.guard(ScopeAdmin, srv.handleAudit))
-	mux.HandleFunc("/api/sessions", srv.requireAuth(srv.handleSessions))
-	mux.HandleFunc("/api/autobackup", srv.requireAuth(srv.handleAutoBackup))
-	mux.HandleFunc("/api/history", srv.requireAuth(srv.handleHistory))
-	mux.HandleFunc("/api/channel", srv.requireAuth(srv.handleChannel))
-	// The manifest, icons and service worker are what let the panel install as
-	// an app; the browser fetches them before any login, so they carry no data
-	// and no auth. The worker is required for an install offer and must be
-	// served from the root to control the whole origin.
-	mux.HandleFunc("/manifest.json", handleManifest)
-	mux.HandleFunc("/icon.svg", handleIcon)
-	mux.HandleFunc("/icons/", handleIconPNG)
-	mux.HandleFunc("/sw.js", handleServiceWorker)
+	// way the CLI menu does. Every endpoint is behind a session or a scoped
+	// token; which scope each one needs is in routes().
+	mux := srv.routes()
 
 	// Ready to reach the fleet. Nothing is contacted here and nothing can
 	// fail: the panel dials out when it has something to ask, so a server that
@@ -349,7 +304,26 @@ func Serve() error {
 		log.Printf("no fallback certificate (%v) — if Let's Encrypt cannot issue, "+
 			"this panel will refuse every connection", err)
 	}
-	if settings.ACMEDomain == "" {
+	ownCert := false
+	if cfg.OwnCert() {
+		// The operator's own certificate, served as it is. See OwnCert.
+		//
+		// Checked before it is committed to: a certificate that cannot be
+		// read — moved, deleted, a renewal half written — would otherwise stop
+		// the panel from starting at all, and the panel is where it would be
+		// fixed. So the self-signed pair is served instead, and the reason is
+		// said.
+		own := network.TLSSettings{CertFile: cfg.TLSCertFile, KeyFile: cfg.TLSKeyFile}
+		if _, err := network.HTTPSConfig(own, nil); err != nil {
+			log.Printf("the panel's own certificate (%s, %s) cannot be used: %v — serving the "+
+				"self-signed certificate instead so the panel stays reachable",
+				cfg.TLSCertFile, cfg.TLSKeyFile, err)
+			settings.ACMEDomain = ""
+		} else {
+			settings, ownCert = own, true
+		}
+	}
+	if !ownCert && settings.ACMEDomain == "" {
 		// EnsurePanelCert builds the SAN set from the machine's own interfaces
 		// (plus loopback, the public IP when reachable, and an optional operator
 		// host), so the certificate validates on whatever address the panel is
@@ -370,13 +344,95 @@ func Serve() error {
 	return httpServer.ListenAndServeTLS("", "")
 }
 
-// Credential-bearing operations use one registration path in production and
-// tests. A write token must not replace or download the administrator password.
+// registerCredentialRoutes preserves the shared credential route checks.
 func (srv *server) registerCredentialRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/api/password", srv.guard(ScopeAdmin, srv.handlePassword))
-	mux.HandleFunc("/api/backup/export", srv.guard(ScopeAdmin, srv.handleBackupExport))
-	mux.HandleFunc("/api/backup/import", srv.guard(ScopeAdmin, srv.handleBackupImport))
-	mux.HandleFunc("/api/restorepoints", srv.guard(ScopeAdmin, srv.handleRestorePoints))
+	mux.HandleFunc("/api/password", srv.requireAdmin(srv.handlePassword))
+	mux.HandleFunc("/api/backup/export", srv.requireAdmin(srv.handleBackupExport))
+	mux.HandleFunc("/api/backup/import", srv.requireAdmin(srv.handleBackupImport))
+	mux.HandleFunc("/api/restorepoints", srv.requireAdmin(srv.handleRestorePoints))
+}
+
+// routes is every endpoint the panel answers and the scope each one needs.
+//
+// It is a function of its own so the whole table can be tested as it is
+// actually wired: the guard was tested on its own and the table was not, which
+// is how the endpoints that hand out access came to sit at the same scope as
+// the ones that restart a tunnel.
+func (srv *server) routes() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/login", srv.handleLogin)
+	mux.HandleFunc("/api/totp", srv.requireAdmin(srv.handleTOTP))
+	mux.HandleFunc("/logout", srv.handleLogout)
+	// The panel, and everything it loads. Registered at "/", so it is also
+	// the catch-all for anything no other route claims. See panel.go.
+	mux.HandleFunc("/", srv.requireAuth(srv.handlePanel))
+	// Where the panel answered while there were two of them.
+	mux.HandleFunc(panelPrefix, srv.requireAuth(srv.handleOldPanelPath))
+	// The read-scoped endpoints, so a Prometheus scraper or a status page can
+	// watch with a read token and no browser session.
+	mux.HandleFunc("/api/stats", srv.requireReadAuth(srv.handleStats))
+	mux.HandleFunc("/api/tunnels", srv.requireReadAuth(srv.handleTunnels))
+	mux.HandleFunc("/metrics", srv.requireReadAuth(srv.handlePrometheus))
+	mux.HandleFunc("/api/logs", srv.requireAuth(srv.handleLogs))
+	// Tunnel management — the CLI's setup wizard, edit screen and service
+	// actions, reachable from the browser.
+	mux.HandleFunc("/api/tunnel/options", srv.requireAuth(srv.handleTunnelOptions))
+	mux.HandleFunc("/api/tunnel/suggest", srv.requireAuth(srv.handleTunnelSuggest))
+	mux.HandleFunc("/api/tunnel/defaults", srv.requireAuth(srv.handleTunnelDefaults))
+	mux.HandleFunc("/api/tunnel/create", srv.requireAuth(srv.handleTunnelCreate))
+	// The direct half, on its own endpoints so the reverse ones are untouched.
+	mux.HandleFunc("/api/direct/options", srv.requireAuth(srv.handleDirectOptions))
+	mux.HandleFunc("/api/direct/defaults", srv.requireAuth(srv.handleDirectDefaults))
+	mux.HandleFunc("/api/direct/create", srv.requireAuth(srv.handleDirectCreate))
+	mux.HandleFunc("/api/tunnel/settings", srv.requireAuth(srv.handleTunnelSettings))
+	// Handing a tunnel's paired settings to the other server, and taking them
+	// from it. See handleShareLink.
+	// Managed servers: the fleet, the login each one is reached with, and
+	// building both ends of a tunnel in a single submission. See
+	// handlers_nodes.go.
+	mux.HandleFunc("/api/nodes", srv.requireAuth(srv.handleNodes))
+	mux.HandleFunc("/api/fleet/drift", srv.requireReadAuth(srv.handleDrift))
+	mux.HandleFunc("/api/node/pair", srv.requireAuth(srv.handleNodePair))
+	// Linking a tunnel that already exists to the server holding its other
+	// end. See handlers_adopt.go.
+	mux.HandleFunc("/api/tunnel/adopt", srv.requireAuth(srv.handleTunnelAdopt))
+	mux.HandleFunc("/api/tunnel/edit", srv.requireAuth(srv.handleTunnelEdit))
+	mux.HandleFunc("/api/tunnel/action", srv.requireAuth(srv.handleTunnelAction))
+	mux.HandleFunc("/api/password", srv.requireAdmin(srv.handlePassword))
+	mux.HandleFunc("/api/update", srv.requireAuth(srv.handleUpdate))
+	mux.HandleFunc("/api/update/status", srv.requireAuth(srv.handleUpdateStatus))
+	mux.HandleFunc("/api/panelport", srv.requireAdmin(srv.handlePanelPort))
+	mux.HandleFunc("/api/panelcert", srv.requireAdmin(srv.handlePanelCert))
+	mux.HandleFunc("/api/backup/export", srv.requireAdmin(srv.handleBackupExport))
+	mux.HandleFunc("/api/backup/import", srv.requireAdmin(srv.handleBackupImport))
+	mux.HandleFunc("/api/telegram", srv.requireAdmin(srv.handleTelegram))
+	mux.HandleFunc("/api/telegram/test", srv.requireAuth(srv.handleTelegramTest))
+	mux.HandleFunc("/api/relays", srv.requireAuth(srv.handleRelayOptions))
+	mux.HandleFunc("/api/health", srv.requireAuth(srv.handleHealth))
+	mux.HandleFunc("/api/alerts", srv.requireReadAuth(srv.handleAlerts))
+	mux.HandleFunc("/api/linktest", srv.requireAuth(srv.handleLinkTest))
+	mux.HandleFunc("/api/confhist", srv.requireAuth(srv.handleConfHistory))
+	mux.HandleFunc("/api/confhist/restore", srv.requireAuth(srv.handleConfRestore))
+	mux.HandleFunc("/api/speedtest/plan", srv.requireAuth(srv.handleSpeedTestPlan))
+	mux.HandleFunc("/api/speedtest", srv.requireAuth(srv.handleSpeedTestRun))
+	mux.HandleFunc("/api/restorepoints", srv.requireAuth(srv.handleRestorePoints))
+	// Access control. Issuing a credential is guarded harder than using one:
+	// a write token must not be able to mint itself a better one. See access.go.
+	mux.HandleFunc("/api/tokens", srv.guard(ScopeAdmin, srv.handleTokens))
+	mux.HandleFunc("/api/audit", srv.guard(ScopeAdmin, srv.handleAudit))
+	mux.HandleFunc("/api/sessions", srv.requireAdmin(srv.handleSessions))
+	mux.HandleFunc("/api/autobackup", srv.requireAuth(srv.handleAutoBackup))
+	mux.HandleFunc("/api/history", srv.requireAuth(srv.handleHistory))
+	mux.HandleFunc("/api/channel", srv.requireAuth(srv.handleChannel))
+	// The manifest, icons and service worker are what let the panel install as
+	// an app; the browser fetches them before any login, so they carry no data
+	// and no auth. The worker is required for an install offer and must be
+	// served from the root to control the whole origin.
+	mux.HandleFunc("/manifest.json", handleManifest)
+	mux.HandleFunc("/icon.svg", handleIcon)
+	mux.HandleFunc("/icons/", handleIconPNG)
+	mux.HandleFunc("/sw.js", handleServiceWorker)
+	return mux
 }
 
 // requireAuth wraps a handler, redirecting unauthenticated users to /login
@@ -402,6 +458,18 @@ func (s *server) requireReadAuth(next http.HandlerFunc) http.HandlerFunc {
 	return s.guard(ScopeRead, next)
 }
 
+// requireAdmin guards the endpoints that decide who can get in: the password,
+// the second factor, the signed-in devices, the Telegram admins, the panel's
+// own address and certificate, and the backup — which carries the password out
+// in one direction and can replace every credential file in the other.
+//
+// Any one of them turns a write token into the panel password, and the panel
+// password is admin. Guarding /api/tokens at admin while these sat at write
+// was a door locked beside one standing open.
+func (s *server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return s.guard(ScopeAdmin, next)
+}
+
 // guard is the one place a request is authorised, and therefore the one place
 // an action is recorded.
 //
@@ -411,7 +479,27 @@ func (s *server) requireReadAuth(next http.HandlerFunc) http.HandlerFunc {
 // Written here, the only way to act without being recorded is to act without
 // being authorised.
 func (s *server) guard(need Scope, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	// Counted outside the authorisation, so a request refused for a bad
+	// credential is counted too — that is the one most worth knowing about.
+	// See selfmetrics.go.
+	return instrument(func(w http.ResponseWriter, r *http.Request) {
+		// A presented credential that is wrong is a guess, and guesses are
+		// rate-limited wherever they arrive.
+		//
+		// The login form has been limited since there was a login form. Tokens
+		// arrived later and got none of it, so /metrics — an endpoint that
+		// exists to be polled by something that is not a browser — would answer
+		// an unlimited number of guesses at line rate. The same limiter is used
+		// rather than a second one: two rate limiters is how they drift, and an
+		// attacker does not care which door they are trying.
+		if secret := bearer(r); secret != "" {
+			if blocked, left := limiter.blocked(clientIP(r)); blocked {
+				http.Error(w, fmt.Sprintf("too many failed attempts — try again in %d minutes",
+					int(left.Minutes())+1), http.StatusTooManyRequests)
+				return
+			}
+		}
+
 		who, ok := s.identify(r)
 		if !ok || who.Scope < need {
 			// A browser gets sent to the login page; anything else gets a
@@ -423,7 +511,8 @@ func (s *server) guard(need Scope, next http.HandlerFunc) http.HandlerFunc {
 					// It proved who it is and is not allowed to do this, which
 					// is a different answer and a more useful one.
 					s.note(r, who, http.StatusForbidden)
-					http.Error(w, "this credential is read-only", http.StatusForbidden)
+					http.Error(w, fmt.Sprintf("this credential is %s and this needs %s", who.Scope, need),
+						http.StatusForbidden)
 					return
 				}
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -439,11 +528,16 @@ func (s *server) guard(need Scope, next http.HandlerFunc) http.HandlerFunc {
 		rec := &statusRecorder{ResponseWriter: w}
 		next(rec, r)
 		s.note(r, who, rec.status)
-	}
+	})
 }
 
 // identify works out who is making a request: a panel session, or a scoped
 // token.
+//
+// A wrong token is counted against the address and a right one clears the
+// count, exactly as a wrong and a right password are. Clearing matters as much
+// as counting: a fleet behind one NAT address would otherwise have its working
+// scraper locked out by somebody else's typo.
 func (s *server) identify(r *http.Request) (caller, bool) {
 	ip := clientIP(r)
 	if c, err := r.Cookie(sessionCookie); err == nil && s.sessions.valid(c.Value) {
@@ -451,12 +545,14 @@ func (s *server) identify(r *http.Request) (caller, bool) {
 		// operators at lesser levels are a separate credential — a token —
 		// because a second password on the same login form would be a second
 		// thing to brute force against the same rate limiter.
-		return caller{Kind: "session", Scope: ScopeAdmin, IP: ip}, true
+		return caller{Kind: "session", Name: sessionID(c.Value), Scope: ScopeAdmin, IP: ip}, true
 	}
 	if secret := bearer(r); secret != "" {
 		if tok, ok := checkToken(secret); ok {
+			limiter.reset(ip)
 			return caller{Kind: "token", Name: tok.Name, Scope: tok.Scope, IP: ip}, true
 		}
+		limiter.fail(ip)
 	}
 	return caller{IP: ip}, false
 }
@@ -488,9 +584,42 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "bad login request", http.StatusBadRequest)
 			return
 		}
+		// The second step of a two-factor login: the password was accepted a
+		// moment ago and this is the code for it. Checked first, because a
+		// request carrying a pending token is never a password attempt.
+		if c, err := r.Cookie(twoFactorCookie); err == nil && s.pending.valid(c.Value, ip) {
+			if checkSecondFactor(r.FormValue("code")) {
+				s.pending.destroy(c.Value)
+				limiter.reset(ip)
+				http.SetCookie(w, clearedCookie(r, twoFactorCookie))
+				tok := s.sessions.create(ip)
+				http.SetCookie(w, authCookie(r, sessionCookie, tok, sessionTTL))
+				redirectTo(w, r, "/", http.StatusSeeOther)
+				return
+			}
+			// A wrong code counts against the address exactly as a wrong
+			// password does. The pending token is left alive so the operator
+			// can try again within its three minutes rather than starting from
+			// the password.
+			limiter.fail(ip)
+			time.Sleep(1 * time.Second)
+			s.serveSecondFactorPage(w, r, http.StatusUnauthorized)
+			return
+		}
+
 		given := r.FormValue("password")
 		// Constant-time comparison + small delay to slow brute force.
 		if subtle.ConstantTimeCompare([]byte(given), []byte(s.password())) == 1 {
+			// The password alone is a session only where there is no second
+			// factor. Where there is one, it buys the code prompt and nothing
+			// else — see totpauth.go.
+			if twoFactorOn() {
+				limiter.reset(ip)
+				tok := s.pending.create(ip)
+				http.SetCookie(w, authCookie(r, twoFactorCookie, tok, twoFactorTTL))
+				s.serveSecondFactorPage(w, r, http.StatusOK)
+				return
+			}
 			limiter.reset(ip)
 			tok := s.sessions.create(ip)
 			http.SetCookie(w, authCookie(r, sessionCookie, tok, sessionTTL))
@@ -504,8 +633,21 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		w.Write(withNonce(withBase(loginHTML, basePrefix()), r))
 		return
 	}
+
+	// A GET with a live pending token is somebody who reloaded the code page.
+	if c, err := r.Cookie(twoFactorCookie); err == nil && s.pending.valid(c.Value, clientIP(r)) {
+		s.serveSecondFactorPage(w, r, http.StatusOK)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(withNonce(withBase(loginHTML, basePrefix()), r))
+}
+
+// serveSecondFactorPage draws the code prompt.
+func (s *server) serveSecondFactorPage(w http.ResponseWriter, r *http.Request, status int) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	w.Write(withNonce(withBase(twoFactorHTML, basePrefix()), r))
 }
 
 func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -595,23 +737,18 @@ func (s *server) handlePassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	var payload struct {
-		Password string `json:"password"`
-	}
+	r.ParseForm()
+	pw := strings.TrimSpace(r.FormValue("password"))
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		r.Body = http.MaxBytesReader(w, r.Body, 4096)
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			http.Error(w, "invalid password request", http.StatusBadRequest)
+		var input struct {
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&input); err != nil {
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
-	} else {
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "invalid password request", http.StatusBadRequest)
-			return
-		}
-		payload.Password = r.FormValue("password")
+		pw = strings.TrimSpace(input.Password)
 	}
-	pw := strings.TrimSpace(payload.Password)
 	if len(pw) < 4 || len(pw) > 128 {
 		http.Error(w, "password must be 4–128 characters", http.StatusBadRequest)
 		return
@@ -758,8 +895,10 @@ func randomHex(n int) string {
 func newServer() *server {
 	return &server{
 		sessions: newSessionStore(),
+		pending:  newPendingStore(),
 		nodes:    &control.Fleet{},
 		net:      control.NewNet(),
 		jobs:     control.NewJobs(),
+		want:     control.NewDesired(),
 	}
 }

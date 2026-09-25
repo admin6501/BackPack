@@ -14,7 +14,6 @@ import (
 	"github.com/backpack/backpack/config" // for mode
 	"github.com/backpack/backpack/internal/metrics"
 	"github.com/backpack/backpack/internal/utils"
-	"github.com/backpack/backpack/internal/utils/handlers"
 	"github.com/backpack/backpack/internal/utils/network"
 	"github.com/backpack/backpack/internal/web"
 	"github.com/xtaci/smux"
@@ -36,6 +35,10 @@ type wsMuxGen struct {
 }
 
 type WsMuxTransport struct {
+	// The listeners this transport is holding right now. Start waits on it, so
+	// "Start returned" means "the ports are free". See listeners.go.
+	listeners listenerSet
+
 	// The status shown in the panel. Behind a lock because the run being
 	// replaced and the run replacing it both write it. See tunnelStatus.
 	status     tunnelStatus
@@ -176,7 +179,18 @@ func (s *WsMuxTransport) Restart() {
 		s.controlChannel.Close()
 	}
 
-	time.Sleep(2 * time.Second)
+	// Wait for the listeners rather than guessing at how long they take.
+	//
+	// This was a flat two-second sleep, and the comment next to it said what it
+	// was for: the run being replaced still holds the ports, and binding them
+	// again before it lets go fails. A sleep is a guess — usually long enough,
+	// never a guarantee, and silently wrong on a loaded machine, which is
+	// exactly when a restart is most likely to be happening.
+	//
+	// listenerSet answers the question instead of approximating it. It is also
+	// faster in the ordinary case: a listener closes in microseconds, so this
+	// returns at once rather than always costing two seconds.
+	s.listeners.wait(s.parentctx)
 
 	// The whole tunnel may have been shut down while this restart was waiting —
 	// on a reload, or on the process going down. Rebuilding the run from a
@@ -187,6 +201,22 @@ func (s *WsMuxTransport) Restart() {
 		// The level was turned down to hide the timeouts a teardown produces;
 		// leaving it there would silence the shutdown itself.
 		s.logger.SetLevel(level)
+		// Abandoning is not a reason to keep claiming a peer.
+		//
+		// This branch used to return before the two lines below, which sit on
+		// the path that carries on — so a restart that gave up left the status
+		// reading "Connected" and left the peer published in the metrics
+		// snapshot. The process usually exits straight afterwards and the
+		// snapshot goes stale, which is why this was invisible; with a
+		// transport fallback chain it is not, because the chain cancels a
+		// candidate's context and the *process keeps running*. The snapshot
+		// then carries a fresh timestamp and a connected peer for a tunnel that
+		// is mid-rotation with nothing connected at all, and the watchdog
+		// reads that and calls it healthy.
+		//
+		// The run is over. Whatever ended it, there is no peer.
+		s.status.set("")
+		metrics.ClearPeer()
 		s.logger.Debug("restart abandoned: the tunnel is shutting down")
 		return
 	}
@@ -224,7 +254,7 @@ func (s *WsMuxTransport) Restart() {
 }
 
 func (s *WsMuxTransport) channelHandler(g *wsMuxGen) {
-	ticker := time.NewTicker(s.config.Heartbeat)
+	ticker := newLivenessTicker(s.config.Heartbeat)
 	defer ticker.Stop()
 
 	// Channel to receive the message or error
@@ -313,6 +343,11 @@ func (s *WsMuxTransport) channelHandler(g *wsMuxGen) {
 }
 
 func (s *WsMuxTransport) tunnelListener(g *wsMuxGen) {
+	// Counted while this goroutine holds a listener, so Start can wait for the
+	// port rather than sleeping and hoping. See listeners.go.
+	s.listeners.hold()
+	defer s.listeners.release()
+
 	addr := s.config.BindAddr
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:   16 * 1024,
@@ -518,6 +553,11 @@ func (s *WsMuxTransport) parsePortMappings(g *wsMuxGen) {
 }
 
 func (s *WsMuxTransport) localListener(g *wsMuxGen, localAddr string, remoteAddr string) {
+	// Counted while this goroutine holds a listener, so Start can wait for the
+	// port rather than sleeping and hoping. See listeners.go.
+	s.listeners.hold()
+	defer s.listeners.release()
+
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		// One forwarded port, not the tunnel. See bindfail.go.
@@ -641,103 +681,6 @@ func (s *WsMuxTransport) handleLoop(g *wsMuxGen) {
 	}
 }
 
-func (s *WsMuxTransport) handleSession(g *wsMuxGen, session *smux.Session) {
-	counter := make(chan struct{}, s.config.MuxCon)
-	defer session.Close()
-	defer close(counter)
-
-	for {
-		// +1 for mux connection counter
-		counter <- struct{}{}
-
-		select {
-		case <-g.ctx.Done():
-			return
-
-		case incomingConn := <-g.localChannel:
-			if nowMillis()-incomingConn.timeCreated > pairingTimeout.Milliseconds() {
-				s.logger.Debugf("timeouted local connection: %d ms", nowMillis()-incomingConn.timeCreated)
-				incomingConn.conn.Close()
-
-				// Free the slot this connection took on accept. It is otherwise
-				// released only by the handler goroutine, which never runs for a
-				// connection that timed out waiting to be paired — so a tunnel
-				// with max_connections set loses a slot to every timeout and
-				// eventually refuses everything. tcp and quic already do this;
-				// these four did not.
-				s.limits.release()
-
-				// Decrement the counter
-				atomic.AddInt32(&s.streamCounter, -1)
-				<-counter
-				continue
-			}
-
-			stream, err := session.OpenStream()
-			if err != nil {
-				s.handleSessionError(g, &incomingConn, err)
-				return
-			}
-
-			// Send the target port over the tunnel connection
-			if err := utils.SendBinaryString(stream, incomingConn.remoteAddr); err != nil {
-				s.logger.Tracef("failed to send address over stream: %v", err)
-				// The stream is unusable and nothing else will close it.
-				stream.Close()
-
-				// Give back the mux slot this attempt took. It was not given
-				// back, so a session that failed this way MuxCon times stopped
-				// taking connections at all: the loop blocks at the top on a
-				// counter that is full, and the only goroutine that empties it
-				// is this one.
-				<-counter
-
-				// Back on the queue for another stream, without blocking — see
-				// requeueLocal. A connection that goes back is still in flight
-				// and stays counted; one there was no room for is counted out
-				// here, because nothing downstream will ever do it.
-				if !requeueLocal(g.localChannel, incomingConn, s.limits, s.logger) {
-					atomic.AddInt32(&s.streamCounter, -1)
-				}
-				continue
-			}
-
-			// Handle data exchange between connections
-			go func() {
-				// Free the connection slot once the transfer ends, or the
-				// limit would fill up permanently.
-				defer s.limits.release()
-				handlers.TCPConnectionHandler(g.ctx, s.config.ProxyProtocol && !isUDPFlow(incomingConn.conn), incomingConn.conn, metrics.CountedConn(stream), s.logger, g.usageMonitor, localForwardPort(incomingConn.conn), s.config.Sniffer)
-				atomic.AddInt32(&s.streamCounter, -1)
-				<-counter // read signal from the channel
-			}()
-		}
-	}
-}
-
-func (s *WsMuxTransport) handleSessionError(g *wsMuxGen, incomingConn *LocalTCPConn, err error) {
-	s.logger.Tracef("failed to handle session: %v", err)
-
-	// decrease session value
-	atomic.AddInt32(&s.sessionCounter, -1)
-
-	// Back on the queue, without blocking. This runs on the session goroutine
-	// that has just failed and is about to return, so there may be no other
-	// goroutine left to drain the channel it is sending into. See requeueLocal.
-	// A connection there was no room for is counted out, since nothing
-	// downstream will do it.
-	if !requeueLocal(g.localChannel, *incomingConn, s.limits, s.logger) {
-		atomic.AddInt32(&s.streamCounter, -1)
-	}
-
-	// Attempt to request a new connection
-	select {
-	case g.reqNewConnChan <- struct{}{}:
-	default:
-		s.logger.Warn("request new connection channel is full")
-	}
-}
-
 // tlsSettings describes how this listener should obtain its certificate:
 // Let's Encrypt when a domain is configured, otherwise the PEM pair on disk.
 func (s *WsMuxTransport) tlsSettings() network.TLSSettings {
@@ -751,5 +694,29 @@ func (s *WsMuxTransport) tlsSettings() network.TLSSettings {
 		// even then — but a generated certificate that names the address it is
 		// served from reads as a certificate rather than as a mistake.
 		SelfSignedHost: certHost(s.config.BindAddr),
+	}
+}
+
+// handleSession carries connections over one session. The state machine is
+// muxSession's, shared with the other two mux transports — see muxsession.go.
+func (s *WsMuxTransport) handleSession(g *wsMuxGen, session *smux.Session) {
+	s.session(g).run(session)
+}
+
+// session binds this transport's channels, counters and settings to the shared
+// loop. It is the whole of what is transport-specific about running a session.
+func (s *WsMuxTransport) session(g *wsMuxGen) muxSession {
+	return muxSession{
+		ctx:           g.ctx,
+		local:         g.localChannel,
+		usage:         g.usageMonitor,
+		reqNewConn:    g.reqNewConnChan,
+		muxCon:        s.config.MuxCon,
+		proxyProtocol: s.config.ProxyProtocol,
+		sniffer:       s.config.Sniffer,
+		limits:        s.limits,
+		log:           s.logger,
+		streams:       &s.streamCounter,
+		sessions:      &s.sessionCounter,
 	}
 }

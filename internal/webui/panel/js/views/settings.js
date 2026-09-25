@@ -84,7 +84,7 @@ function summarise(root, { tg, ses, ab, upd, cert }) {
    * the same question: a panel reached through a reverse proxy is https to the
    * browser and plain http to itself, and the port it is actually served on is
    * the one an operator needs when they are about to change it. */
-  const certLabel = { acme: "Let's Encrypt", self: 'self-signed HTTPS', http: 'plain HTTP' };
+  const certLabel = { acme: "Let's Encrypt", self: 'self-signed HTTPS', http: 'plain HTTP', own: 'own certificate' };
   say('Panel access', cert
     ? [cert.port ? 'Port ' + cert.port : null, certLabel[cert.mode] || null]
       .filter(Boolean).join(' · ')
@@ -148,6 +148,100 @@ export function settingsView(ctx) {
         tg: val(tg), ses: val(ses), ab: val(ab), upd: val(upd), cert: val(cert),
       });
 
+      /* ---- Two-factor sign-in ----
+       *
+       * Built here rather than drawn in the preview's markup, because the
+       * preview's Security pane claimed "2FA on · 2 devices" on a panel that
+       * had no second factor at all — and the lesson of that line is not to put
+       * a feature's chrome on screen before the feature exists.
+       *
+       * The flow is three states and they are three because each one is a
+       * different decision: off, enrolling (a secret to scan, not yet in
+       * force), and on. Enrolling deliberately does not take effect until a
+       * code comes back: an operator who closes the tab after the QR code is an
+       * operator who would otherwise be locked out by a secret nothing holds. */
+      {
+        const pane = inPane('security');
+        const host = el('div', { class: 'grp2', id: 'twofagrp' });
+        pane?.insertBefore(host, root.querySelector('#tokgrp'));
+
+        const ask = (label, id) => `<div class="f2b"><label>${label}</label>`
+          + `<input id="${id}" type="password" placeholder="Panel password"></div>`;
+
+        const showCodes = codes => `<pre class="tokout">${esc(codes.join('\n'))}\n\n`
+          + `Keep these somewhere that is not this server. Each one signs you in once, `
+          + `and they are the way back if the phone is gone.</pre>`;
+
+        const draw = st => {
+          if (st.enabled) {
+            host.innerHTML = `<div class="gl2">Two-factor sign-in</div>
+              <div class="arow"><div class="tx"><b>On</b>
+                <span>${st.recoveryLeft} recovery ${st.recoveryLeft === 1 ? 'code' : 'codes'} unused</span></div>
+                <button class="btn2" id="tfnew">New recovery codes</button>
+                <button class="btn2 dgr" id="tfoff">Turn off</button></div>
+              ${ask('Confirm with the panel password', 'tfpw')}
+              <div id="tfout"></div>`;
+            return;
+          }
+          host.innerHTML = `<div class="gl2">Two-factor sign-in</div>
+            <p class="hint" style="margin:0 0 10px">This panel is root on this machine and one
+              password opens it. A code from an authenticator app is the second thing somebody
+              would have to have.</p>
+            <div class="arow"><div class="tx"><b>Off</b>
+              <span>The password is the whole login</span></div>
+              <button class="btn2 solid" id="tfon">Turn on</button></div>
+            <div id="tfout"></div>`;
+        };
+
+        const out = () => host.querySelector('#tfout');
+        const pw = () => host.querySelector('#tfpw')?.value || '';
+
+        let status = { enabled: false, recoveryLeft: 0 };
+        try { status = await api.totp(); } catch (e) { /* drawn as off */ }
+        draw(status);
+
+        host.addEventListener('click', async ev => {
+          const id = ev.target.id;
+          try {
+            if (id === 'tfon') {
+              const st = await api.totpStart();
+              out().innerHTML = `<pre class="tokout">${esc(st.secret)}</pre>
+                <p class="hint">Scan this in the app, or type the key above by hand.
+                  <a href="${esc(st.uri)}">Open in an authenticator app</a></p>
+                <div class="f2b"><label>The six digits it shows</label>
+                  <input id="tfcode" type="text" inputmode="numeric" maxlength="6" placeholder="000000"></div>
+                <button class="btn2 solid" id="tfconfirm">Confirm</button>`;
+              return;
+            }
+            if (id === 'tfconfirm') {
+              const code = host.querySelector('#tfcode')?.value.trim();
+              if (!code) { toast('Enter the code the app is showing.'); return; }
+              const r = await api.totpConfirm(code);
+              draw({ enabled: true, recoveryLeft: (r.recovery || []).length });
+              out().innerHTML = showCodes(r.recovery || []);
+              toast('Two-factor is on.');
+              return;
+            }
+            if (id === 'tfoff') {
+              if (!await confirmBox({
+                title: 'Turn two-factor off?',
+                body: 'The password becomes the whole login again, and the recovery codes stop working.',
+                go: 'Turn off' })) return;
+              await api.totpDisable(pw());
+              draw({ enabled: false, recoveryLeft: 0 });
+              toast('Two-factor is off.');
+              return;
+            }
+            if (id === 'tfnew') {
+              const r = await api.totpRecovery(pw());
+              draw({ enabled: true, recoveryLeft: (r.recovery || []).length });
+              out().innerHTML = showCodes(r.recovery || []);
+              toast('New recovery codes — the old ones no longer work.');
+            }
+          } catch (e) { oops(e); }
+        });
+      }
+
       /* ---- API tokens and the record ----
        *
        * Both live under Security because both answer the same question: who
@@ -192,15 +286,14 @@ export function settingsView(ctx) {
             title: `Revoke ${esc(name)}?`,
             body: 'Anything still using it stops working immediately. It cannot be undone — a new token would be a new secret.',
             go: 'Revoke' })) return;
-          try { drawTokens((await api.tokenRevoke(name)).tokens || []); toast(`${name} revoked.`); }
+          try { drawTokens((await api.tokenRevoke(name)).tokens || []); toast(`${name} revoked.`); drawAudit(); }
           catch (e) { oops(e); }
         });
 
         root.querySelector('#tokmake')?.addEventListener('click', async () => {
           const name = root.querySelector('[name="tokName"]')?.value.trim();
           if (!name) { toast('Give the token a name.'); return; }
-          const scopeText = root.querySelector('[data-name="tokScope"]')?.textContent || '';
-          const scope = /write/i.test(scopeText) ? 'write' : 'read';
+          const scope = root.querySelector('[data-name="tokScope"]')?.dataset.value || 'read';
           const days = parseInt(root.querySelector('[name="tokDays"]')?.value, 10) || 90;
           try {
             const r = await api.tokenIssue({ name, scope, days });
@@ -213,14 +306,29 @@ export function settingsView(ctx) {
                 + `Use it as:  Authorization: Bearer <token>`;
             }
             root.querySelector('[name="tokName"]').value = '';
+            drawAudit();
           } catch (e) { oops(e); }
         });
 
-        try {
-          const lines = (await api.audit(200)).lines || [];
-          if (log) log.textContent = lines.length ? lines.join('\n')
-            : 'Nothing has been changed through this panel yet.';
-        } catch (e) { if (log) log.textContent = 'Could not read the record.'; }
+        /* Redrawn after an issue or a revoke too: both are recorded, and a
+           record that does not show the line just written reads as one that
+           did not write it. */
+        /* The record is a hash chain (see audit.go): the first line says
+           whether it still holds, and names its head — the same number every
+           line forwarded to Telegram carries, which is how a rewrite that
+           recomputed the chain is still caught. */
+        const drawAudit = async () => {
+          try {
+            const a = await api.audit(200);
+            const lines = a.lines || [];
+            const seal = a.intact === false
+              ? `⚠ This record has been altered: entry ${a.brokenAt + 1} from the top does not follow from the one before it.`
+              : (a.head ? `Record intact · head #${a.head} — compare with the number on the latest Telegram notice.` : '');
+            if (log) log.textContent = (seal ? seal + '\n\n' : '') + (lines.length ? lines.join('\n')
+              : 'Nothing has been changed through this panel yet.');
+          } catch (e) { if (log) log.textContent = 'Could not read the record.'; }
+        };
+        await drawAudit();
       }
 
       /* The footer note.
@@ -300,8 +408,13 @@ export function settingsView(ctx) {
            optional extra name, and on plain HTTP it means nothing at all. */
         const domRow = root.querySelector('[name="domain"]')?.closest('.f2b');
         const mailRow = root.querySelector('[name="email"]')?.closest('.f2b');
-        if (domRow) domRow.hidden = certMode === 'http';
+        if (domRow) domRow.hidden = certMode === 'http' || certMode === 'own';
         if (mailRow) mailRow.hidden = certMode !== 'acme';
+        /* The two files belong to "my own certificate" and to nothing else. */
+        for (const n of ['certFile', 'keyFile']) {
+          const row = root.querySelector(`[name="${n}"]`)?.closest('.f2b');
+          if (row) row.hidden = certMode !== 'own';
+        }
         if (applyCertBtn) {
           applyCertBtn.textContent = certMode === 'http' ? 'Turn HTTPS off' : 'Apply certificate';
         }
@@ -325,10 +438,16 @@ export function settingsView(ctx) {
         const uPath = root.querySelector('#uPath');
         if (uPath) uPath.textContent = api.base() + '/';
         const lock = root.querySelector('#lockw');
-        if (lock) lock.className = 'lockw ' + (certMode === 'acme' ? 'safe' : certMode === 'self' ? 'warn' : 'off');
+        if (lock) lock.className = 'lockw ' + (certMode === 'acme' || certMode === 'own' ? 'safe'
+          : certMode === 'self' ? 'warn' : 'off');
         const note = root.querySelector('#uNote');
         if (note) {
-          note.innerHTML = certMode === 'acme'
+          note.innerHTML = certMode === 'own'
+            ? (snap.mode === 'own' && snap.names
+                ? `<b>Your certificate.</b> For ${esc(snap.names.join(', '))}`
+                  + (snap.expires ? ` — until ${esc(snap.expires)}.` : '.')
+                : '<b>Your certificate.</b> Trusted if it was issued for the name you open the panel by.')
+            : certMode === 'acme'
             ? `<b>Trusted by every browser.</b> ${esc(snap.acmeNote || '')}`
             : certMode === 'self'
               ? '<b>The browser warns once.</b> It works on a bare IP, and the warning '
@@ -361,6 +480,10 @@ export function settingsView(ctx) {
         if (e2) e2.value = certSnap.email || '';
         const pp = root.querySelector('[name="port"]');
         if (pp && certSnap.port) pp.value = certSnap.port;
+        const cf = root.querySelector('[name="certFile"]');
+        if (cf) cf.value = certSnap.certFile || '';
+        const kf = root.querySelector('[name="keyFile"]');
+        if (kf) kf.value = certSnap.keyFile || '';
       } /* else the section still selects, it just starts on self-signed */
       certOpts.forEach(o => o.addEventListener('click', () => {
         certMode = o.dataset.mode;
@@ -463,17 +586,21 @@ export function settingsView(ctx) {
       applyCertBtn?.addEventListener('click', async () => {
         const domain = root.querySelector('[name="domain"]')?.value.trim() || '';
         const email = root.querySelector('[name="email"]')?.value.trim() || '';
+        const certFile = root.querySelector('[name="certFile"]')?.value.trim() || '';
+        const keyFile = root.querySelector('[name="keyFile"]')?.value.trim() || '';
         if (certMode === 'acme' && !domain) return toast('Let’s Encrypt needs a domain pointed at this server.', true);
+        if (certMode === 'own' && (!certFile || !keyFile)) return toast('Give both files: the certificate and its key.', true);
         if (!await confirmBox({
           title: certMode === 'http' ? 'Serve the panel over plain HTTP?'
                : certMode === 'self' ? 'Use a self-signed certificate?'
+               : certMode === 'own' ? 'Serve the panel with your certificate?'
                : 'Get a certificate from Let’s Encrypt?',
           body: 'The panel restarts and its address changes. This page follows it; '
               + 'if it does not, open the address shown above.',
           go: 'Apply', danger: certMode === 'http',
         })) return;
         try {
-          const r = await api.panelCert({ mode: certMode, domain, email });
+          const r = await api.panelCert({ mode: certMode, domain, email, certFile, keyFile });
           if (r.status === 'unchanged') return toast('That is already how the panel is served.');
           toast(r.issues
             ? 'Asking Let’s Encrypt for a certificate — the panel is restarting.'
@@ -654,7 +781,16 @@ export function settingsView(ctx) {
         relayMode: [{ value: 'auto', label: 'Automatic — through a tunnel when one is up' },
                     { value: 'direct', label: 'Direct — never through a tunnel' }],
         lang: [{ value: 'en', label: 'English' }, { value: 'fa', label: 'فارسی' }],
+        /* The token's scope. It had no entry here, so the menu never opened
+           and every token the panel issued was read-only — the backend has
+           always taken all three. */
+        tokScope: [{ value: 'read', label: 'Read only' },
+                   { value: 'write', label: 'Read and change' },
+                   { value: 'admin', label: 'Everything, including access' }],
       };
+      /* Menus that only pick a value for a form on this screen. Every other
+         menu here saves the Telegram settings on a pick. */
+      const localOnly = new Set(['tokScope']);
 
       /* Naming one tunnel is the third answer this setting has, and the one the
          panel never offered: the handler takes a tunnel name and opens a SOCKS
@@ -687,6 +823,7 @@ export function settingsView(ctx) {
             sel.childNodes[0].textContent = c.label;
             menu.hidden = true;
             sel.classList.remove('open');
+            if (localOnly.has(name)) return;
             try {
               if (name === 'channelBeta') {
                 await api.setChannel(c.value === '1');

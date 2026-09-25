@@ -2,9 +2,10 @@ package manage
 
 import (
 	"fmt"
-	"github.com/backpack/backpack/config"
 	"net"
 	"strings"
+
+	"github.com/backpack/backpack/config"
 
 	"github.com/backpack/backpack/internal/utils/network"
 )
@@ -90,7 +91,6 @@ type SpoofTune struct {
 	SrcIPs    string `json:"srcIPs"`    // forged source(s), comma separated
 	PeerIP    string `json:"peerIP"`    // the peer's REAL IPv4 — required on the server
 	PeerSrcIP string `json:"peerSrcIP"` // the forged source expected from the peer
-	DstIP     string `json:"dstIP"`     // forged destination in the cosmetic shim
 	Interface string `json:"interface"` // egress device for the raw socket
 	XDPIface  string `json:"xdpIface"`  // NIC for the XDP receive fast path, empty = off
 
@@ -122,7 +122,6 @@ func spoofOf(s config.SpoofConfig) SpoofTune {
 		SrcIPs:      src,
 		PeerIP:      s.SpoofPeerIP,
 		PeerSrcIP:   s.SpoofPeerSrcIP,
-		DstIP:       s.SpoofDstIP,
 		Interface:   s.SpoofInterface,
 		XDPIface:    s.SpoofXDPInterface,
 		SockBuf:     s.SpoofSockBuf,
@@ -180,9 +179,6 @@ func (f SpoofTune) apply(s *config.SpoofConfig) error {
 		return err
 	}
 	if s.SpoofPeerSrcIP, err = optionalIPv4(f.PeerSrcIP, "the peer's forged source IPv4"); err != nil {
-		return err
-	}
-	if s.SpoofDstIP, err = optionalIPv4(f.DstIP, "the forged destination IPv4"); err != nil {
 		return err
 	}
 
@@ -462,20 +458,28 @@ func (f ConnTune) apply(s *TunnelSpec, defaultPort string) error {
 // TunnelLimits caps what this tunnel as a whole may use. Both are 0 by default,
 // which is no limit — the same answer the CLI's Limits screen starts on.
 type TunnelLimits struct {
-	MaxConnections int `json:"maxConnections"`
-	BandwidthMbps  int `json:"bandwidthMbps"`
+	TrafficLimitGB *int64 `json:"trafficLimitGB,omitempty"`
+	MaxConnections int    `json:"maxConnections"`
+	BandwidthMbps  int    `json:"bandwidthMbps"`
 }
 
 func limitsOf(s TunnelSpec) TunnelLimits {
-	return TunnelLimits{MaxConnections: s.MaxConnections, BandwidthMbps: s.BandwidthMbps}
+	quota := s.TrafficLimitGB
+	return TunnelLimits{MaxConnections: s.MaxConnections, BandwidthMbps: s.BandwidthMbps, TrafficLimitGB: &quota}
 }
 
 func (f TunnelLimits) apply(s *TunnelSpec) error {
 	if f.MaxConnections < 0 || f.BandwidthMbps < 0 {
 		return fmt.Errorf("a limit cannot be negative — use 0 for no limit")
 	}
+	if f.TrafficLimitGB != nil && (*f.TrafficLimitGB < 0 || uint64(*f.TrafficLimitGB) > ^uint64(0)>>30) {
+		return fmt.Errorf("traffic quota must be between 0 and %d GiB", ^uint64(0)>>30)
+	}
 	s.MaxConnections = f.MaxConnections
 	s.BandwidthMbps = f.BandwidthMbps
+	if f.TrafficLimitGB != nil {
+		s.TrafficLimitGB = *f.TrafficLimitGB
+	}
 	return nil
 }
 

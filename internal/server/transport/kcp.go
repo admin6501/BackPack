@@ -13,7 +13,6 @@ import (
 
 	"github.com/backpack/backpack/internal/metrics"
 	"github.com/backpack/backpack/internal/utils"
-	"github.com/backpack/backpack/internal/utils/handlers"
 	"github.com/backpack/backpack/internal/utils/network"
 	"github.com/backpack/backpack/internal/web"
 
@@ -33,6 +32,9 @@ type kcpGen struct {
 	localChannel     chan LocalTCPConn
 	reqNewConnChan   chan struct{}
 	usageMonitor     *web.Usage
+	// bye is said once the client has been told this run is ending. See
+	// farewell.
+	bye *farewell
 }
 
 // KcpTransport is the server side of the KCP transport: a reliable,
@@ -44,6 +46,10 @@ type kcpGen struct {
 // or a path where the return route is asymmetric. Forward error correction
 // repairs losses without waiting a full round trip for a retransmit.
 type KcpTransport struct {
+	// The listeners this transport is holding right now. Start waits on it, so
+	// "Start returned" means "the ports are free". See listeners.go.
+	listeners listenerSet
+
 	// The status shown in the panel. Behind a lock because the run being
 	// replaced and the run replacing it both write it. See tunnelStatus.
 	status      tunnelStatus
@@ -206,6 +212,7 @@ func (s *KcpTransport) Start() {
 		localChannel:     s.localChannel,
 		reqNewConnChan:   s.reqNewConnChan,
 		usageMonitor:     s.usageMonitor,
+		bye:              newFarewell(),
 	})
 }
 
@@ -259,7 +266,18 @@ func (s *KcpTransport) Restart() {
 		s.controlChannel.Close()
 	}
 
-	time.Sleep(2 * time.Second)
+	// Wait for the listeners rather than guessing at how long they take.
+	//
+	// This was a flat two-second sleep, and the comment next to it said what it
+	// was for: the run being replaced still holds the ports, and binding them
+	// again before it lets go fails. A sleep is a guess — usually long enough,
+	// never a guarantee, and silently wrong on a loaded machine, which is
+	// exactly when a restart is most likely to be happening.
+	//
+	// listenerSet answers the question instead of approximating it. It is also
+	// faster in the ordinary case: a listener closes in microseconds, so this
+	// returns at once rather than always costing two seconds.
+	s.listeners.wait(s.parentctx)
 
 	// The whole tunnel may have been shut down while this restart was waiting —
 	// on a reload, or on the process going down. Rebuilding the run from a
@@ -270,6 +288,22 @@ func (s *KcpTransport) Restart() {
 		// The level was turned down to hide the timeouts a teardown produces;
 		// leaving it there would silence the shutdown itself.
 		s.logger.SetLevel(level)
+		// Abandoning is not a reason to keep claiming a peer.
+		//
+		// This branch used to return before the two lines below, which sit on
+		// the path that carries on — so a restart that gave up left the status
+		// reading "Connected" and left the peer published in the metrics
+		// snapshot. The process usually exits straight afterwards and the
+		// snapshot goes stale, which is why this was invisible; with a
+		// transport fallback chain it is not, because the chain cancels a
+		// candidate's context and the *process keeps running*. The snapshot
+		// then carries a fresh timestamp and a connected peer for a tunnel that
+		// is mid-rotation with nothing connected at all, and the watchdog
+		// reads that and calls it healthy.
+		//
+		// The run is over. Whatever ended it, there is no peer.
+		s.status.set("")
+		metrics.ClearPeer()
 		s.logger.Debug("restart abandoned: the tunnel is shutting down")
 		return
 	}
@@ -290,6 +324,7 @@ func (s *KcpTransport) Restart() {
 		localChannel:     make(chan LocalTCPConn, s.config.ChannelSize),
 		reqNewConnChan:   make(chan struct{}, s.config.ChannelSize),
 		usageMonitor:     web.NewDataStore(fmt.Sprintf(":%v", s.config.WebPort), ctx, s.config.SnifferLog, s.config.Sniffer, s.status.get, s.logger),
+		bye:              newFarewell(),
 	}
 
 	// Re-initialize variables
@@ -328,8 +363,19 @@ func (s *KcpTransport) channelHandshake(g *kcpGen) {
 	}
 }
 
+// kcpFarewellFlush is how long the goodbye is given to leave before the
+// session is closed: many KCP update intervals, which is when a queued segment
+// is sent, and still far below anything an operator would notice in a stop.
+// 150ms lost the goodbye about one stop in six under the race detector, which
+// is what a heavily loaded machine looks like; 300ms has not.
+const kcpFarewellFlush = 300 * time.Millisecond
+
 func (s *KcpTransport) channelHandler(g *kcpGen) {
-	ticker := time.NewTicker(s.config.Heartbeat)
+	// Every way out of here releases the listener, including the ones that
+	// never say goodbye.
+	defer g.bye.said()
+
+	ticker := newLivenessTicker(s.config.Heartbeat)
 	defer ticker.Stop()
 
 	messageChan := make(chan byte, 1)
@@ -358,7 +404,22 @@ func (s *KcpTransport) channelHandler(g *kcpGen) {
 	for {
 		select {
 		case <-g.ctx.Done():
-			_ = utils.SendBinaryByteWithin(s.controlChannel.Get(), utils.SG_Closed, controlWriteTimeout)
+			// Written here while the listener is still holding the socket for
+			// it: SG_Closed is what lets the client redial at once instead of
+			// waiting out its deadline. See farewell.
+			//
+			// Then a moment before the close. A KCP write only hands the
+			// segment to the session's sender goroutine, and kcp-go's Close
+			// marks the session dead before its final flush — so a close
+			// straight after the write drops the very segment it was meant to
+			// flush. That was measured, not guessed: with the close right
+			// behind the write the client still waited out its full deadline.
+			if control := s.controlChannel.Get(); control != nil {
+				if utils.SendBinaryByteWithin(control, utils.SG_Closed, controlWriteTimeout) == nil {
+					time.Sleep(kcpFarewellFlush)
+				}
+				_ = control.Close()
+			}
 			return
 
 		case <-g.reqNewConnChan:
@@ -392,6 +453,11 @@ func (s *KcpTransport) channelHandler(g *kcpGen) {
 }
 
 func (s *KcpTransport) tunnelListener(g *kcpGen) {
+	// Counted while this goroutine holds a listener, so Start can wait for the
+	// port rather than sleeping and hoping. See listeners.go.
+	s.listeners.hold()
+	defer s.listeners.release()
+
 	// The tunnel's own port: retried rather than fatal. See bindfail.go.
 	var backoff listenBackoff
 	var listener *kcp.Listener
@@ -426,6 +492,10 @@ func (s *KcpTransport) tunnelListener(g *kcpGen) {
 	go s.acceptTunnelConn(g, listener)
 
 	<-g.ctx.Done()
+	// The socket stays open until the client has been told. See farewell.
+	if s.controlChannel.IsSet() {
+		g.bye.wait(farewellWait)
+	}
 }
 
 func (s *KcpTransport) acceptTunnelConn(g *kcpGen, listener *kcp.Listener) {
@@ -497,6 +567,27 @@ func (s *KcpTransport) acceptSession(g *kcpGen, session *kcp.UDPSession) {
 
 	switch signal {
 	case utils.SG_Chan:
+		// A control claim while one is already established means the client
+		// restarted on its own and re-dialed, while this run never noticed
+		// because the old session has not failed a read yet. channelHandshake
+		// only reads one claim per run, so without this the re-dial would be
+		// discarded, leaving the tunnel dead until the server was restarted by
+		// hand. Restart to adopt the new client.
+		//
+		// Decided before answering. Answering the claim as
+		// granted and then dropping it is, over KCP, a drop the client never
+		// hears: it believed itself connected and waited out its whole control
+		// deadline (116 seconds after a crash, measured). So it is told the
+		// server is restarting for it, and claims again once that is done.
+		if s.controlChannel.IsSet() {
+			s.logger.Warn("a new control channel claim arrived; restarting to adopt the new client")
+			if utils.SendBinaryTransportString(session, utils.RefusedRestarting, utils.SG_Refused) == nil {
+				time.Sleep(kcpFarewellFlush) // see kcpFarewellFlush: a close straight after drops it
+			}
+			session.Close()
+			go s.Restart()
+			return
+		}
 		// A peer claiming the control channel. Answering with the token is what
 		// proves to the client that this server knows the secret too.
 		if err := utils.SendBinaryTransportString(session, s.config.Token, utils.SG_Chan); err != nil {
@@ -506,29 +597,16 @@ func (s *KcpTransport) acceptSession(g *kcpGen, session *kcp.UDPSession) {
 		}
 		// The control channel carries small, latency-critical signals.
 		session.SetACKNoDelay(true)
-
-		// A control claim while one is already established means the client
-		// restarted on its own and re-dialed, while this run never noticed
-		// because the old session has not failed a read yet. channelHandshake
-		// only reads one claim per run, so without this the re-dial would fall
-		// through to the default below and be discarded, leaving the tunnel dead
-		// until the server was restarted by hand. Restart to adopt the new
-		// client — the listener it is retrying against comes back up as part of
-		// that restart.
-		if s.controlChannel.IsSet() {
-			s.logger.Warn("a new control channel claim arrived; restarting to adopt the new client")
-			session.Close()
-			go s.Restart()
-			return
-		}
+		// Between heartbeats it idles like a pool session (kcpidle.go).
+		control := network.IdleAwareKCP(session, s.kcpSettings, true)
 
 		select {
-		case g.handshakeChannel <- session: // ok
+		case g.handshakeChannel <- control: // ok
 		default:
 			// channelHandshake has not begun reading in this run yet: a genuine
 			// duplicate racing the first claim, rather than a re-dial.
 			s.logger.Warnf("control channel handshake already in progress, discarding duplicate")
-			session.Close()
+			control.Close()
 		}
 
 	case utils.SG_TCP:
@@ -539,10 +617,13 @@ func (s *KcpTransport) acceptSession(g *kcpGen, session *kcp.UDPSession) {
 			session.Close()
 			return
 		}
-		muxSession, err := smux.Client(session, s.smuxConfig)
+		// From here on the session is closed through conn, so that the idle
+		// governor lets go of it.
+		conn := network.IdleAwareKCP(session, s.kcpSettings, s.kcpSettings.AckNoDelay)
+		muxSession, err := smux.Client(conn, s.smuxConfig)
 		if err != nil {
 			s.logger.Errorf("failed to create MUX session for connection %s: %v", session.RemoteAddr(), err)
-			session.Close()
+			conn.Close()
 			return
 		}
 		select {
@@ -597,6 +678,11 @@ func (s *KcpTransport) parsePortMappings(g *kcpGen) {
 }
 
 func (s *KcpTransport) localListener(g *kcpGen, localAddr string, remoteAddr string) {
+	// Counted while this goroutine holds a listener, so Start can wait for the
+	// port rather than sleeping and hoping. See listeners.go.
+	s.listeners.hold()
+	defer s.listeners.release()
+
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		// One forwarded port, not the tunnel. See bindfail.go.
@@ -702,96 +788,26 @@ func (s *KcpTransport) handleLoop(g *kcpGen) {
 	}
 }
 
+// handleSession carries connections over one session. The state machine is
+// muxSession's, shared with the other two mux transports — see muxsession.go.
 func (s *KcpTransport) handleSession(g *kcpGen, session *smux.Session) {
-	counter := make(chan struct{}, s.config.MuxCon)
-	defer session.Close()
-	defer close(counter)
-
-	for {
-		// +1 for mux connection counter
-		counter <- struct{}{}
-
-		select {
-		case <-g.ctx.Done():
-			return
-
-		case incomingConn := <-g.localChannel:
-			if nowMillis()-incomingConn.timeCreated > pairingTimeout.Milliseconds() {
-				s.logger.Debugf("timeouted local connection: %d ms", nowMillis()-incomingConn.timeCreated)
-				incomingConn.conn.Close()
-
-				// Free the slot this connection took on accept. It is otherwise
-				// released only by the handler goroutine, which never runs for a
-				// connection that timed out waiting to be paired — so a tunnel
-				// with max_connections set loses a slot to every timeout and
-				// eventually refuses everything. tcp and quic already do this;
-				// these four did not.
-				s.limits.release()
-
-				atomic.AddInt32(&s.streamCounter, -1)
-				<-counter
-				continue
-			}
-
-			stream, err := session.OpenStream()
-			if err != nil {
-				s.handleSessionError(g, &incomingConn, err)
-				return
-			}
-
-			// Send the target port over the tunnel connection
-			if err := utils.SendBinaryString(stream, incomingConn.remoteAddr); err != nil {
-				s.logger.Tracef("failed to send address over stream: %v", err)
-				// The stream is unusable and nothing else will close it.
-				stream.Close()
-
-				// Give back the mux slot this attempt took. It was not given
-				// back, so a session that failed this way MuxCon times stopped
-				// taking connections at all: the loop blocks at the top on a
-				// counter that is full, and the only goroutine that empties it
-				// is this one.
-				<-counter
-
-				// Back on the queue for another stream, without blocking — see
-				// requeueLocal. A connection that goes back is still in flight
-				// and stays counted; one there was no room for is counted out
-				// here, because nothing downstream will ever do it.
-				if !requeueLocal(g.localChannel, incomingConn, s.limits, s.logger) {
-					atomic.AddInt32(&s.streamCounter, -1)
-				}
-				continue
-			}
-
-			// Handle data exchange between connections
-			go func() {
-				// Free the connection slot once the transfer ends, or the
-				// limit would fill up permanently.
-				defer s.limits.release()
-				handlers.TCPConnectionHandler(g.ctx, s.config.ProxyProtocol && !isUDPFlow(incomingConn.conn), incomingConn.conn, metrics.CountedConn(stream), s.logger, g.usageMonitor, localForwardPort(incomingConn.conn), s.config.Sniffer)
-				atomic.AddInt32(&s.streamCounter, -1)
-				<-counter // read signal from the channel
-			}()
-		}
-	}
+	s.session(g).run(session)
 }
 
-func (s *KcpTransport) handleSessionError(g *kcpGen, incomingConn *LocalTCPConn, err error) {
-	s.logger.Tracef("failed to handle session: %v", err)
-
-	atomic.AddInt32(&s.sessionCounter, -1)
-
-	// Back on the queue, without blocking. This runs on the session goroutine
-	// that has just failed and is about to return, so there may be no other
-	// goroutine left to drain the channel it is sending into. See requeueLocal.
-	// A connection there was no room for is counted out, since nothing
-	// downstream will do it.
-	if !requeueLocal(g.localChannel, *incomingConn, s.limits, s.logger) {
-		atomic.AddInt32(&s.streamCounter, -1)
-	}
-
-	select {
-	case g.reqNewConnChan <- struct{}{}:
-	default:
-		s.logger.Warn("request new connection channel is full")
+// session binds this transport's channels, counters and settings to the shared
+// loop. It is the whole of what is transport-specific about running a session.
+func (s *KcpTransport) session(g *kcpGen) muxSession {
+	return muxSession{
+		ctx:           g.ctx,
+		local:         g.localChannel,
+		usage:         g.usageMonitor,
+		reqNewConn:    g.reqNewConnChan,
+		muxCon:        s.config.MuxCon,
+		proxyProtocol: s.config.ProxyProtocol,
+		sniffer:       s.config.Sniffer,
+		limits:        s.limits,
+		log:           s.logger,
+		streams:       &s.streamCounter,
+		sessions:      &s.sessionCounter,
 	}
 }
