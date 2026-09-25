@@ -50,4 +50,4 @@ end when accounting for user traffic; do not sum the two machines' counters.
 
 ---
 
-*Last verified against Backpack v1.8.5.*
+*Last verified against Backpack v1.8.6.*
