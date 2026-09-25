@@ -19,17 +19,30 @@ import { oops } from '../ui/toast.js';
 import { go } from '../router.js';
 
 const num = n => (Number(n) || 0).toLocaleString();
+const quotaBytes = n => {
+  if (n >= 1024 ** 3) return (n / 1024 ** 3).toFixed(2) + ' GiB';
+  if (n >= 1024 ** 2) return (n / 1024 ** 2).toFixed(1) + ' MiB';
+  if (n >= 1024) return (n / 1024).toFixed(0) + ' KiB';
+  return n + ' B';
+};
 
 /* label -> what to put there, or null when this tunnel has no such thing */
 function values(t) {
   const last = t.rates?.[t.rates.length - 1];
   const pool = t.pool;
   const k = t.kcp;
+  const used = Number(t.totalBytes) || 0;
+  const limit = (Number(t.trafficLimitGB) || 0) * 1024 ** 3;
   return {
     'State': t.state,
     'Tunnel uptime': t.uptime || '—',
     'Traffic in': bytes(t.inBytes || 0),
     'Traffic out': bytes(t.outBytes || 0),
+    'Traffic total': quotaBytes(used),
+    'Traffic quota': limit ? `${t.trafficLimitGB} GiB` : 'Unlimited',
+    'Traffic remaining': limit
+      ? (used >= limit ? '0 B — quota exhausted' : quotaBytes(limit - used))
+      : 'Unlimited',
     'Preset': t.preset ? t.preset[0].toUpperCase() + t.preset.slice(1) : '—',
     'Transport': (t.carrier || t.transport || '').toUpperCase(),
 
@@ -39,8 +52,7 @@ function values(t) {
     'Role': t.role === 'client' ? 'Client — dials out' : 'Server — waits to be dialled',
 
     'Limits': [t.maxConnections ? `${t.maxConnections} connections` : null,
-               t.bandwidthMbps ? `${t.bandwidthMbps} Mbit/s` : null,
-               t.trafficLimitGB ? `${bytes(t.totalBytes || 0)} / ${t.trafficLimitGB} GiB quota` : null]
+               t.bandwidthMbps ? `${t.bandwidthMbps} Mbit/s` : null]
               .filter(Boolean).join(' · ') || 'none set',
     'Real client IP': t.proxyProtocol ? 'On (PROXY protocol v2)' : 'Off',
 
