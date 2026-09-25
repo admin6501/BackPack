@@ -39,7 +39,7 @@ func TestUDPPathChangesOnlyAfterAuthentication(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		tun.route(nil, make([][]byte, 1), buf[:n], from)
+		tun.route(nil, buf[:n], from)
 	}
 	// An authenticated packet pins the address, even if its inner IP is malformed.
 	sealed, err := init.seal(nil, []byte("invalid inner IP"))
