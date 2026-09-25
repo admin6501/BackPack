@@ -99,8 +99,9 @@ type NewDirectTunnel struct {
 	GREKey uint32 `json:"greKey"`
 
 	// MaxConnections and BandwidthMbps cap the forwarded ports (0 = unlimited).
-	MaxConnections int `json:"maxConnections"`
-	BandwidthMbps  int `json:"bandwidthMbps"`
+	MaxConnections int   `json:"maxConnections"`
+	BandwidthMbps  int   `json:"bandwidthMbps"`
+	TrafficLimitGB int64 `json:"trafficLimitGB"`
 }
 
 // DirectCarriers is what the panel offers, in the order it offers them. It is
@@ -308,6 +309,9 @@ func writeDirectConfig(name, body string) error {
 // the wizard refuses, this refuses, with the same wording — the two paths write
 // the same file and must reject the same input.
 func (n NewDirectTunnel) spec() (l3Spec, error) {
+	if n.TrafficLimitGB < 0 || uint64(n.TrafficLimitGB) > ^uint64(0)>>30 {
+		return l3Spec{}, fmt.Errorf("traffic quota must be between 0 and %d GiB", ^uint64(0)>>30)
+	}
 	var side directSide
 	switch strings.ToLower(strings.TrimSpace(n.Side)) {
 	case "iran":
@@ -367,7 +371,8 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 	}
 
 	spec := l3Spec{
-		Name: name, Side: side, Carrier: carrier,
+		TrafficLimitGB: n.TrafficLimitGB,
+		Name:           name, Side: side, Carrier: carrier,
 		// Always Backpack's own GRE inside the Noise session. There is no
 		// choice here and the panel does not offer one; see askL3Encap's
 		// removal in the CLI wizard for why.

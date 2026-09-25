@@ -237,7 +237,11 @@ func TestTheFormSendsNumbersForTheFieldsGoDeclaresNumeric(t *testing.T) {
 			if name == "" || name == "-" {
 				continue
 			}
-			switch f.Type.Kind() {
+			kind := f.Type
+			for kind.Kind() == reflect.Ptr {
+				kind = kind.Elem()
+			}
+			switch kind.Kind() {
 			case reflect.Int, reflect.Int64, reflect.Uint32, reflect.Uint64:
 				if prefix == "@direct" {
 					want[name] = true // direct fields sit at the top level
