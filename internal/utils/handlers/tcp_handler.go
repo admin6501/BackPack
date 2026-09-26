@@ -9,6 +9,7 @@ import (
 	"github.com/backpack/backpack/internal/metrics"
 	"github.com/backpack/backpack/internal/web"
 	"github.com/sirupsen/logrus"
+	"github.com/xtaci/smux"
 )
 
 func TCPConnectionHandler(ctx context.Context, proxyProtocol bool, from net.Conn, to net.Conn, logger *logrus.Logger, usage *web.Usage, remotePort int, sniffer bool) {
@@ -132,6 +133,14 @@ func transferData(from net.Conn, to net.Conn, logger *logrus.Logger, usage *web.
 // writeAll puts one read's worth of bytes on the far side, reporting false when
 // the pair has been closed and the caller should stop.
 func writeAll(from, to net.Conn, data []byte, logger *logrus.Logger, usage *web.Usage, remotePort int, sniffer bool) bool {
+	// smux can retain a frame's payload after Stream.Write returns (notably
+	// while a session is closing). The relay's buffer is reused on its next
+	// Read or returned to the pool, so give smux storage it can keep safely.
+	if target, _ := metrics.Uncount(to); target != nil {
+		if _, ok := target.(*smux.Stream); ok {
+			data = append([]byte(nil), data...)
+		}
+	}
 	totalWritten := 0
 	for totalWritten < len(data) {
 		// Write data to the destination connection
