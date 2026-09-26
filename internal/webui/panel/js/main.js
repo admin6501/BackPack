@@ -20,6 +20,7 @@ import { alertsView, healthView, speedView } from './views/monitor.js';
 import { starView, supportView } from './views/support.js';
 import { closeScreen } from './ui/screen.js';
 import { mountStrip } from './ui/strip.js';
+import { startPWA } from './ui/pwa.js';
 import * as api from './api.js';
 
 /* ---- appearance ----------------------------------------------------------
@@ -226,6 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (appearOpen && !ev.target.closest('#appearance, #appearance-btn')) toggleAppearance();
   });
   bind('#alerts-btn', 'click', () => router.go('/alerts'));
+  startPWA();
   bind('.warnbar .act', 'click', () => router.go('/health'));
 
   document.addEventListener('keydown', ev => {

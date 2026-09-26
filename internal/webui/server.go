@@ -630,7 +630,7 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(1 * time.Second)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write(withNonce(withBase(loginHTML, basePrefix()), r))
+		w.Write(withNonce(withBase(withLoginState(loginHTML, true), basePrefix()), r))
 		return
 	}
 
@@ -640,14 +640,15 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(withNonce(withBase(loginHTML, basePrefix()), r))
+	w.Write(withNonce(withBase(withLoginState(loginHTML, false), basePrefix()), r))
 }
 
 // serveSecondFactorPage draws the code prompt.
 func (s *server) serveSecondFactorPage(w http.ResponseWriter, r *http.Request, status int) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	w.Write(withNonce(withBase(twoFactorHTML, basePrefix()), r))
+	page := withLoginState(twoFactorHTML, status == http.StatusUnauthorized)
+	w.Write(withNonce(withBase(page, basePrefix()), r))
 }
 
 func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
