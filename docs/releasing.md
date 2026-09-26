@@ -29,8 +29,8 @@ written down, so a release made in a hurry is the same release.
 ## Tagging
 
 ```
-git tag -a v1.8.6 -m "v1.8.6"
-git push origin v1.8.6
+git tag -a v1.8.7 -m "v1.8.7"
+git push origin v1.8.7
 ```
 
 The tag starts the release workflow. It tests the source, builds both
@@ -147,4 +147,4 @@ during the incident.
 
 ---
 
-*Last verified against Backpack v1.8.6.*
+*Last verified against Backpack v1.8.7.*
