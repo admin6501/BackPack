@@ -70,9 +70,16 @@ func TestSupportTextFormat(t *testing.T) {
 	for _, want := range []string{
 		"BackPack", "Maintained by admin6501",
 		"https://github.com/admin6501/BackPack",
+		"USDT", "BEP20", "0x971e3D106d902AF699B88648BAc4653d30F43d66",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("support text is missing %q:\n%s", want, got)
+		}
+	}
+	fa := supportText(LangFA)
+	for _, want := range []string{"حمایت اختیاری", "USDT", "BEP20", "0x971e3D106d902AF699B88648BAc4653d30F43d66"} {
+		if !strings.Contains(fa, want) {
+			t.Errorf("Persian support text is missing %q:\n%s", want, fa)
 		}
 	}
 	for _, forbidden := range []string{"Channel :", "Tron [", "USDT [", "Gram ["} {

@@ -716,8 +716,14 @@ func webUIText(lang string) string {
 }
 
 func supportText(lang string) string {
-	return b("BackPack · "+tr(lang, "Support")) + "\n\n" +
-		"Maintained by admin6501\nhttps://github.com/admin6501/BackPack"
+	message := b("BackPack · "+tr(lang, "Support")) + "\n\n" +
+		"Maintained by admin6501\nhttps://github.com/admin6501/BackPack\n\n"
+	if lang == LangFA {
+		message += "برای حمایت اختیاری از نگهداری این فورک، تتر (USDT) را فقط روی شبکهٔ BNB Smart Chain (BEP20) ارسال کنید:\n"
+	} else {
+		message += "To optionally support this fork, send USDT only on BNB Smart Chain (BEP20):\n"
+	}
+	return message + code("0x971e3D106d902AF699B88648BAc4653d30F43d66")
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) {
