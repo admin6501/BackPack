@@ -11,7 +11,7 @@ import (
 // on this end starts again at its configured limit. The other server's history
 // is independent and is deliberately left alone.
 func ResetTunnelTraffic(name string) error {
-	if err := CheckName(name); err != nil {
+	if err := checkName(name); err != nil {
 		return err
 	}
 	t, ok := Find(name)
