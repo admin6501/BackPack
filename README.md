@@ -173,6 +173,7 @@ Thirteen to choose from, so you match the route instead of fighting it. Not sure
   its own service.
 - **It tells you what is wrong** — Health Check prints a fix under each problem;
   Link Test measures the route and recommends a transport and its timers.
+- **Set up both ends from the CLI** — after creating one end, connect to the other server over SSH and mirror the paired settings. Existing tunnels can be finished from Manage. The CLI can also reveal a forgotten tunnel secret locally; the web panel cannot.
 - **Traffic allowances** — per-tunnel cumulative incoming plus outgoing GiB,
   remaining balance in CLI and panel Metrics, automatic pause at the cap, and
   an explicit per-tunnel usage reset to start a new allowance period.
