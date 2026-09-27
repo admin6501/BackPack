@@ -28,6 +28,7 @@ func manageMenu() {
 			{Title: "Auto Refresh", Desc: "restart all tunnels every N hours — " + refreshLabel()},
 			{Title: "Built-in Proxy", Desc: "be your own SOCKS5/HTTP backend — " + proxyLabel()},
 			{Title: "File Locations", Desc: "where every config, service and backup lives"},
+			{Title: "Set up the other server", Desc: "build this tunnel's peer over SSH from this terminal"},
 		})
 		switch idx {
 		case 0:
@@ -60,6 +61,8 @@ func manageMenu() {
 			builtinProxyMenu()
 		case 13:
 			manage.FileLocations()
+		case 14:
+			pairExistingTunnel()
 		default:
 			return
 		}

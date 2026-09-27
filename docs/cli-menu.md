@@ -109,6 +109,7 @@ once it is up and corrects the interface itself.
 | Option | What it does |
 |---|---|
 | **Manage Tunnels** | Per-tunnel actions. [↓](#manage--manage-tunnels) |
+| **Set up the other server** | Choose an existing tunnel and build its peer over SSH. A new setup also offers this after the local end is created. Existing managed servers can be reused, or added with their SSH address and login. No second terminal is needed. |
 | **Status** | A live table of every tunnel: role, transport, state, uptime, traffic. |
 | **Health Check** | Tests the server, the panel and every tunnel, and prints a **fix** under each problem it finds. Start here when something is wrong. [More](health-check.md) |
 | **Link Test** | Measures the real route (latency, jitter, loss) and recommends a transport with matching timers. On a lossy link it names the exact FEC ratio and offers to apply it. [More](choosing-a-transport.md) |
