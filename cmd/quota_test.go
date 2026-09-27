@@ -56,6 +56,28 @@ func TestQuotaRefusesInvalidAndCorruptedHistory(t *testing.T) {
 	}
 }
 
+func TestResetTrafficRenewsTheSameQuota(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "iran.toml")
+	var bytes atomic.Uint64
+	bytes.Store(1 << 30)
+	collector := metrics.NewCollector(dir, "iran", "tcp", "server", bytes.Load, nil)
+	if err := collector.Write(); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{TrafficLimitGB: 1}
+	if paused, err := quotaExhausted(path, cfg); err != nil || !paused {
+		t.Fatalf("full quota = %v, %v; want paused", paused, err)
+	}
+	// Systemd has stopped the original collector before this reset.
+	if err := metrics.ResetTraffic(dir, "iran"); err != nil {
+		t.Fatal(err)
+	}
+	if paused, err := quotaExhausted(path, cfg); err != nil || paused {
+		t.Fatalf("reset quota = %v, %v; want available", paused, err)
+	}
+}
+
 // The quota guard must wake the same generation the reload loop watches.
 // After the cap is raised, that loop must leave the paused state on its own.
 func TestQuotaPauseAndResumeOnConfigChange(t *testing.T) {

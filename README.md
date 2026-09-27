@@ -174,7 +174,8 @@ Thirteen to choose from, so you match the route instead of fighting it. Not sure
 - **It tells you what is wrong** — Health Check prints a fix under each problem;
   Link Test measures the route and recommends a transport and its timers.
 - **Traffic allowances** — per-tunnel cumulative incoming plus outgoing GiB,
-  remaining balance in CLI and panel Metrics, and automatic pause at the cap.
+  remaining balance in CLI and panel Metrics, automatic pause at the cap, and
+  an explicit per-tunnel usage reset to start a new allowance period.
 - **Telegram from Iran** — status and alerts reach Telegram by going out through
   a tunnel peer, choosing the tunnel itself and moving when one dies.
 - **Offline installer** — install or update with **no internet at all**.

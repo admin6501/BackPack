@@ -314,6 +314,8 @@ func (s *server) handleTunnelAction(w http.ResponseWriter, r *http.Request) {
 		err = manage.Stop(name)
 	case "restart":
 		err = manage.Restart(name)
+	case "resettraffic":
+		err = manage.ResetTunnelTraffic(name)
 	case "delete":
 		// Read before the delete, which is what forgets it.
 		pair, paired := manage.PairFor(name)
@@ -364,6 +366,10 @@ func (s *server) handleTunnelAction(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if action == "resettraffic" {
+		writeJSON(w, map[string]any{"status": "ok", "note": "Traffic reset on this server only. A stopped tunnel remains stopped."})
 		return
 	}
 	writeJSON(w, s.alsoOnNode(name, action))

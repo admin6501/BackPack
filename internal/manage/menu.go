@@ -84,6 +84,7 @@ func manageOne(t Tunnel) {
 			{Title: "Live Log", Desc: "stream the journal — Ctrl+C to return"},
 			{Title: "Setup link", Desc: "one string that builds the other end"},
 			{Title: "Traffic quota", Desc: "cumulative incoming + outgoing GiB (0 = unlimited)"},
+			{Title: "Reset traffic", Desc: "zero this tunnel's recorded usage and renew its quota on this server"},
 			{Title: "Delete", Desc: "remove the tunnel permanently"},
 		})
 		switch idx {
@@ -117,6 +118,15 @@ func manageOne(t Tunnel) {
 			}
 			tui.PressEnter()
 		case 7:
+			if tui.Confirm(fmt.Sprintf("Reset traffic for %q on this server? This clears its recorded usage, renews its quota and briefly stops a running tunnel", t.Name), false) {
+				if err := ResetTunnelTraffic(t.Name); err != nil {
+					tui.Error("Traffic reset failed: " + err.Error())
+				} else {
+					tui.Success("Traffic reset on this server. A tunnel that was stopped remains stopped.")
+				}
+				tui.PressEnter()
+			}
+		case 8:
 			if tui.Confirm(fmt.Sprintf("Delete tunnel %q permanently", t.Name), false) {
 				if err := Delete(t.Name); err != nil {
 					tui.Error("Delete failed: " + err.Error())
