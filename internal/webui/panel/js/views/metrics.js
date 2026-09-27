@@ -410,7 +410,7 @@ export async function metricsView(ctx) {
       root.addEventListener('click', async ev => {
         if (ev.target.closest('[data-reset-traffic]')) {
           if (!await confirmBox({
-            title: `Reset traffic for ${name}?`,
+            title: `Reset traffic for ${esc(name)}?`,
             body: 'This clears recorded usage and renews the quota on this server. A running tunnel briefly reconnects. The other server keeps its own counters.',
             go: 'Reset traffic',
             danger: true,
