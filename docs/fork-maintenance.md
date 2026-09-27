@@ -79,4 +79,4 @@ support half-close still use full closure on EOF.
 
 </div>
 
-*Last verified against Backpack v1.8.8.*
+*Last verified against Backpack v1.8.9.*

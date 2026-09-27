@@ -130,6 +130,7 @@ Pick a tunnel, then:
 |---|---|
 | **Edit** | Everything about the tunnel's configuration. [↓](#manage--manage-tunnels--edit) |
 | **Start / Stop / Restart** | The systemd service for that tunnel. |
+| **Show secret** | Displays the selected tunnel’s shared token in the local terminal. It is not available in the web panel; keep the terminal private. |
 | **Traffic quota** | Cumulative incoming + outgoing GiB for this tunnel. `0` = unlimited; at the cap the tunnel pauses until the quota is increased or removed. [More](limits.md) |
 | **Live Log** | Streams the journal. Ctrl+C returns. |
 | **Delete** | Removes the tunnel permanently, after a confirm. |
@@ -408,4 +409,4 @@ FEC؛ و zero-copy (فقط روی tcp ساده).
 
 ---
 
-*Last verified against Backpack v1.8.8.*
+*Last verified against Backpack v1.8.9.*
