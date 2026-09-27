@@ -83,6 +83,7 @@ func manageOne(t Tunnel) {
 			{Title: "Restart", Desc: "restart the tunnel service"},
 			{Title: "Live Log", Desc: "stream the journal — Ctrl+C to return"},
 			{Title: "Setup link", Desc: "one string that builds the other end"},
+			{Title: "Show secret", Desc: "display this tunnel's shared token in this terminal"},
 			{Title: "Traffic quota", Desc: "cumulative incoming + outgoing GiB (0 = unlimited)"},
 			{Title: "Reset traffic", Desc: "zero this tunnel's recorded usage and renew its quota on this server"},
 			{Title: "Delete", Desc: "remove the tunnel permanently"},
@@ -109,6 +110,8 @@ func manageOne(t Tunnel) {
 		case 5:
 			showShareLink(t.Name)
 		case 6:
+			showTunnelSecret(t.Name)
+		case 7:
 			current := readTrafficLimit(t.Name)
 			gb := int64(tui.PromptInt("Traffic quota in GiB (0 = unlimited)", int(current)))
 			if err := SetTrafficQuota(t.Name, gb); err != nil {
@@ -117,7 +120,7 @@ func manageOne(t Tunnel) {
 				tui.Success("Traffic quota saved. Existing usage is retained.")
 			}
 			tui.PressEnter()
-		case 7:
+		case 8:
 			if tui.Confirm(fmt.Sprintf("Reset traffic for %q on this server? This clears its recorded usage, renews its quota and briefly stops a running tunnel", t.Name), false) {
 				if err := ResetTunnelTraffic(t.Name); err != nil {
 					tui.Error("Traffic reset failed: " + err.Error())
@@ -126,7 +129,7 @@ func manageOne(t Tunnel) {
 				}
 				tui.PressEnter()
 			}
-		case 8:
+		case 9:
 			if tui.Confirm(fmt.Sprintf("Delete tunnel %q permanently", t.Name), false) {
 				if err := Delete(t.Name); err != nil {
 					tui.Error("Delete failed: " + err.Error())
