@@ -20,6 +20,13 @@ zero and the panel marks the tunnel paused. Increasing the cap resumes it
 without resetting the used amount. For reverse tunnels, read the Iran entry
 end when accounting for user traffic; do not sum the two machines' counters.
 
+To begin a new usage period, choose **Manage → Manage Tunnels → [name] → Reset
+traffic**, or use **Reset traffic** on that tunnel's panel Metrics screen. This
+zeros incoming and outgoing usage on this server and renews its configured
+allowance. A running tunnel reconnects briefly; a stopped tunnel stays
+stopped. The far server's counters are independent. Historical charts keep
+earlier samples and skip the reset boundary.
+
 ---
 
 <div dir="rtl">
@@ -42,6 +49,13 @@ end when accounting for user traffic; do not sum the two machines' counters.
 باقیمانده به صفر برسد، پنل وضعیت توقف به‌دلیل حجم را نشان می‌دهد. افزایش سقف
 تونل را با حفظ مصرف قبلی راه می‌اندازد. در ریورس، برای حجم کاربران به سرور
 ورودی ایران نگاه کنید و شمارنده‌های دو سرور را با هم جمع نزنید.
+
+برای شروع دورهٔ مصرف جدید، از **Manage → Manage Tunnels → نام تونل → Reset
+traffic** یا صفحهٔ Metrics پنل همان تونل استفاده کن. مصرف ورودی و خروجی روی
+همین سرور صفر می‌شود و سهمیهٔ تنظیم‌شده از نو در دسترس است. تونل فعال برای
+لحظه‌ای دوباره وصل می‌شود؛ تونل متوقف، متوقف می‌ماند. شمارندهٔ سرور دیگر
+جداست. نمودارهای تاریخی نمونه‌های قبلی را نگه می‌دارند و لحظهٔ ریست را
+به‌عنوان مصرف جدید حساب نمی‌کنند.
 
 </div>
 

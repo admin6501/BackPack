@@ -15,7 +15,8 @@ import { bytes, speed, ago, kindLabel, flag } from '../lib/format.js';
 import * as api from '../api.js';
 import * as store from '../store.js';
 import { openScreen } from '../ui/screen.js';
-import { oops } from '../ui/toast.js';
+import { oops, toast } from '../ui/toast.js';
+import { confirmBox } from '../ui/confirm.js';
 import { go } from '../router.js';
 
 const num = n => (Number(n) || 0).toLocaleString();
@@ -406,7 +407,23 @@ export async function metricsView(ctx) {
       const lt = root.querySelector('.lt b');
       if (lt) lt.textContent = t.addr || '—';
 
-      root.addEventListener('click', ev => {
+      root.addEventListener('click', async ev => {
+        if (ev.target.closest('[data-reset-traffic]')) {
+          if (!await confirmBox({
+            title: `Reset traffic for ${esc(name)}?`,
+            body: 'This clears recorded usage and renews the quota on this server. A running tunnel briefly reconnects. The other server keeps its own counters.',
+            go: 'Reset traffic',
+            danger: true,
+            defaultNo: true,
+          })) return;
+          try {
+            const result = await api.tunnelAction(name, 'resettraffic');
+            await store.loadTunnels();
+            paint();
+            toast(result.note || 'Traffic reset.');
+          } catch (e) { oops(e); }
+          return;
+        }
         const b = ev.target.closest('[data-to]');
         if (b) go(`/t/${encodeURIComponent(name)}/${b.dataset.to}`);
         if (ev.target.closest('#ltbtn')) go(`/t/${encodeURIComponent(name)}/link`);

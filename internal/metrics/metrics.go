@@ -9,6 +9,7 @@ package metrics
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -380,6 +381,53 @@ func Read(dir, name string) (Snapshot, error) {
 	}
 	err = json.Unmarshal(b, &s)
 	return s, err
+}
+
+// ResetTraffic begins a new accounting period for one stopped tunnel. Callers
+// must stop its service first: a running collector could otherwise overwrite
+// the zero with its next periodic or shutdown snapshot.
+func ResetTraffic(dir, name string) error {
+	s, err := Read(dir, name)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return err // malformed history must never silently become zero
+		}
+		s = Snapshot{Name: name}
+	}
+	s.BytesIn, s.BytesOut = 0, 0
+	s.Taken = time.Now()
+	b, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeSnapshot(dir, name, b)
+}
+
+func writeSnapshot(dir, name string, b []byte) error {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	// Use a unique temporary name so a second writer cannot collide with it.
+	tmp, err := os.CreateTemp(dir, "."+name+".metrics-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(b); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), Path(dir, name))
 }
 
 // Tunnel traffic counting.
