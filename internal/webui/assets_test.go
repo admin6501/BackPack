@@ -7,6 +7,19 @@ import (
 	"testing"
 )
 
+func TestSupportDonationAddressIsCopyable(t *testing.T) {
+	page, err := os.ReadFile("panel/views/support.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const addr = "0x971e3D106d902AF699B88648BAc4653d30F43d66"
+	for _, want := range []string{"USDT", "BEP20", `data-addr="` + addr + `"`, `<span class="ad0">` + addr + `</span>`} {
+		if !strings.Contains(string(page), want) {
+			t.Errorf("support screen is missing %q", want)
+		}
+	}
+}
+
 // The login page must follow the panel's appearance: it is the first thing
 // anyone sees, and a sign-in screen in a colour or ground the panel does not
 // use reads as a different product. It reads the same keys the panel stores

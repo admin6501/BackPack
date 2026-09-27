@@ -241,9 +241,16 @@ Both sections are also summarised in Persian at the bottom of every page.
 
 ---
 
-## Support
+## Support & donations
 
 Report issues at https://github.com/admin6501/BackPack/issues.
+
+If this fork helps you and you would like to support its maintenance, you can
+send USDT on **BNB Smart Chain (BEP20)** to:
+
+`0x971e3D106d902AF699B88648BAc4653d30F43d66`
+
+Use the BEP20 network when sending. Contributions are optional.
 
 ---
 
