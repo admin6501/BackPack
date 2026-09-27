@@ -47,4 +47,4 @@ stopped.
 
 ---
 
-*Last verified against Backpack v1.8.7.*
+*Last verified against Backpack v1.8.8.*
