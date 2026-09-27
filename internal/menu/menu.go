@@ -68,9 +68,9 @@ func Run() {
 		// a reverse one is then built by exactly the code that has always
 		// built it. See manage.SetupIran.
 		case "1":
-			manage.SetupIran()
+			setupWithPeer(manage.SetupIran)
 		case "2":
-			manage.SetupKharej()
+			setupWithPeer(manage.SetupKharej)
 		case "3":
 			manageMenu()
 		case "4":

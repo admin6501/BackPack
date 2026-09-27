@@ -103,6 +103,17 @@ holds. It is never sent to the browser.
 
 ## Building a tunnel on both ends
 
+The CLI offers the same SSH route after creating a tunnel from **Setup Iran**
+or **Setup Kharej**. To finish an existing tunnel, open **Manage → Set up the
+other server**. Select a managed server or add its SSH address and login; the
+password is hidden while typed. The remote end is mirrored from the local
+config. A reverse tunnel started on kharej asks which ports Iran should expose,
+and an endpoint whose peer dials it asks for a reachable address. An existing
+remote tunnel with the same name requires explicit confirmation before its
+settings are replaced. The CLI reports whether the services started and whether
+the far end reports a peer connection; it cannot promise that an application
+behind a forwarded port is answering.
+
 **Tunnels → Add tunnel.** Pick the managed server that holds the other end, fill
 the form once, and the panel writes this end here and mirrors it there.
 
