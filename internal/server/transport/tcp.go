@@ -165,12 +165,12 @@ func (s *TcpTransport) start(g *tcpGen) {
 	}
 }
 func (s *TcpTransport) Restart() {
-	s.restart(nil)
+	s.restart(context.Background(), true)
 }
 
 // restart ignores delayed requests from a run that has already been replaced.
-func (s *TcpTransport) restart(expected context.Context) {
-	if expected != nil {
+func (s *TcpTransport) restart(expected context.Context, force bool) {
+	if !force {
 		// Queue a current run's failure behind an in-flight restart. The
 		// generation check below discards it if that restart replaced the run.
 		s.restartMutex.Lock()
@@ -179,7 +179,7 @@ func (s *TcpTransport) restart(expected context.Context) {
 		return
 	}
 	defer s.restartMutex.Unlock()
-	if expected != nil && (expected.Err() != nil || s.run.context() != expected) {
+	if !force && (expected.Err() != nil || s.run.context() != expected) {
 		return
 	}
 
@@ -324,7 +324,7 @@ func (s *TcpTransport) channelHandler(g *tcpGen) {
 					// detector caught on this line.
 					if g.ctx.Err() == nil {
 						s.logger.Error("failed to read from channel connection. ", err)
-						go s.restart(g.ctx)
+						go s.restart(g.ctx, false)
 					}
 					return
 				}
@@ -338,7 +338,7 @@ func (s *TcpTransport) channelHandler(g *tcpGen) {
 	err := utils.SendBinaryByteWithin(s.controlChannel.Get(), utils.SG_RTT, controlWriteTimeout)
 	if err != nil {
 		s.logger.Error("failed to send RTT signal, attempting to restart server...")
-		go s.restart(g.ctx)
+		go s.restart(g.ctx, false)
 		return
 	}
 
@@ -352,7 +352,7 @@ func (s *TcpTransport) channelHandler(g *tcpGen) {
 			err := utils.SendBinaryByteWithin(s.controlChannel.Get(), utils.SG_Chan, controlWriteTimeout)
 			if err != nil {
 				s.logger.Error("failed to send request new connection signal. ", err)
-				go s.restart(g.ctx)
+				go s.restart(g.ctx, false)
 				return
 			}
 
@@ -360,7 +360,7 @@ func (s *TcpTransport) channelHandler(g *tcpGen) {
 			err := utils.SendBinaryByteWithin(s.controlChannel.Get(), utils.SG_HB, controlWriteTimeout)
 			if err != nil {
 				s.logger.Error("failed to send heartbeat signal")
-				go s.restart(g.ctx)
+				go s.restart(g.ctx, false)
 				return
 			}
 			s.logger.Trace("heartbeat signal sent successfully")
@@ -373,7 +373,7 @@ func (s *TcpTransport) channelHandler(g *tcpGen) {
 
 			if message == utils.SG_Closed {
 				s.logger.Warn("control channel has been closed by the client")
-				go s.restart(g.ctx)
+				go s.restart(g.ctx, false)
 				return
 
 			} else if message == utils.SG_RTT {
@@ -599,7 +599,7 @@ func (s *TcpTransport) admitControlChannel(g *tcpGen, conn net.Conn, ann announc
 	if s.controlChannel.IsSet() {
 		s.logger.Warn("a new control channel claim arrived; restarting to adopt the new client")
 		conn.Close()
-		go s.restart(g.ctx)
+		go s.restart(g.ctx, false)
 		return
 	}
 

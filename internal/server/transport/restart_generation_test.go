@@ -14,13 +14,13 @@ func TestRetiredTCPRestartCannotStopCurrentRun(t *testing.T) {
 		{"tcp", func(old, current context.Context) context.Context {
 			s := &TcpTransport{}
 			s.run.set(current, func() {})
-			s.restart(old)
+			s.restart(old, false)
 			return s.run.context()
 		}},
 		{"tcpmux", func(old, current context.Context) context.Context {
 			s := &TcpMuxTransport{}
 			s.run.set(current, func() {})
-			s.restart(old)
+			s.restart(old, false)
 			return s.run.context()
 		}},
 	} {
