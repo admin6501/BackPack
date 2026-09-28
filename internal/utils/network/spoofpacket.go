@@ -32,7 +32,19 @@ type SpoofDPI struct {
 var (
 	ttlPool  = [...]byte{64, 128, 255}
 	dscpPool = [...]byte{0x00, 0x28, 0x10}
+	// Keep a source port for each TCP carrier's lifetime, then advance it on
+	// recreation. A restarted carrier must not inherit the previous flow's
+	// 4-tuple while a middlebox still tracks its old sequence numbers.
+	spoofTCPPort = atomic.Uint32{}
 )
+
+func init() {
+	spoofTCPPort.Store(rand.Uint32())
+}
+
+func nextSpoofTCPPort() uint16 {
+	return 32768 + uint16(spoofTCPPort.Add(1)%28000)
+}
 
 // pickTTL returns the TTL to stamp: a fixed 64 unless jitter is on, then one of
 // the pool at random. TTL is not checked by the receiver, so this needs no

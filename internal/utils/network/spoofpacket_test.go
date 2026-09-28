@@ -58,6 +58,26 @@ func TestSpoofTCPShimRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSpoofTCPPortChangesOnRecreation(t *testing.T) {
+	first, second := nextSpoofTCPPort(), nextSpoofTCPPort()
+	if first == second || first < 32768 || second < 32768 {
+		t.Fatalf("recreated TCP carriers must use distinct ephemeral ports: %d, %d", first, second)
+	}
+	src := net.IPv4(192, 0, 2, 1)
+	dst := net.IPv4(192, 0, 2, 2)
+	const destination = 12345
+	for _, source := range []uint16{first, second} {
+		shim := buildTCPShimPorts(source, destination, 1, src, dst, []byte("data"))
+		if binary.BigEndian.Uint16(shim[0:2]) != source {
+			t.Fatalf("source port = %d, want %d", binary.BigEndian.Uint16(shim[0:2]), source)
+		}
+		if _, ok := stripSpoofShim(SpoofProfileTCP, destination, shim); !ok {
+			t.Fatalf("receiver rejected a fresh source port %d", source)
+		}
+		verifyChecksum(t, src, dst, 6, shim)
+	}
+}
+
 // A packet for another tunnel's port must be rejected, so two tunnels on one
 // host never read each other's traffic.
 func TestSpoofShimRejectsWrongPort(t *testing.T) {
