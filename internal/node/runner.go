@@ -343,18 +343,28 @@ func (r *SSHRunner) Install(name string) (string, error) {
 		_ = NoteFingerprint(name, seen)
 	}
 
-	// stdin is closed so the installer takes its own quiet path: with no
-	// terminal it prints how to open the menu rather than opening one, and a
-	// menu waiting for a keypress over SSH would hang until the timeout.
+	// Download to a private temporary file before invoking bash. Piping curl
+	// into `bash < /dev/null` replaces the pipe with /dev/null: bash exits 0
+	// without running any installer, and the second hello still finds no binary.
+	// A separate download also preserves curl's failure rather than hiding it
+	// behind the shell's successful empty run. The installer's stdin stays closed
+	// so it takes its non-interactive path over SSH.
 	url := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/main/install.sh",
 		app.RepoOwner, app.RepoName)
-	cmd := "curl -fsSL " + quote(url) + " | bash < /dev/null 2>&1"
+	cmd := installerCommand(url)
 
 	out, err := runLong(c, cmd)
 	if err != nil {
 		return string(out), fmt.Errorf("installing Backpack on %s failed: %w", name, err)
 	}
 	return string(out), nil
+}
+
+func installerCommand(url string) string {
+	return "install_script=$(mktemp) || exit; " +
+		"trap 'rm -f \"$install_script\"' EXIT; " +
+		"curl -fsSL " + quote(url) + " -o \"$install_script\" && " +
+		"bash \"$install_script\" < /dev/null"
 }
 
 // Upgrade reinstalls Backpack on a server, which is how a node is brought to
