@@ -397,29 +397,29 @@ func askSpoofCarrier(sc *config.SpoofConfig, onIran bool) {
 	}
 
 	// ---- 2. where the replies go -------------------------------------------
-	// Server only, and not optional: the forged packets do not carry the
-	// client's address, so without this the server has nowhere to answer.
+	// Both ends need the real peer address when packets carry a forged source.
+	// Iran already dials the kharej address, but the listening kharej side
+	// cannot infer Iran's real address from an incoming forged packet.
 	step("Where this end sends its replies")
 	if onIran {
 		tui.Info("The " + there + " machine forges its source address, so its packets do not")
 		tui.Info("say where they came from. This server has to be told, or it has")
 		tui.Info("nowhere to send the answers.")
-		fmt.Println()
-		tui.Warn("Enter the REAL public IPv4 of the " + there + " server — the address you")
-		tui.Warn("SSH into it with, not a forged one.")
-		for {
-			raw := strings.TrimSpace(tui.Prompt("Real IPv4 of the " + there + " server: "))
-			if net.ParseIP(raw).To4() != nil {
-				sc.SpoofPeerIP = raw
-				break
-			}
-			tui.Error("That is not an IPv4 address. It looks like 203.0.113.10")
-			tui.StopIfInputGone()
-		}
 	} else {
-		tui.Info("Nothing to answer here: this end dialled the " + there + " server, so it")
-		tui.Info("already knows the address to send to. The " + there + " side is the one")
-		tui.Info("that has to be told yours.")
+		tui.Info("This end listens for packets, but a forged source does not reveal")
+		tui.Info("the Iran server's real address. Enter it so replies reach Iran.")
+	}
+	fmt.Println()
+	tui.Warn("Enter the REAL public IPv4 of the " + there + " server — the address you")
+	tui.Warn("SSH into it with, not a forged one.")
+	for {
+		raw := strings.TrimSpace(tui.PromptDefault("Real IPv4 of the "+there+" server", sc.SpoofPeerIP))
+		if net.ParseIP(raw).To4() != nil {
+			sc.SpoofPeerIP = raw
+			break
+		}
+		tui.Error("That is not an IPv4 address. It looks like 203.0.113.10")
+		tui.StopIfInputGone()
 	}
 
 	// ---- 3. the forged source ----------------------------------------------
