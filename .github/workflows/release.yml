@@ -55,46 +55,20 @@ jobs:
             exit 1
           fi
 
-      - name: Mark pre-releases
-        id: kind
-        run: |
-          case "${RELEASE_TAG}" in
-            *-*) echo "prerelease=true"  >> "$GITHUB_OUTPUT" ;;
-            *)   echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
-          esac
-
-      - name: Generate release notes from merged pull requests
-        # GitHub compares this tag to the previous release. The generated
-        # body is written to a file so re-running Publish replaces the body
-        # rather than appending duplicate notes to an existing release.
+      - name: Publish assets without replacing release notes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api -X POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f tag_name="${RELEASE_TAG}" \
-            --jq '.body' > RELEASE_NOTES.md
-          test -s RELEASE_NOTES.md
-
-      - name: Publish
-        # Pinned to a commit, not the moving v2 tag: this job holds
-        # RELEASE_SIGNING_KEY, and steps in a job share a runner — so whoever
-        # can repoint that tag can read the one secret the whole update
-        # verification design rests on. Update deliberately, with the tag the
-        # SHA belongs to written beside it.
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          prerelease: ${{ steps.kind.outputs.prerelease }}
-          body_path: RELEASE_NOTES.md
-          # Every archive make release produced, by glob rather than by name.
-          #
-          # Listing them one by one is how five of the seven architectures came
-          # to be built and then not published: the build learned about them and
-          # this did not, and nothing failed — the assets simply were not there,
-          # and an update on those machines 404s.
-          files: |
-            release/backpack_linux_*.tar.gz
-            release/SHA256SUMS
-            release/SHA256SUMS.sig
-            release/SBOM.txt
-            install.sh
+          set -euo pipefail
+          # Normal releases have a hand-written body before the tag workflow
+          # starts. Creating a release for a tag pushed directly is a fallback.
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            args=(--title "Backpack $RELEASE_TAG" --generate-notes)
+            case "$RELEASE_TAG" in *-*) args+=(--prerelease) ;; esac
+            gh release create "$RELEASE_TAG" "${args[@]}"
+          fi
+          shopt -s nullglob
+          assets=(release/backpack_linux_*.tar.gz release/SHA256SUMS
+                  release/SHA256SUMS.sig release/SBOM.txt install.sh)
+          test "${#assets[@]}" -ge 4
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
