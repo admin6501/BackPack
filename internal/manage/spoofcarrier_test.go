@@ -7,7 +7,22 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/backpack/backpack/config"
+	"github.com/backpack/backpack/internal/tui"
 )
+
+func TestKharejSpoofWizardAsksForRealIranAddress(t *testing.T) {
+	// Defaults for the profile and stealth, then an invalid and valid peer IP.
+	restore := tui.SetInput(strings.NewReader("\n\nnot-an-ip\n203.0.113.10\n\n\n"))
+	defer restore()
+	var sc config.SpoofConfig
+	askSpoofCarrier(&sc, false)
+	if sc.SpoofPeerIP != "203.0.113.10" {
+		t.Fatalf("kharej peer IP = %q, want the real Iran address", sc.SpoofPeerIP)
+	}
+	if sc.SpoofProfile != "udp" || sc.SpoofSrcIP != "" {
+		t.Fatalf("unexpected profile or forged source: %+v", sc)
+	}
+}
 
 // The forged-source carrier belongs to the direct tunnel now, and its settings
 // have to survive a render and come back — that round trip is what the edit
