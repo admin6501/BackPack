@@ -64,12 +64,13 @@ type spoofConn struct {
 	xdp     *spoofXDPReceiver
 	xdpNote string
 
-	server    bool
-	port      uint16
-	realPeer  net.IP
-	spoofSrcs []net.IP // forged sources, rotated one per packet; empty = no spoofing
-	readBuf   []byte   // reused by ReadFrom so the receive loop never allocates
-	mtu       int      // sends larger than this are IP-fragmented
+	server     bool
+	port       uint16
+	tcpSrcPort uint16 // stable per carrier; fresh on restart to avoid stale TCP state
+	realPeer   net.IP
+	spoofSrcs  []net.IP // forged sources, rotated one per packet; empty = no spoofing
+	readBuf    []byte   // reused by ReadFrom so the receive loop never allocates
+	mtu        int      // sends larger than this are IP-fragmented
 
 	sendICMPType byte     // echo type stamped on outgoing icmp/icmpv6 packets
 	recvICMPType byte     // echo type accepted on incoming icmp/icmpv6 packets
@@ -197,6 +198,9 @@ func newSpoofConn(server bool, o spoofConnOpts) (net.PacketConn, error) {
 		// one buffer is safe and takes the per-packet allocation out of the hot
 		// path — the allocation that showed up under load on the old carrier.
 		readBuf: make([]byte, 65535),
+	}
+	if sendProfile == SpoofProfileTCP && !o.dpi.ShufflePort {
+		c.tcpSrcPort = nextSpoofTCPPort()
 	}
 	// Resolve the echo types for the icmp/icmpv6 family. With the reply split off
 	// (the default, matching spoof-tunnel) both ends send requests. With it on
@@ -343,6 +347,9 @@ func (c *spoofConn) WriteTo(p []byte, _ net.Addr) (int, error) {
 	// not the tunnel's. The source port may be shuffled per packet; the
 	// destination port stays fixed so the receiver's demux still matches.
 	srcPort := c.dpi.pickSrcPort(c.port)
+	if c.sendProfile == SpoofProfileTCP && !c.dpi.ShufflePort {
+		srcPort = c.tcpSrcPort
+	}
 	var shim []byte
 	switch {
 	case c.sendProfile.isICMPFamily():
