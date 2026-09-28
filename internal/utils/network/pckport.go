@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"sync"
 )
@@ -45,6 +46,10 @@ const pckPortSpan = 128
 var (
 	pckPortMu     sync.Mutex
 	pckPortsInUse = map[uint16]bool{}
+	// The range stays stable for its firewall rules. A new carrier moves to
+	// another port, so a restart does not reuse the same TCP 4-tuple with
+	// unrelated sequence numbers while a middlebox still remembers the old one.
+	pckNextOffset = map[uint16]uint16{}
 )
 
 // pckClientPortBase derives the bottom of the client's source-port range from
@@ -55,8 +60,7 @@ var (
 // written against the port range, so a range that changed on every reconnect
 // would leave a new set behind each time — and on a flaky link, where reconnects
 // are the whole point of this transport, they would accumulate until something
-// noticed. It also means a middlebox watching the pair sees the same flows
-// resume rather than a new set appear.
+// noticed. Individual flows rotate within this stable range.
 //
 // What is NOT derived is which port within the range a given carrier takes: see
 // newPckConn for why they must differ.
@@ -79,10 +83,16 @@ func nextPckClientPort(base uint16) (uint16, error) {
 	pckPortMu.Lock()
 	defer pckPortMu.Unlock()
 
+	start, seen := pckNextOffset[base]
+	if !seen {
+		start = uint16(rand.Uint32() % pckPortSpan)
+	}
 	for i := uint16(0); i < pckPortSpan; i++ {
-		port := base + i
+		offset := (start + i) % pckPortSpan
+		port := base + offset
 		if !pckPortsInUse[port] {
 			pckPortsInUse[port] = true
+			pckNextOffset[base] = (offset + 1) % pckPortSpan
 			return port, nil
 		}
 	}

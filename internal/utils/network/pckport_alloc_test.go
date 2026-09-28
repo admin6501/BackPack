@@ -25,6 +25,25 @@ func resetPckPorts() {
 	pckPortMu.Lock()
 	defer pckPortMu.Unlock()
 	pckPortsInUse = map[uint16]bool{}
+	pckNextOffset = map[uint16]uint16{}
+}
+
+func TestRestartedPckCarrierDoesNotImmediatelyReuseItsOldFlow(t *testing.T) {
+	resetPckPorts()
+	defer resetPckPorts()
+	const base uint16 = 40000
+	first, err := nextPckClientPort(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	releasePckClientPort(first)
+	second, err := nextPckClientPort(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second == first {
+		t.Fatal("a restarted carrier reused the same TCP 4-tuple with a new sequence number")
+	}
 }
 
 func TestALivePortIsNeverHandedOutTwice(t *testing.T) {
