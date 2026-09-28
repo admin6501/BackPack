@@ -361,10 +361,12 @@ func (r *SSHRunner) Install(name string) (string, error) {
 }
 
 func installerCommand(url string) string {
-	return "install_script=$(mktemp) || exit; " +
+	return "install_script=$(mktemp) || { echo 'could not create a temporary installer file' >&2; exit 1; }; " +
 		"trap 'rm -f \"$install_script\"' EXIT; " +
-		"curl -fsSL " + quote(url) + " -o \"$install_script\" && " +
-		"bash \"$install_script\" < /dev/null"
+		"curl -fsSL " + quote(url) + " -o \"$install_script\" || " +
+		"{ rc=$?; echo \"could not download Backpack installer (curl exit $rc)\" >&2; exit \"$rc\"; }; " +
+		"bash \"$install_script\" < /dev/null || " +
+		"{ rc=$?; echo \"Backpack installer exited with status $rc\" >&2; exit \"$rc\"; }"
 }
 
 // Upgrade reinstalls Backpack on a server, which is how a node is brought to

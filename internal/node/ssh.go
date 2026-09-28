@@ -207,9 +207,17 @@ func runLong(c *ssh.Client, cmd string) ([]byte, error) {
 		return out.Bytes(), fmt.Errorf("it was still running after %s and was stopped", sshInstallTimeout)
 	}
 	if err != nil {
-		return out.Bytes(), fmt.Errorf("%s", lastMeaningful(out.String()))
+		return out.Bytes(), fmt.Errorf("%s", installFailureMessage(out.String(), err))
 	}
 	return out.Bytes(), nil
+}
+
+func installFailureMessage(output string, err error) string {
+	msg := lastMeaningful(output)
+	if msg == "" {
+		return fmt.Sprintf("the remote command failed without output (%v)", err)
+	}
+	return msg
 }
 
 // lastMeaningful is the most recent line that says something, for an error
@@ -221,7 +229,7 @@ func lastMeaningful(s string) string {
 			return l
 		}
 	}
-	return "it failed and said nothing"
+	return ""
 }
 
 // sshPool keeps one connection per server.

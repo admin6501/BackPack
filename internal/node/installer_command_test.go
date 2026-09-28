@@ -1,9 +1,11 @@
 package node
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -30,7 +32,18 @@ func TestInstallerCommandExecutesDownloadedScriptAndReportsDownloadFailure(t *te
 	}
 	cmd = exec.Command("sh", "-c", installerCommand("https://example.test/install.sh"))
 	cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"))
-	if err := cmd.Run(); err == nil {
-		t.Fatal("a failed download was reported as a successful install")
+	if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "could not download Backpack installer (curl exit 22)") {
+		t.Fatalf("download failure must identify its stage and exit code: %v: %s", err, out)
+	}
+	if msg := installFailureMessage("", errors.New("exit status 17")); !strings.Contains(msg, "exit status 17") {
+		t.Fatalf("silent remote failures must retain their exit status: %q", msg)
+	}
+	if err := os.WriteFile(curl, []byte("#!/bin/sh\nprintf '#!/bin/bash\\nexit 31\\n' > \"$4\"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cmd = exec.Command("sh", "-c", installerCommand("https://example.test/install.sh"))
+	cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"))
+	if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "Backpack installer exited with status 31") {
+		t.Fatalf("installer failure must identify its stage and exit code: %v: %s", err, out)
 	}
 }
