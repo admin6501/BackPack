@@ -302,7 +302,7 @@ func askL3CarrierExtras(cfg *l3Spec, side directSide) bool {
 		// where to answer: every packet it receives carries a forged source. The
 		// wizard asks for it, and the engine refuses to start without it, so it
 		// is worth not letting the setup finish without it either.
-		if side == sideKharej && net.ParseIP(cfg.Spoof.SpoofPeerIP) == nil {
+		if side == sideKharej && net.ParseIP(cfg.Spoof.SpoofPeerIP).To4() == nil {
 			fmt.Println()
 			tui.Error("This side needs the Iran server's real IP — it cannot be learned")
 			tui.Error("from the forged packets, and the tunnel will not start without it.")
@@ -353,7 +353,7 @@ func setupL3FromLink(chosen string) {
 		// The one carrier whose far end needs something of its own that a link
 		// cannot carry: where the Iran server really is, behind its forged
 		// sources. MirrorForPeer fills it when the link has it.
-		if net.ParseIP(form.SpoofPeerIP) == nil {
+		if net.ParseIP(form.SpoofPeerIP).To4() == nil {
 			form.SpoofPeerIP = strings.TrimSpace(tui.Prompt("The Iran Server's Real IP: "))
 		}
 	}

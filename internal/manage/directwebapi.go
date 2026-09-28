@@ -220,6 +220,9 @@ func CreateDirectTunnel(n NewDirectTunnel) (service string, active bool, err err
 	if err != nil {
 		return "", false, err
 	}
+	if err := refuseExistingDirectName(spec.Name, fileExists(app.ConfigPath(spec.Name))); err != nil {
+		return "", false, err
+	}
 	// A second kharej given the first one's ports: those ports are shared
 	// with it rather than bound twice, which could only fail. The panel has no
 	// screen to ask on, and there is no other reading of the request — see
@@ -248,6 +251,15 @@ func CreateDirectTunnel(n NewDirectTunnel) (service string, active bool, err err
 		return service, false, err
 	}
 	return service, IsActive(service), nil
+}
+
+// A create request must never overwrite an existing tunnel. ApplyDirectTunnel
+// is the separate operation that deliberately updates a managed node.
+func refuseExistingDirectName(name string, exists bool) error {
+	if exists {
+		return fmt.Errorf("a tunnel named %q already exists", name)
+	}
+	return nil
 }
 
 // ApplyDirectTunnel writes the direct tunnel this form describes, whether or
@@ -385,7 +397,9 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 	if !validName(name) {
 		return l3Spec{}, fmt.Errorf("tunnel name %q may use only letters, digits, dots and dashes", name)
 	}
-	name = uniqueName(name)
+	// This parser runs from HTTP handlers and managed-node operations too.
+	// uniqueName prompts on stdin when a name is taken, which can hang an
+	// HTTP request; the create operation checks collisions separately.
 
 	token := strings.TrimSpace(n.Token)
 	if token == "" {
@@ -475,15 +489,15 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 		// the one the form asks for on its own and the one an operator filling
 		// only the basics will have typed into.
 		if ip := strings.TrimSpace(n.SpoofPeerIP); ip != "" {
-			if net.ParseIP(ip) == nil {
-				return l3Spec{}, fmt.Errorf("%q is not an IP address", ip)
+			if net.ParseIP(ip).To4() == nil {
+				return l3Spec{}, fmt.Errorf("%q is not an IPv4 address", ip)
 			}
 			spec.Spoof.SpoofPeerIP = ip
 		}
 		if n.Stealth {
 			applySpoofStealth(&spec.Spoof)
 		}
-		if side == sideKharej && net.ParseIP(spec.Spoof.SpoofPeerIP) == nil {
+		if side == sideKharej && net.ParseIP(spec.Spoof.SpoofPeerIP).To4() == nil {
 			return l3Spec{}, fmt.Errorf(
 				"the spoof carrier needs the Iran server's real IP on this side, " +
 					"because the peer forges the source of every packet it sends")

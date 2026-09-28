@@ -49,6 +49,9 @@ type udpGen struct {
 	tunnelChannel  chan *TunnelUDPConn
 	reqNewConnChan chan struct{}
 	usageMonitor   *web.Usage
+	// A connection from an old run must never enter the next run's table.
+	activeConnections map[string]*TunnelUDPConn
+	activeMu          sync.Mutex
 }
 
 type UdpTransport struct {
@@ -68,12 +71,10 @@ type UdpTransport struct {
 	// The run's channels and its usage monitor are deliberately not fields: they
 	// belong to one generation, and a field outlives the generation that made
 	// it. See Start.
-	activeConnections map[string]*TunnelUDPConn
-	activeMu          sync.Mutex
-	controlChannel    netControl
-	restartMutex      sync.Mutex
-	limits            *limiter
-	rtt               int64 // for Fun!
+	controlChannel netControl
+	restartMutex   sync.Mutex
+	limits         *limiter
+	rtt            int64 // for Fun!
 }
 
 type UdpConfig struct {
@@ -112,13 +113,11 @@ func NewUDPServer(parentCtx context.Context, config *UdpConfig, logger *logrus.L
 
 	// Initialize the TcpTransport struct
 	server := &UdpTransport{
-		config:            config,
-		parentctx:         parentCtx,
-		logger:            logger,
-		activeConnections: map[string]*TunnelUDPConn{},
-		activeMu:          sync.Mutex{},
-		limits:            newLimiter(Limits{MaxConnections: config.MaxConnections, BandwidthMbps: config.BandwidthMbps}),
-		rtt:               0,
+		config:    config,
+		parentctx: parentCtx,
+		logger:    logger,
+		limits:    newLimiter(Limits{MaxConnections: config.MaxConnections, BandwidthMbps: config.BandwidthMbps}),
+		rtt:       0,
 	}
 
 	// The first run is installed the same way every later one is, so there is
@@ -142,9 +141,10 @@ func NewUDPServer(parentCtx context.Context, config *UdpConfig, logger *logrus.L
 func (s *UdpTransport) Start() {
 	ctx := s.run.context()
 	s.start(&udpGen{
-		ctx:            ctx,
-		tunnelChannel:  make(chan *TunnelUDPConn, s.config.ChannelSize),
-		reqNewConnChan: make(chan struct{}, s.config.ChannelSize),
+		ctx:               ctx,
+		tunnelChannel:     make(chan *TunnelUDPConn, s.config.ChannelSize),
+		reqNewConnChan:    make(chan struct{}, s.config.ChannelSize),
+		activeConnections: make(map[string]*TunnelUDPConn),
 		usageMonitor: web.NewDataStore(fmt.Sprintf(":%v", s.config.WebPort), ctx,
 			s.config.SnifferLog, s.config.Sniffer, s.status.get, s.logger),
 	})
@@ -235,18 +235,17 @@ func (s *UdpTransport) Restart() {
 	// on kcp.go, and present on every one of these fields. Passing it removes
 	// the shared field rather than locking it.
 	g := &udpGen{
-		ctx:            ctx,
-		tunnelChannel:  make(chan *TunnelUDPConn, s.config.ChannelSize),
-		reqNewConnChan: make(chan struct{}, s.config.ChannelSize),
-		usageMonitor:   web.NewDataStore(fmt.Sprintf(":%v", s.config.WebPort), ctx, s.config.SnifferLog, s.config.Sniffer, s.status.get, s.logger),
+		ctx:               ctx,
+		tunnelChannel:     make(chan *TunnelUDPConn, s.config.ChannelSize),
+		reqNewConnChan:    make(chan struct{}, s.config.ChannelSize),
+		activeConnections: make(map[string]*TunnelUDPConn),
+		usageMonitor:      web.NewDataStore(fmt.Sprintf(":%v", s.config.WebPort), ctx, s.config.SnifferLog, s.config.Sniffer, s.status.get, s.logger),
 	}
 
 	// Re-initialize variables
 	s.status.set("")
 	s.controlChannel.Clear()
 	metrics.ClearPeer()
-	s.activeConnections = map[string]*TunnelUDPConn{}
-	s.activeMu = sync.Mutex{}
 
 	// set the log level again
 	s.logger.SetLevel(level)
@@ -558,9 +557,9 @@ func (s *UdpTransport) acceptTunnelConn(g *udpGen, listener *net.UDPConn) {
 			// Create a unique identifier for the connection based on IP and port
 			key := addr.String()
 
-			s.activeMu.Lock()
+			g.activeMu.Lock()
 			// Check if the connection is already active
-			if existingConn, exists := s.activeConnections[key]; exists {
+			if existingConn, exists := g.activeConnections[key]; exists {
 				// These bytes crossed the tunnel, so they are counted here —
 				// before the queue, which may not have room for them. A packet
 				// dropped below was still carried and still paid for, and a
@@ -583,11 +582,11 @@ func (s *UdpTransport) acceptTunnelConn(g *udpGen, listener *net.UDPConn) {
 				default:
 					s.logger.Warnf("payload channel for connection %s is full, dropping UDP packet", addr.String())
 				}
-				s.activeMu.Unlock()
+				g.activeMu.Unlock()
 				continue
 			}
 
-			s.activeMu.Unlock()
+			g.activeMu.Unlock()
 
 			if !tokenMatches(string(buf[:n]), s.config.Token) { // For new connections, validate the token
 				s.logger.Errorf("invalid token received from %s", addr.String())
@@ -607,10 +606,10 @@ func (s *UdpTransport) acceptTunnelConn(g *udpGen, listener *net.UDPConn) {
 				mu:          &sync.Mutex{},
 			}
 
-			s.activeMu.Lock()
+			g.activeMu.Lock()
 			// Add the new connection to the active connections map
-			s.activeConnections[key] = &tunnelConn
-			s.activeMu.Unlock()
+			g.activeConnections[key] = &tunnelConn
+			g.activeMu.Unlock()
 
 			// Send the new tunnel connection to the tunnel channel
 			select {
@@ -623,12 +622,12 @@ func (s *UdpTransport) acceptTunnelConn(g *udpGen, listener *net.UDPConn) {
 				// Under the lock: this map is read and written by every other
 				// datagram that arrives, and deleting from it unguarded is a
 				// data race that can corrupt the map outright.
-				s.activeMu.Lock()
-				if s.activeConnections[key] == &tunnelConn {
+				g.activeMu.Lock()
+				if g.activeConnections[key] == &tunnelConn {
 					close(tunnelConn.payload)
-					delete(s.activeConnections, key)
+					delete(g.activeConnections, key)
 				}
-				s.activeMu.Unlock()
+				g.activeMu.Unlock()
 			}
 		}
 	}
@@ -883,7 +882,7 @@ flows:
 						// connection that failed a single write was lost to the
 						// run rather than replaced.
 						tunnelConn.mu.Unlock()
-						s.dropTunnelConn(tunnelConn)
+						s.dropTunnelConn(g, tunnelConn)
 						continue loop
 					}
 
@@ -932,7 +931,7 @@ func (s *UdpTransport) udpCopy(g *udpGen, udpLocal *LocalUDPConn, udpTunnel *Tun
 	s.limits.release()
 
 	// Remove tunnel connection from active connections and close the channel.
-	s.dropTunnelConn(udpTunnel)
+	s.dropTunnelConn(g, udpTunnel)
 }
 
 // dropLocalFlow takes a forwarded flow out of the active set, closes its
@@ -966,14 +965,14 @@ func (s *UdpTransport) dropLocalFlow(localConn *LocalUDPConn, activeConnections 
 // same address has a newer one recorded there, and removing that would strand
 // it: every later datagram from the address would be filed against a channel no
 // goroutine reads.
-func (s *UdpTransport) dropTunnelConn(conn *TunnelUDPConn) {
+func (s *UdpTransport) dropTunnelConn(g *udpGen, conn *TunnelUDPConn) {
 	key := conn.addr.String()
-	s.activeMu.Lock()
-	if s.activeConnections[key] == conn {
+	g.activeMu.Lock()
+	if g.activeConnections[key] == conn {
 		close(conn.payload)
-		delete(s.activeConnections, key)
+		delete(g.activeConnections, key)
 	}
-	s.activeMu.Unlock()
+	g.activeMu.Unlock()
 }
 
 func (s *UdpTransport) udpLocalCopy(g *udpGen, from *LocalUDPConn, to *TunnelUDPConn) {
