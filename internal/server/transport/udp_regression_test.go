@@ -16,6 +16,30 @@ func TestLimitedUDPFlowStillSkipsProxyProtocol(t *testing.T) {
 		t.Fatal("bandwidth wrapping hides UDP flow")
 	}
 }
+
+func TestOldUDPGenerationCannotDropNewRunConnection(t *testing.T) {
+	s := &UdpTransport{}
+	addr := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234}
+	oldConn := &TunnelUDPConn{addr: addr, payload: make(chan []byte)}
+	newConn := &TunnelUDPConn{addr: addr, payload: make(chan []byte)}
+	oldRun := &udpGen{activeConnections: map[string]*TunnelUDPConn{addr.String(): oldConn}}
+	newRun := &udpGen{activeConnections: map[string]*TunnelUDPConn{addr.String(): newConn}}
+	s.dropTunnelConn(oldRun, oldConn)
+	if newRun.activeConnections[addr.String()] != newConn {
+		t.Fatal("teardown of the previous UDP run removed the new connection")
+	}
+	select {
+	case <-oldConn.payload:
+	default:
+		t.Fatal("the old connection's payload was not closed")
+	}
+	select {
+	case <-newConn.payload:
+		t.Fatal("the new connection was closed by the old run")
+	default:
+	}
+}
+
 func TestUDPPairingTimeoutDropsFlow(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
