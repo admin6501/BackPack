@@ -72,6 +72,36 @@ func TestThePanelKharejSideListens(t *testing.T) {
 	}
 }
 
+func TestDirectCreateRejectsAnExistingNameWithoutPrompting(t *testing.T) {
+	n := NewDirectTunnel{
+		Side: "kharej", Carrier: "pck", Name: "already-here",
+		Token: "a-long-token", TunnelPort: "9000",
+	}
+	spec, err := n.spec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Name != n.Name {
+		t.Fatalf("name changed from %q to %q", n.Name, spec.Name)
+	}
+	if err := refuseExistingDirectName(spec.Name, true); err == nil || !strings.Contains(err.Error(), n.Name) {
+		t.Fatalf("existing name was not rejected clearly: %v", err)
+	}
+	if err := refuseExistingDirectName(spec.Name, false); err != nil {
+		t.Fatalf("unused name was refused: %v", err)
+	}
+}
+
+func TestKharejSpoofFormRejectsIPv6Peer(t *testing.T) {
+	n := NewDirectTunnel{
+		Side: "kharej", Carrier: "spoof", Name: "spoof-ipv6",
+		Token: "a-long-token", TunnelPort: "9000", SpoofPeerIP: "2001:db8::1",
+	}
+	if _, err := n.spec(); err == nil || !strings.Contains(err.Error(), "IPv4") {
+		t.Fatalf("IPv6 peer passed form validation: %v", err)
+	}
+}
+
 // Everything the wizard refuses, the panel must refuse. A form that accepts
 // what the wizard rejects is a second way to build a broken tunnel.
 func TestThePanelRefusesWhatTheWizardWould(t *testing.T) {
