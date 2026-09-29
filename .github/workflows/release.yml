@@ -41,6 +41,9 @@ jobs:
         # embeds its public half and signs SHA256SUMS; otherwise checksums only.
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          # signsums reads GITHUB_REF_NAME; dispatch runs otherwise carry the
+          # workflow branch here rather than the requested release tag.
+          GITHUB_REF_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: make release
 
       - name: Verify the tag matches the built version
@@ -60,6 +63,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          shopt -s nullglob
+          archives=(release/backpack_linux_*.tar.gz)
+          test "${#archives[@]}" -gt 0
+          test -s release/SHA256SUMS
+          test -s release/SBOM.txt
           # Normal releases have a hand-written body before the tag workflow
           # starts. Creating a release for a tag pushed directly is a fallback.
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
@@ -67,8 +75,10 @@ jobs:
             case "$RELEASE_TAG" in *-*) args+=(--prerelease) ;; esac
             gh release create "$RELEASE_TAG" "${args[@]}"
           fi
-          shopt -s nullglob
-          assets=(release/backpack_linux_*.tar.gz release/SHA256SUMS
-                  release/SHA256SUMS.sig release/SBOM.txt install.sh)
-          test "${#assets[@]}" -ge 4
+          assets=("${archives[@]}" release/SHA256SUMS
+                  release/SBOM.txt install.sh)
+          # A signature exists only when RELEASE_SIGNING_KEY is configured.
+          if [ -f release/SHA256SUMS.sig ]; then
+            assets+=(release/SHA256SUMS.sig)
+          fi
           gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
