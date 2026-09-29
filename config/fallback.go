@@ -17,6 +17,11 @@ func Dwell(seconds int) time.Duration {
 	if seconds <= 0 {
 		return DefaultFallbackDwell
 	}
+	// A hand-written value can exceed time.Duration's range. Saturate it
+	// instead of overflowing to a negative duration (an immediate rotation).
+	if int64(seconds) > int64((1<<63-1)/time.Second) {
+		return time.Duration(1<<63 - 1)
+	}
 	return time.Duration(seconds) * time.Second
 }
 

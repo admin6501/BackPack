@@ -69,6 +69,10 @@ jobs:
           fi
           shopt -s nullglob
           assets=(release/backpack_linux_*.tar.gz release/SHA256SUMS
-                  release/SHA256SUMS.sig release/SBOM.txt install.sh)
+                  release/SBOM.txt install.sh)
+          # A signature exists only when RELEASE_SIGNING_KEY is configured.
+          if [ -f release/SHA256SUMS.sig ]; then
+            assets+=(release/SHA256SUMS.sig)
+          fi
           test "${#assets[@]}" -ge 4
           gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
