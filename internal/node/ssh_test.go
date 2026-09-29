@@ -38,6 +38,7 @@ type fakeServer struct {
 	prefix  string // printed before the answer, like a login banner
 	failing bool   // the binary is not there
 	old     bool   // the binary is there and predates "node exec"
+	menu    bool   // an older binary ignores arguments and opens its main menu
 	refuse  string // the far side answers, and says no
 }
 
@@ -141,8 +142,14 @@ func (s *fakeServer) handle(c net.Conn, cfg *ssh.ServerConfig) {
 
 				s.mu.Lock()
 				s.ran = append(s.ran, payload.Command)
-				failing, isOld, prefix, refuse := s.failing, s.old, s.prefix, s.refuse
+				failing, isOld, menu, prefix, refuse := s.failing, s.old, s.menu, s.prefix, s.refuse
 				s.mu.Unlock()
+				if menu {
+					fmt.Fprint(ch, "1) Setup Server  2) Setup Client  3) Manage\nSelect an option: ")
+					for range creqs { // An interactive program waits until the session closes.
+					}
+					return
+				}
 
 				if failing {
 					fmt.Fprintln(ch.Stderr(), "sh: backpack: command not found")
@@ -499,6 +506,29 @@ func TestAnOlderBackpackIsRecognisedAsOneToUpgrade(t *testing.T) {
 	if !errors.Is(err, ErrNeedsInstall) {
 		t.Errorf("an out-of-date Backpack is not recognised as one to install over, "+
 			"so this server is refused instead of upgraded.\ngot: %v", err)
+	}
+}
+
+func TestAnOldInteractiveMenuOffersUpgradeWithoutWaitingForTimeout(t *testing.T) {
+	isolateStore(t)
+	srv := newFakeServer(t, "root", "hunter2")
+	srv.menu = true
+	host, port := srv.addr()
+	Add("kharej", host, port, "root", "hunter2")
+	r := NewSSHRunner(nil)
+	defer r.Close()
+	start := time.Now()
+	err := r.Call("kharej", OpHello, nil, nil)
+	if !errors.Is(err, ErrNeedsInstall) {
+		t.Fatalf("interactive legacy binary should be offered an upgrade: %v", err)
+	}
+	if time.Since(start) > 5*time.Second {
+		t.Fatalf("waited too long for an interactive menu: %v", time.Since(start))
+	}
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	if len(srv.ran) != 1 {
+		t.Fatalf("a legacy menu was retried %d times", len(srv.ran))
 	}
 }
 
