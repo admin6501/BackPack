@@ -41,6 +41,9 @@ jobs:
         # embeds its public half and signs SHA256SUMS; otherwise checksums only.
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          # signsums reads GITHUB_REF_NAME; dispatch runs otherwise carry the
+          # workflow branch here rather than the requested release tag.
+          GITHUB_REF_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: make release
 
       - name: Verify the tag matches the built version
