@@ -118,6 +118,10 @@ func TestAPeerKilledMidTransferDoesNotWedgeTheOther(t *testing.T) {
 				case <-time.After(30 * time.Second):
 					t.Fatalf("cycle %d: a transfer through a killed tunnel never returned", cycle)
 				}
+				// Start() returning does not guarantee that its transport's
+				// listener has released the entry port. The next client must not
+				// race the previous generation's bind during the restart.
+				waitPortFree(t, entryPort, 10*time.Second)
 
 				if cycle == 1 {
 					// Let the first cycle's teardown settle before taking the
