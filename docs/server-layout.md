@@ -41,4 +41,4 @@ the uninstaller reads to know what to remove.
 
 ---
 
-*Last verified against Backpack v1.8.11.*
+*Last verified against Backpack v1.8.12.*
