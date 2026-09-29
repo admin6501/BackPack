@@ -197,10 +197,10 @@ func setupL3(side directSide) {
 		// Exactly as the Iran server printed them: this machine's comes first.
 		cfg.LocalIP = tui.PromptDefault("This Server's Tunnel Address", cfg.LocalIP)
 		cfg.PeerIP = tui.PromptDefault("The Iran Server's Tunnel Address", cfg.PeerIP)
-		for l3.CheckTunnelEnds(cfg.LocalIP, cfg.PeerIP) != nil {
-			tui.Error("The Iran server's address cannot be this machine's own (" +
-				hostOnly(cfg.LocalIP) + "). It is the address the Iran server has on the tunnel.")
-			cfg.PeerIP = tui.PromptDefault("The Iran Server's Tunnel Address", "")
+		for err := l3.CheckTunnelEnds(cfg.LocalIP, cfg.PeerIP); err != nil; err = l3.CheckTunnelEnds(cfg.LocalIP, cfg.PeerIP) {
+			tui.Error(err.Error())
+			cfg.LocalIP = tui.PromptDefault("This Server's Tunnel Address", cfg.LocalIP)
+			cfg.PeerIP = tui.PromptDefault("The Iran Server's Tunnel Address", cfg.PeerIP)
 		}
 	}
 
@@ -488,9 +488,10 @@ func askL3Advanced(cfg *l3Spec, side directSide, addresses bool) {
 		tui.Info("other tunnel on this server uses; the code carries them to kharej.")
 		cfg.LocalIP = tui.PromptDefault("This server's tunnel address", cfg.LocalIP)
 		cfg.PeerIP = tui.PromptDefault("The kharej server's tunnel address", cfg.PeerIP)
-		for l3.CheckTunnelEnds(cfg.LocalIP, cfg.PeerIP) != nil {
-			tui.Error("The kharej server's address cannot be this server's own (" + hostOnly(cfg.LocalIP) + ").")
-			cfg.PeerIP = tui.PromptDefault("The kharej server's tunnel address", "")
+		for err := l3.CheckTunnelEnds(cfg.LocalIP, cfg.PeerIP); err != nil; err = l3.CheckTunnelEnds(cfg.LocalIP, cfg.PeerIP) {
+			tui.Error(err.Error())
+			cfg.LocalIP = tui.PromptDefault("This server's tunnel address", cfg.LocalIP)
+			cfg.PeerIP = tui.PromptDefault("The kharej server's tunnel address", cfg.PeerIP)
 		}
 	}
 

@@ -329,7 +329,9 @@ func MTUFor(pathMTU, carrierOverhead, encapOverhead int) int {
 	return pathMTU - carrierOverhead - dataOverhead - encapOverhead
 }
 
-// CheckTunnelEnds refuses a config whose two tunnel addresses are the same.
+// CheckTunnelEnds refuses addresses that cannot route to each other over the
+// interface. A prefixed local address installs only that prefix's route; a
+// bare address or a host prefix instead installs an explicit peer route.
 //
 // peer_ip is the OTHER machine's address, and the wizard asks for both, one
 // after the other, with the values swapped between the two machines. Typing
@@ -344,6 +346,36 @@ func CheckTunnelEnds(localIP, peerIP string) error {
 		return fmt.Errorf("l3: local_ip and peer_ip are both %s. peer_ip is the other machine's "+
 			"address on the tunnel — the one the other server has as its local_ip — "+
 			"so the two must differ", local)
+	}
+	if peer == "" || !strings.Contains(localIP, "/") {
+		return nil
+	}
+	localAddr, subnet, err := net.ParseCIDR(strings.TrimSpace(localIP))
+	if err != nil {
+		return nil // validateTunnelAddr reports malformed addresses separately.
+	}
+	ones, bits := subnet.Mask.Size()
+	if ones == bits {
+		return nil // A host prefix gets an explicit route to its peer.
+	}
+	peerAddr := net.ParseIP(peer)
+	if peerAddr == nil {
+		return nil
+	}
+	if !subnet.Contains(peerAddr) {
+		return fmt.Errorf("l3: peer_ip %s is outside local_ip subnet %s; the interface will have no route back to its peer. Choose two host addresses in the same subnet, or use a bare local_ip for a point-to-point route", peer, subnet)
+	}
+	if localAddr.To4() != nil {
+		if bits == 32 && ones <= 30 {
+			network := subnet.IP.To4()
+			broadcast := make(net.IP, len(network))
+			for i := range network {
+				broadcast[i] = network[i] | ^subnet.Mask[i]
+			}
+			if localAddr.Equal(network) || localAddr.Equal(broadcast) || peerAddr.Equal(network) || peerAddr.Equal(broadcast) {
+				return fmt.Errorf("l3: local_ip %s and peer_ip %s must be host addresses in %s; its network and broadcast addresses cannot be tunnel endpoints", localAddr, peer, subnet)
+			}
+		}
 	}
 	return nil
 }

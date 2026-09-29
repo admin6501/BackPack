@@ -461,18 +461,20 @@ func TestNewRejectsBadConfigurations(t *testing.T) {
 		}
 	}
 	cases := map[string]func(*Config){
-		"no mode":                func(c *Config) { c.Mode = "" },
-		"unknown mode":           func(c *Config) { c.Mode = "sideways" },
-		"no address":             func(c *Config) { c.Addr = "" },
-		"address without a port": func(c *Config) { c.Addr = "1.2.3.4" },
-		"no token":               func(c *Config) { c.Token = "" },
-		"unknown encapsulation":  func(c *Config) { c.Encap = "vxlan" },
-		"no local address":       func(c *Config) { c.LocalIP = "" },
-		"malformed local":        func(c *Config) { c.LocalIP = "not-an-address" },
-		"peer carrying a prefix": func(c *Config) { c.PeerIP = "10.10.0.2/30" },
-		"bare local, no peer":    func(c *Config) { c.LocalIP = "10.10.0.1"; c.PeerIP = "" },
-		"mtu below the floor":    func(c *Config) { c.MTU = 100 },
-		"mtu above the ceiling":  func(c *Config) { c.MTU = 100000 },
+		"no mode":                   func(c *Config) { c.Mode = "" },
+		"unknown mode":              func(c *Config) { c.Mode = "sideways" },
+		"no address":                func(c *Config) { c.Addr = "" },
+		"address without a port":    func(c *Config) { c.Addr = "1.2.3.4" },
+		"no token":                  func(c *Config) { c.Token = "" },
+		"unknown encapsulation":     func(c *Config) { c.Encap = "vxlan" },
+		"no local address":          func(c *Config) { c.LocalIP = "" },
+		"malformed local":           func(c *Config) { c.LocalIP = "not-an-address" },
+		"peer carrying a prefix":    func(c *Config) { c.PeerIP = "10.10.0.2/30" },
+		"peer outside local subnet": func(c *Config) { c.LocalIP, c.PeerIP = "10.10.1.4/30", "10.10.1.3" },
+		"network address as local":  func(c *Config) { c.LocalIP, c.PeerIP = "10.10.1.4/30", "10.10.1.5" },
+		"bare local, no peer":       func(c *Config) { c.LocalIP = "10.10.0.1"; c.PeerIP = "" },
+		"mtu below the floor":       func(c *Config) { c.MTU = 100 },
+		"mtu above the ceiling":     func(c *Config) { c.MTU = 100000 },
 	}
 	for name, mutate := range cases {
 		cfg := base()
