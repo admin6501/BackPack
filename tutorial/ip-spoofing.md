@@ -74,18 +74,17 @@ the same way.
 
 ### Step 2 — where this end sends its replies
 
-**On the Iran server only**, and not optional:
+**On each server**, enter the other server's real public IPv4:
 
 ```
-Real IPv4 of the kharej server:
+Real IPv4 of the kharej server:  # asked on Iran
+Real IPv4 of the Iran server:    # asked on kharej
 ```
 
-The kharej machine forges its source, so its packets do not say where they came
-from. This server has to be told, or it has nowhere to send the answers. Enter
-the **real public IPv4** — the address you SSH into it with, never a forged one.
-
-On the kharej client there is nothing to answer: it dialled the Iran server, so
-it already knows where to send.
+Forged packets do not reveal the sender's real address. Each end therefore
+needs the **real public IPv4 of its peer** — the address you SSH into, never a
+forged address. In particular, leaving Iran's real IP empty on kharej prevents
+that end from starting.
 
 ### Step 3 — the address to forge
 
@@ -194,13 +193,16 @@ about the reverse.
 sudo backpack  →  3. Manage  →  Manage Tunnels  →  <tunnel>  →  Edit  →  IP Spoofing
 ```
 
-Choose **Forged source IP(s)** and enter an address the tester says arrives — or
-several, comma separated, to rotate one per session. The tunnel restarts on the
-new settings.
+Choose **Run the setup again** (the other choice only toggles Stealth), keep
+the same packet profile and the peer's real IPv4, then enter the address the
+tester says arrives at **Forged source IPv4**. You can enter several addresses,
+comma separated, to rotate them. The tunnel restarts on the new settings.
 
-Then, on the **other** end's IP Spoofing screen, set **Fingerprint & evasion →
-"Expected forged source from the other end"** to the same address, so it knows
-what to expect.
+If you use the optional **expected forged source** filter on the other end,
+update it to accept this address too; an old pinned value drops the new one.
+See [the setting reference](../docs/ip-spoofing.md) for its config key. The CLI
+setup-again menu does not ask for that optional filter. Keep the packet
+profile and Stealth settings paired.
 
 Do the same for the reverse direction with the addresses that passed that way.
 
@@ -228,8 +230,8 @@ instead. Change one at a time and test.
 | Symptom | Cause |
 |---|---|
 | Tunnel connects, carries nothing | the forged source is being dropped — run the tester |
-| Nothing at all, even unforged | profile mismatch between the ends, or the Iran side has no "other end's real IPv4" |
-| Iran side refuses to save any setting | `The other end's real IPv4` is empty — fill it first |
+| Nothing at all, even unforged | profile mismatch between the ends, or either side lacks the peer's real IPv4 |
+| Kharej side refuses to finish setup | the Iran server's real IPv4 is empty — fill it first |
 | Tester: everything `0/5` | your provider drops forged sources; this transport is not available to you |
 | Worked, then stopped | if you rotate a pool, one of the addresses may have started being dropped — retest the pool |
 
@@ -256,14 +258,17 @@ instead. Change one at a time and test.
 یعنی سرویس‌دهنده‌ات پکت جعلی را دور می‌ریزد و این ترنسپورت برایت کار نمی‌کند.
 بعد جای دو نقش را عوض کن تا جهت برعکس را هم بسنجی.
 
-۳. آدرسی که رد شده را از `Manage → Edit → IP Spoofing → Forged source IP(s)`
-ست کن (چند آدرس با کاما = هر session یکی). در طرف مقابل هم در بخش
-«Fingerprint & evasion» گزینهٔ «Expected forged source from the other end» را
-همان بگذار.
+۳. برای آدرسی که از تست عبور کرده، از `Manage → Edit → IP Spoofing → Run the
+setup again` استفاده کن؛ این منو گزینهٔ جداگانهٔ «Forged source IP(s)» ندارد.
+پروفایل و آی‌پی واقعی طرف مقابل را همان قبلی بگذار و در سؤال Forged source
+آدرس تازه را وارد کن (چند آدرس با کاما = چرخش بین آن‌ها). در طرف مقابل نیز
+اگر فیلتر اختیاری آدرس مبدأ مورد انتظار را در کانفیگ طرف مقابل فعال کرده‌ای،
+آن را هم مطابق [مرجع تنظیمات](../docs/ip-spoofing.md) به‌روز کن؛ ویزارد CLI
+این سؤال اختیاری را نمی‌پرسد.
 
 **نکات ویزارد:** پروفایل پکت را روی **UDP** بگذار و دو طرف باید یکی باشد. روی
-سمتی که **گوش می‌دهد** حتماً باید «آی‌پی واقعی طرف مقابل» را وارد کنی، وگرنه آن
-سمت جایی برای فرستادن جواب ندارد و هیچ تنظیمی ذخیره نمی‌شود. سؤال **Stealth** را
+**هر دو سمت** باید «آی‌پی واقعی طرف مقابل» را وارد کنند؛ سمت خارج بدون آی‌پی
+واقعی ایران راه‌اندازی نمی‌شود. سؤال **Stealth** را
 در اجرای اول `N` بگذار — اول تونل را به کار بینداز، بعد ظاهر بسته‌ها را عوض کن؛
 وگرنه نمی‌فهمی کدامشان را داری دیباگ می‌کنی. اگر روشنش کردی، **در هر دو سرور
 یکسان** جواب بده.

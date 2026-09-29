@@ -86,9 +86,10 @@ port of its own.
 ## Setting one up
 
 **From the menu — the easy way.** Run `sudo backpack`, choose **Setup Iran** or
-**Setup Kharej**, then **Direct**, then **Full IP tunnel**. It asks which machine you are on and how the packets
-should travel, suggests private addresses for both ends, and writes the config
-itself.
+**Setup Kharej**, then **Direct**. It asks how the packets should travel,
+suggests private addresses for both ends, and writes the config itself. The
+wizard no longer asks for a separate "Full IP tunnel" kind. See the
+[step-by-step direct tutorial](../tutorial/direct-layer3.md).
 
 The rest of this page is what it writes.
 

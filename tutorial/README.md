@@ -1,9 +1,8 @@
 # Backpack tutorials
 
-Step-by-step setup walkthroughs, one per transport. Each page is a complete
-session — every question the wizard asks, in the order it asks it, with the
-answer to give and the reason for it. Pick the transport you want and follow
-that page top to bottom.
+Step-by-step walkthroughs for tunnel setup and everyday operations. The
+transport pages follow the reverse wizard; direct tunnels and managing both
+servers have their own pages below.
 
 **New here? Read [Before you start](before-you-start.md) once.** It covers the
 two roles, the token, the ports and the firewall — the four things that account
@@ -12,13 +11,13 @@ assumes it.
 
 ## The direction
 
-Every page below sets up a **reverse** tunnel: kharej dials Iran. If that will
-not come up — the provider filters inbound connections, or the tunnel port is
-blocked one way — turn it round.
+The transport pages below set up a **reverse** tunnel: kharej dials Iran. If
+that will not come up — the provider filters inbound connections, or the tunnel
+port is blocked one way — use the **direct** wizard: Iran dials kharej.
 
 | Tutorial | Use it when | Needs |
 |---|---|---|
-| **[Direct tunnel](../docs/l3-direct-tunnel.md)** | the reverse tunnel will not connect; Iran dials out instead | Linux, root, a port open on kharej |
+| **[Direct tunnel](direct-layer3.md)** | the reverse tunnel will not connect; Iran dials out instead | Linux, root, a port open on kharej |
 | **[Direct, stream transports](direct-tunnel.md)** | you already run a `[direct]` tunnel — the wizard no longer builds these | a port open on kharej |
 
 ## The transports
@@ -39,6 +38,11 @@ blocked one way — turn it round.
 
 ## Also worth reading
 
+- **[Set up both ends over SSH](set-up-both-ends.md)** — create the other end
+  from this server, or add a managed server in the web panel. Includes rebuilds
+  and changed SSH host keys.
+- **[Traffic quota and reset](traffic-quota-and-reset.md)** — set a cumulative
+  allowance, read remaining traffic, and begin a new usage period safely.
 - **[Adding UDP to a tunnel](udp-forwarding.md)** — Xray/3x-ui UDP, WireGuard,
   DNS and games need one switch turned on. This is the page for "TCP works, UDP
   does not".
@@ -71,6 +75,10 @@ tutorials leave at their defaults.
 اگر TCP کار می‌کند ولی UDP رد نمی‌شود (Xray/3x-ui، وایرگارد، DNS، بازی) صفحهٔ
 **[Adding UDP to a tunnel](udp-forwarding.md)** را ببین — فقط یک گزینه باید روشن
 شود.
+
+برای ساخت سمت دیگر با SSH از همین سرور،
+[Set up both ends](set-up-both-ends.md) را بخوان. برای تنظیم سقف حجم و شروع دورهٔ
+جدید، [Traffic quota and reset](traffic-quota-and-reset.md) را ببین.
 
 توضیح تک‌تک تنظیمات (نه آموزش راه‌اندازی) در پوشهٔ [`docs/`](../docs/) است.
 

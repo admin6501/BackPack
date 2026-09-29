@@ -61,7 +61,7 @@ table is the whole compatibility contract:
 | ICMP reply mode | **yes** (icmp profile only) |
 | Padding, fake TLS | **yes** — they change the wire |
 | Forged source ↔ the peer's "expected forged source" | **yes**, if you pin it |
-| The other end's real IPv4 | required on the **server** |
+| The other end's real IPv4 | required on **both ends** by the direct Spoof wizard |
 | TTL jitter, DSCP, port shuffle, interface, XDP interface, socket buffer, MTU | no — local only |
 | Error correction (`fec_data` / `fec_parity`) | **yes** — a receiver expecting a different scheme rebuilds nothing |
 
@@ -125,16 +125,11 @@ nothing, which reads as every other fault there is.
 
 ### The other end's real IPv4 — `spoof_peer_ip`
 
-**Server side: required.** The client forges its source, so its packets do not
-say where they came from and the server cannot learn where to send replies. It
-must be told the client's **real public IPv4** — the address you SSH into it
-with, never a forged one.
-
-Until it is set, nothing on the spoof screen can be saved, and the Edit screen
-says so up front.
-
-On the client it is optional and defaults to the host part of the server address
-it already dials.
+**Both sides of the direct Spoof wizard ask for it.** On Iran, enter kharej's
+real public IPv4; on kharej, enter Iran's real public IPv4. Forged packets do
+not reveal the sender's real address, so replies must be routed to the address
+you actually SSH into, never the forged address. The kharej setup refuses to
+finish without Iran's real IPv4.
 
 ### Egress interface — `spoof_interface`
 

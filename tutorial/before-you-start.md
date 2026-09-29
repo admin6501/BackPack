@@ -1,14 +1,15 @@
 # Before you start
 
-Read this once. Every transport tutorial builds on it, and the four things below
-account for nearly every tunnel that comes up and then carries nothing.
+Read this once. The transport tutorials below use the reverse direction;
+the direct wizard reverses which machine dials. The four checks here cover
+the common reasons a tunnel comes up but carries nothing.
 
 ---
 
 ## 1. The two roles
 
-Backpack is a **reverse** tunnel. The kharej machine dials the Iran machine, and
-traffic flows the other way. So the roles are not what people expect:
+For a **reverse** tunnel, the kharej machine dials the Iran machine, and
+traffic flows the other way:
 
 ```
   end users ──▶  IRAN server  ══ tunnel ══▶  KHAREJ server  ──▶  real service
@@ -23,9 +24,15 @@ traffic flows the other way. So the roles are not what people expect:
 
 Two consequences worth memorising:
 
-- **The kharej server needs no open inbound port.** It only dials out.
-- **Always build the Iran side first.** The client needs the Iran address, the
-  tunnel port and the token the server generates.
+- **In reverse mode**, the kharej server needs no open inbound tunnel port.
+- For these reverse tutorials, build **Iran first**: it supplies the listening
+  address and token. For the ordinary direct wizard, start on **Iran** too: its
+  setup link fills in kharej. The experimental Spoof and SNI direct wizards
+  have their own order. [Set up both ends](set-up-both-ends.md) can mirror a
+  newly built side over SSH.
+
+In **direct mode**, Iran dials kharej, so the tunnel port must be reachable on
+kharej. See the [direct tunnel walkthrough](direct-layer3.md).
 
 ## 2. The token
 
@@ -70,7 +77,7 @@ in the full reference: [Port mappings](../docs/port-mappings.md).
 
 ## 4. The firewall
 
-On the **Iran** server, open:
+For the reverse tutorials, on the **Iran** server open:
 
 - the **tunnel port**, on the protocol the transport uses —
   `tcp` for the TCP and WebSocket families, `udp` for udp/kcp/quic, nothing for
@@ -84,7 +91,9 @@ ufw allow 443/tcp        # forwarded port
 ufw allow 8443/tcp       # tunnel port (TCP-family transport)
 ```
 
-Nothing needs opening on the kharej server.
+In direct mode, open the carrier's listening port on **kharej** instead. User
+facing forwarded ports still belong on Iran. A raw ICMP or IP Spoofing profile
+may need protocol and firewall rules other than TCP or UDP; follow its own guide.
 
 ## 5. UDP is off by default
 
@@ -146,8 +155,10 @@ Then check both sides with **Manage → Status**, and if anything is off,
 
 **نقش‌ها:** سرور **ایران** با گزینهٔ «Setup Iran» ساخته می‌شود و پورت‌ها را در
 معرض کاربر می‌گذارد؛ سرور **خارج** با «Setup Kharej» ساخته می‌شود و به ایران وصل
-می‌شود. همیشه **اول سمت ایران** را بساز، چون کلاینت به آدرس و توکن آن نیاز دارد.
-سمت خارج هیچ پورت ورودی بازی لازم ندارد.
+می‌شود. برای آموزش‌های ریورس **اول سمت ایران** را بساز، چون کلاینت به آدرس و
+توکن آن نیاز دارد؛ سمت خارج پورت ورودی تونل لازم ندارد. در ویزارد دایرکت عادی
+نیز از ایران شروع کن و لینک ستاپ را به خارج بده. در دایرکت پورت ورودی تونل
+روی خارج است و حامل‌های آزمایشی Spoof و SNI ترتیب جداگانه دارند.
 
 **توکن:** سرور یک توکن ۶۴ کاراکتری پیشنهاد می‌دهد؛ همان را روی کلاینت وارد کن.
 توکن اشتباه = تونلی که وصل نمی‌شود (روی ترنسپورت‌های رمزنگاری‌شده اصلاً جواب داده
@@ -158,8 +169,10 @@ ports» همان‌هایی است که کاربر روی آی‌پی ایران
 `443` یعنی «روی خارج به `127.0.0.1:443` خودش تحویل بده» — اگر پنلت آنجا روی ۲۰۹۶
 است باید بنویسی `443=127.0.0.1:2096`.
 
-**فایروال (فقط روی ایران):** پورت تونل + همهٔ پورت‌های forward شده روی `tcp`، و
-اگر UDP را روشن کرده‌ای روی `udp` هم.
+**فایروال:** در حالت ریورس، پورت تونل و پورت‌های کاربر روی ایران باز می‌شوند؛
+در حالت دایرکت، پورت ورودی خود تونل روی خارج است ولی پورت‌هایی که کاربران به آن
+وصل می‌شوند همچنان روی ایران هستند. برای پروفایل‌های raw راهنمای همان حامل را
+بخوان.
 
 **UDP به‌صورت پیش‌فرض خاموش است.** ویزارد بعد از پورت‌ها می‌پرسد؛ برای
 Xray/3x-ui، وایرگارد، DNS و بازی جواب بده «y». باز کردن پورت UDP در فایروال بدون
