@@ -156,8 +156,9 @@ func runOver(c *ssh.Client, cmd string, stdin []byte) ([]byte, error) {
 	}
 	defer s.Close()
 
-	var out, errb bytes.Buffer
-	s.Stdout = &out
+	var errb bytes.Buffer
+	out := &nodeOutput{menu: make(chan struct{})}
+	s.Stdout = out
 	s.Stderr = &errb
 	if len(stdin) > 0 {
 		s.Stdin = bytes.NewReader(stdin)
@@ -167,9 +168,12 @@ func runOver(c *ssh.Client, cmd string, stdin []byte) ([]byte, error) {
 	go func() { done <- s.Run(cmd) }()
 	select {
 	case err = <-done:
+	case <-out.menu:
+		_ = s.Close()
+		return nil, errNotInstalled("the Backpack on that server opens an interactive menu instead of answering node exec (it is too old to be managed from this panel)")
 	case <-time.After(sshOpTimeout):
 		s.Signal(ssh.SIGKILL)
-		return nil, fmt.Errorf("%s took longer than %s and was stopped", cmd, sshOpTimeout)
+		return nil, fmt.Errorf("the remote Backpack command took longer than %s and was stopped", sshOpTimeout)
 	}
 	if err != nil {
 		msg := strings.TrimSpace(errb.String())
@@ -179,6 +183,39 @@ func runOver(c *ssh.Client, cmd string, stdin []byte) ([]byte, error) {
 		return out.Bytes(), fmt.Errorf("%s", msg)
 	}
 	return out.Bytes(), nil
+}
+
+// nodeOutput notices the interactive main menu while the old binary is still
+// running. Waiting for Session.Run to finish would instead spend a full minute
+// on a menu that is waiting for input, then repeat the timeout on a new SSH
+// connection. Session.Stdout.Write and the caller's select run concurrently.
+type nodeOutput struct {
+	sync.Mutex
+	buf  bytes.Buffer
+	menu chan struct{}
+	once sync.Once
+}
+
+func (o *nodeOutput) Write(p []byte) (int, error) {
+	o.Lock()
+	n, err := o.buf.Write(p)
+	// Limit the signature search to the tail, so an unexpected noisy response
+	// does not make each write scan everything received so far.
+	b := o.buf.Bytes()
+	if len(b) > 4096 {
+		b = b[len(b)-4096:]
+	}
+	if bytes.Contains(b, []byte("Setup Server")) && bytes.Contains(b, []byte("Select an option:")) {
+		o.once.Do(func() { close(o.menu) })
+	}
+	o.Unlock()
+	return n, err
+}
+
+func (o *nodeOutput) Bytes() []byte {
+	o.Lock()
+	defer o.Unlock()
+	return append([]byte(nil), o.buf.Bytes()...)
 }
 
 // runLong runs a command that is allowed to take minutes.

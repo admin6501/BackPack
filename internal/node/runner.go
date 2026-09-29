@@ -165,6 +165,9 @@ func (r *SSHRunner) exec(ctx context.Context, name string, t SSHTarget, req Requ
 	cmd := quote(app.BinPath) + " node exec " + quote(b64(raw))
 	stdout, err := runOver(c, cmd, nil)
 	if err != nil {
+		if errors.Is(err, ErrNeedsInstall) {
+			return Response{}, err
+		}
 		// A connection that has gone stale looks exactly like a server that has
 		// gone away, so the connection is dropped and the call tried once more
 		// on a fresh one. Only once: a second failure is the server.
