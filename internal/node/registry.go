@@ -304,6 +304,11 @@ func SetCredentials(name, host string, sshPort int, user, password string) error
 				continue
 			}
 			if host != "" && !strings.EqualFold(host, s.Nodes[i].Host) {
+				// The new host key is not pinned yet. Do not send the old
+				// server's stored password to an arbitrary new address.
+				if password == "" {
+					return fmt.Errorf("a new address for %q needs its password entered again", name)
+				}
 				s.Nodes[i].Host = host
 				s.Nodes[i].Fingerprint = ""
 			}

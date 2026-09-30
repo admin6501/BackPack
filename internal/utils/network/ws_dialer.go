@@ -97,6 +97,7 @@ func attemptDialWebSocket(ctx context.Context, out *Outbound, addr string, edgeI
 	headers.Add("User-Agent", randomUserAgent)
 
 	var wsURL string
+	var ekm []byte
 	dialer := websocket.Dialer{}
 
 	// Handle edgeIP assignment
@@ -188,6 +189,11 @@ func attemptDialWebSocket(ctx context.Context, out *Outbound, addr string, edgeI
 		if simpleAuth {
 			headers.Set("Authorization", "Bearer "+token)
 		} else {
+			cs := uconn.ConnectionState()
+			if ekm, err = cs.ExportKeyingMaterial(WSSBindingLabel, nil, wssBindingLength); err != nil {
+				uconn.Close()
+				return nil, fmt.Errorf("wss: could not bind the credential to the TLS session: %w", err)
+			}
 			proof, err := wssClientBinding(uconn, token)
 			if err != nil {
 				uconn.Close()
@@ -206,9 +212,15 @@ func attemptDialWebSocket(ctx context.Context, out *Outbound, addr string, edgeI
 	}
 
 	// Dial to the WebSocket server
-	tunnelWSConn, _, err := dialer.Dial(wsURL, headers)
+	tunnelWSConn, resp, err := dialer.Dial(wsURL, headers)
 	if err != nil {
 		return nil, err
+	}
+	if ekm != nil {
+		if err := checkWSSServer(ekm, token, resp.Header.Get(WSSServerProofHeader)); err != nil {
+			tunnelWSConn.Close()
+			return nil, err
+		}
 	}
 	return tunnelWSConn, nil
 }

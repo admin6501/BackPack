@@ -24,7 +24,7 @@ func Run() {
 
 	// Bring the monitoring web panel up in the background and start resolving
 	// the public IP (shown inside the Web Panel section).
-	if _, err := webui.EnsureRunning(); err != nil {
+	if _, _, err := webui.StartUnlessStopped(); err != nil {
 		tui.Warn("Web panel could not start: " + err.Error())
 		tui.PressEnter()
 	}

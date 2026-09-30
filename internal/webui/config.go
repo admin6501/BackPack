@@ -5,7 +5,9 @@ package webui
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"math/big"
 	"os"
 	"strings"
@@ -18,6 +20,7 @@ import (
 type Config struct {
 	Password string `json:"password"` // 8-digit login password
 	Port     int    `json:"port"`
+	Stopped  bool   `json:"stopped,omitempty"`
 
 	// BasePath is the secret path segment the whole panel lives under, so it
 	// answers at http://host:7777/<BasePath>/ and at nothing else.
@@ -106,6 +109,7 @@ func (c Config) Equal(other Config) bool {
 	}
 	return c.Password == other.Password &&
 		c.Port == other.Port &&
+		c.Stopped == other.Stopped &&
 		c.BasePath == other.BasePath &&
 		c.HTTPS == other.HTTPS &&
 		c.TLSDomain == other.TLSDomain &&
@@ -343,6 +347,54 @@ func EnsureRunning() (Config, error) {
 	if err != nil {
 		return c, err
 	}
+	if c.Stopped {
+		c.Stopped = false
+		if err := Save(c); err != nil {
+			return c, err
+		}
+	}
+	return c, installAndStart(panelUnit())
+}
+
+// Menu startup must respect an explicit stop, including stops by older builds.
+func StartUnlessStopped() (Config, bool, error) {
+	if StoppedByOperator() {
+		return Load(), false, nil
+	}
+	c, err := EnsureRunning()
+	return c, err == nil, err
+}
+
+func StoppedByOperator() bool {
+	if Load().Stopped {
+		return true
+	}
+	_, cfgErr := os.Stat(configPath())
+	_, unitErr := os.Stat(panelUnitPath())
+	return cfgErr == nil && errors.Is(unitErr, fs.ErrNotExist)
+}
+
+var panelUnitPath = func() string { return app.ServiceDir + "/" + app.WebUIService }
+
+var installAndStart = func(unit string) error {
+	if err := os.WriteFile(panelUnitPath(), []byte(unit), 0644); err != nil {
+		return err
+	}
+	if err := manage.DaemonReload(); err != nil {
+		return err
+	}
+	return manage.StartService(app.WebUIService)
+}
+
+var removeUnit = func() error {
+	if manage.IsActive(app.WebUIService) || manage.IsEnabled(app.WebUIService) {
+		manage.DisableService(app.WebUIService)
+	}
+	os.Remove(panelUnitPath())
+	return manage.DaemonReload()
+}
+
+func panelUnit() string {
 	unit := fmt.Sprintf(`[Unit]
 Description=Backpack Web Panel
 After=network.target
@@ -363,24 +415,19 @@ LimitNOFILE=1048576
 [Install]
 WantedBy=multi-user.target
 `, app.BinPath)
-
-	path := app.ServiceDir + "/" + app.WebUIService
-	if err := os.WriteFile(path, []byte(unit), 0644); err != nil {
-		return c, err
-	}
-	if err := manage.DaemonReload(); err != nil {
-		return c, err
-	}
-	return c, manage.StartService(app.WebUIService)
+	return unit
 }
 
 // Disable stops and removes the web-panel service.
 func Disable() error {
-	if manage.IsActive(app.WebUIService) || manage.IsEnabled(app.WebUIService) {
-		manage.DisableService(app.WebUIService)
+	c := Load()
+	if !c.Stopped {
+		c.Stopped = true
+		if err := Save(c); err != nil {
+			return err
+		}
 	}
-	os.Remove(app.ServiceDir + "/" + app.WebUIService)
-	return manage.DaemonReload()
+	return removeUnit()
 }
 
 // Running reports whether the web-panel service is active.

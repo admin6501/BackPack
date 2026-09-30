@@ -28,9 +28,12 @@ const twoFactorCookie = "backpack_2fa"
 // machine is worth nothing by the time anybody finds it.
 const twoFactorTTL = 3 * time.Minute
 
+const pendingMaxFails = 3
+
 type pendingEntry struct {
 	ip      string
 	expires time.Time
+	fails   int
 }
 
 // pendingStore holds the tokens that have passed the password and not the code.
@@ -74,7 +77,20 @@ func (p *pendingStore) valid(tok, ip string) bool {
 		delete(p.entries, tok)
 		return false
 	}
-	return e.ip == ip
+	return e.ip == ip && e.fails < pendingMaxFails
+}
+
+// Reserve a code attempt atomically so concurrent requests cannot exceed the limit.
+func (p *pendingStore) attempt(tok, ip string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	e, ok := p.entries[tok]
+	if !ok || e.ip != ip || time.Now().After(e.expires) || e.fails >= pendingMaxFails {
+		return false
+	}
+	e.fails++
+	p.entries[tok] = e
+	return true
 }
 
 func (p *pendingStore) destroy(tok string) {

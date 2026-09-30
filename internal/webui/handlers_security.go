@@ -90,6 +90,35 @@ func (l *loginLimiter) fail(ip string) {
 	}
 }
 
+// Reserve an attempt before checking credentials. The check and count share
+// one lock, including when requests arrive concurrently.
+func (l *loginLimiter) attempt(ip string) (bool, time.Duration) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.byIP == nil {
+		l.byIP = map[string]*loginAttempt{}
+	}
+	now := time.Now()
+	a, ok := l.byIP[ip]
+	if !ok {
+		l.evictLocked()
+		a = &loginAttempt{}
+		l.byIP[ip] = a
+	}
+	if a.isBlocked(now) {
+		return false, a.until.Sub(now)
+	}
+	if !a.until.IsZero() {
+		*a = loginAttempt{}
+	}
+	a.fails++
+	a.seen = now
+	if a.fails >= loginMaxFails {
+		a.until = now.Add(loginBlockPeriod)
+	}
+	return true, 0
+}
+
 func (l *loginLimiter) reset(ip string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
