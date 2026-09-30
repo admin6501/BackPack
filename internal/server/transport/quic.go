@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/backpack/backpack/internal/metrics"
@@ -60,6 +61,7 @@ type QuicTransport struct {
 	controlChannel netControl
 	restartMutex   sync.Mutex
 	limits         *limiter
+	preAuth        *quicPreAuthLimiter
 }
 
 type QuicConfig struct {
@@ -110,6 +112,7 @@ func NewQuicServer(parentCtx context.Context, config *QuicConfig, logger *logrus
 		parentctx:    parentCtx,
 		logger:       logger,
 		limits:       newLimiter(Limits{MaxConnections: config.MaxConnections, BandwidthMbps: config.BandwidthMbps}),
+		preAuth:      newQUICPreAuthLimiter(maxUnauthenticatedQUICConnections, maxUnauthenticatedQUICConnectionsPerPeer),
 	}
 
 	// The first run is installed the same way every later one is, so there is
@@ -359,13 +362,20 @@ func (s *QuicTransport) tunnelListener(g *quicGen, handshake chan<- net.Conn) {
 			s.logger.Debugf("failed to accept quic connection on %s: %v", listener.Addr().String(), err)
 			continue
 		}
+		lease, ok := s.preAuth.acquire(conn.RemoteAddr())
+		if !ok {
+			s.logger.Warnf("closing QUIC connection from %s: too many unauthenticated connections", conn.RemoteAddr())
+			_ = conn.CloseWithError(0, "unauthenticated connection limit")
+			continue
+		}
 
 		connsMu.Lock()
 		conns[conn] = struct{}{}
 		connsMu.Unlock()
 
 		go func() {
-			s.handleConn(g, conn, handshake)
+			defer lease.release()
+			s.handleConn(g, conn, handshake, lease)
 			connsMu.Lock()
 			delete(conns, conn)
 			connsMu.Unlock()
@@ -375,14 +385,51 @@ func (s *QuicTransport) tunnelListener(g *quicGen, handshake chan<- net.Conn) {
 
 // handleConn accepts the streams of one QUIC connection and files each as the
 // control stream or a data stream.
-func (s *QuicTransport) handleConn(g *quicGen, conn *quic.Conn, handshake chan<- net.Conn) {
+func (s *QuicTransport) handleConn(g *quicGen, conn *quic.Conn, handshake chan<- net.Conn, lease *quicPreAuthLease) {
+	gate := &quicGate{pending: make(chan struct{}, unauthenticatedStreams), lease: lease}
 	for {
 		stream, err := conn.AcceptStream(g.ctx)
 		if err != nil {
 			s.logger.Debugf("quic connection from %s closed: %v", conn.RemoteAddr(), err)
 			return
 		}
-		go s.acceptStream(g, conn, stream, handshake)
+		reserved, ok := gate.admit()
+		if !ok {
+			s.logger.Warnf("closing QUIC connection from %s: too many unauthenticated streams", conn.RemoteAddr())
+			_ = conn.CloseWithError(0, "unauthenticated")
+			return
+		}
+		go s.acceptStream(g, conn, stream, handshake, gate, reserved)
+	}
+}
+
+const unauthenticatedStreams = 8
+
+type quicGate struct {
+	authed  atomic.Bool
+	pending chan struct{}
+	lease   *quicPreAuthLease
+}
+
+func (q *quicGate) admit() (reserved, ok bool) {
+	if q.authed.Load() {
+		return false, true
+	}
+	select {
+	case q.pending <- struct{}{}:
+		return true, true
+	default:
+		return false, false
+	}
+}
+
+func (q *quicGate) settled(authenticated, reserved bool) {
+	if authenticated {
+		q.authed.Store(true)
+		q.lease.release()
+	}
+	if reserved {
+		<-q.pending
 	}
 }
 
@@ -391,8 +438,16 @@ func (s *QuicTransport) handleConn(g *quicGen, conn *quic.Conn, handshake chan<-
 // The decision is made from the signal the peer sends, never from whether a
 // control channel exists — a data stream that races in before the control
 // stream is established just waits its turn on the channel.
-func (s *QuicTransport) acceptStream(g *quicGen, conn *quic.Conn, stream *quic.Stream, handshake chan<- net.Conn) {
+func (s *QuicTransport) acceptStream(g *quicGen, conn *quic.Conn, stream *quic.Stream, handshake chan<- net.Conn, gate *quicGate, reserved bool) {
 	wrapped := network.NewQUICStreamConn(stream, conn)
+	judged := false
+	judge := func(ok bool) {
+		if !judged {
+			judged = true
+			gate.settled(ok, reserved)
+		}
+	}
+	defer judge(false)
 
 	if err := stream.SetReadDeadline(time.Now().Add(controlClaimTimeout)); err != nil {
 		stream.Close()
@@ -421,6 +476,7 @@ func (s *QuicTransport) acceptStream(g *quicGen, conn *quic.Conn, stream *quic.S
 		refuseControl(wrapped, utils.RefusedBadToken)
 		return
 	}
+	judge(true)
 
 	switch signal {
 	case utils.SG_Chan:
