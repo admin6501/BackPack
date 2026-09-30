@@ -120,6 +120,7 @@ type pckConn struct {
 	peers map[pckPeerKey]*pckPeer
 
 	closed atomic.Bool
+	queueDrops atomic.Uint64
 }
 
 // The frame buffer pool both ReadFrom and WriteTo draw from lives in
@@ -473,7 +474,7 @@ func (c *pckConn) WriteTo(p []byte, addr net.Addr) (int, error) {
 
 	if c.txFile != nil {
 		if err := c.sendFrame(frame); err != nil {
-			return 0, err
+			return c.writeFailed(len(p), err)
 		}
 		return len(p), nil
 	}
@@ -495,10 +496,22 @@ func (c *pckConn) WriteTo(p []byte, addr net.Addr) (int, error) {
 		Dst:      dst.IP.To4(),
 	}
 	if err := c.txRaw.WriteTo(h, tcp, nil); err != nil {
-		return 0, err
+		return c.writeFailed(len(p), err)
 	}
 	return len(p), nil
 }
+
+// A full local TX queue loses this packet, as with UDP. KCP must see a
+// successful write so it retransmits instead of closing its session forever.
+func (c *pckConn) writeFailed(n int, err error) (int, error) {
+	if errors.Is(err, unix.ENOBUFS) || errors.Is(err, unix.EAGAIN) {
+		c.queueDrops.Add(1)
+		return n, nil
+	}
+	return 0, err
+}
+
+func (c *pckConn) QueueDrops() uint64 { return c.queueDrops.Load() }
 
 // sendFrame writes a finished Ethernet frame to the packet socket, taking the
 // descriptor from the runtime so it cannot be closed underneath the syscall.
