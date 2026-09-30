@@ -566,7 +566,7 @@ func gatherTunnels(run node.Runner) []TunnelInfo {
 					// (works even where ICMP is blocked); fall back to ping.
 					info.Ping = p.RTT
 					if info.Ping < 0 {
-						info.Ping = icmpPing(p.IP)
+						info.Ping = icmpPingCached(p.IP)
 					}
 					if g := geo.Lookup(p.IP); g != nil {
 						info.PeerLocation = strings.TrimSpace(g.City + ", " + g.Country)
@@ -591,10 +591,10 @@ func gatherTunnels(run node.Runner) []TunnelInfo {
 					// best-effort: many routes drop it while carrying the tunnel.
 					if datagram {
 						if ip != "" {
-							info.Ping = icmpPing(ip)
+							info.Ping = icmpPingCached(ip)
 						}
 					} else {
-						info.Ping = tcpPing(h, port)
+						info.Ping = tcpPingCached(h, port)
 					}
 					if ip != "" {
 						if g := geo.Lookup(ip); g != nil {
