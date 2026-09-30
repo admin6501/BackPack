@@ -209,7 +209,8 @@ install_release() {
         # failed verification kill the script instead of reaching the warning.
         local rc=0
         verify_asset "$INSTALL_DIR/$ASSET" "$localsums" || rc=$?
-        if [[ $rc -eq 2 ]]; then
+        if [[ $rc -ne 0 ]]; then
+          err "Refusing to install a local archive that could not be verified against SHA256SUMS."
           rm -f "$INSTALL_DIR/$ASSET"
           exit 1
         fi
@@ -361,8 +362,16 @@ download_go() {
   return 1
 }
 go_new_enough() {
-  local v; v="$("$1" version 2>/dev/null | grep -oE 'go1\.[0-9]+' | head -1)"; v="${v#go1.}"
-  [[ -n "$v" ]] && (( v >= GO_MIN_MINOR ))
+  local found required have_major have_minor have_patch want_major want_minor want_patch
+  found="$("$1" version 2>/dev/null)" || return 1
+  [[ "$found" =~ go([0-9]+)\.([0-9]+)(\.([0-9]+))?([[:space:]]|$) ]] || return 1
+  have_major="${BASH_REMATCH[1]}" have_minor="${BASH_REMATCH[2]}" have_patch="${BASH_REMATCH[4]:-0}"
+  required="$GO_VERSION"
+  [[ "$required" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || return 1
+  want_major="${BASH_REMATCH[1]}" want_minor="${BASH_REMATCH[2]}" want_patch="${BASH_REMATCH[3]}"
+  (( 10#$have_major > 10#$want_major ||
+     (10#$have_major == 10#$want_major && 10#$have_minor > 10#$want_minor) ||
+     (10#$have_major == 10#$want_major && 10#$have_minor == 10#$want_minor && 10#$have_patch >= 10#$want_patch) ))
 }
 ensure_go() {
   command -v go >/dev/null 2>&1 && go_new_enough "$(command -v go)" && { info "Go: $(go version)"; return; }
@@ -372,7 +381,7 @@ ensure_go() {
 }
 build_from_source() {
   cd "$SCRIPT_DIR"
-  ensure_go; export PATH="/usr/local/go/bin:$PATH"
+  ensure_go
   # Direct module fetching first, Iran-friendly mirrors as fallback.
   export GOPROXY="https://proxy.golang.org,https://mirror-go.runflare.com,https://goproxy.cn,direct"
   export GOSUMDB=off GOTOOLCHAIN=local
