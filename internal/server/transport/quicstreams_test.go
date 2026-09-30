@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/backpack/backpack/internal/utils/network"
+	"github.com/quic-go/quic-go"
 )
 
 // freeUDPAddr takes a loopback UDP port the kernel is not using.
@@ -67,5 +68,56 @@ func TestAnUnauthenticatedQUICPeerCannotOpenStreamsWithoutLimit(t *testing.T) {
 	case <-conn.Context().Done():
 	case <-time.After(5 * time.Second):
 		t.Fatal("a peer holding 64 unauthenticated streams was left connected")
+	}
+}
+
+func TestQUICListenerClosesExcessUnauthenticatedConnections(t *testing.T) {
+	addr := freeUDPAddr(t)
+	parent, stop := context.WithCancel(context.Background())
+	defer stop()
+	srv := NewQuicServer(parent, &QuicConfig{
+		BindAddr: addr, Token: "a-long-enough-token", ChannelSize: 16,
+		Heartbeat: time.Second, KeepAlive: 10 * time.Second,
+	}, quietLogger())
+	srv.preAuth = newQUICPreAuthLimiter(1, 1)
+	go srv.Start()
+
+	var first *quic.Conn
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		conn, err := network.QUICDial(context.Background(), addr, network.QUICSettings{MaxIdleTimeout: 30 * time.Second})
+		if err == nil {
+			first = conn
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("first QUIC connection failed: %v", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	defer first.CloseWithError(0, "test complete")
+
+	deadline = time.Now().Add(3 * time.Second)
+	for {
+		srv.preAuth.mu.Lock()
+		admitted := srv.preAuth.total
+		srv.preAuth.mu.Unlock()
+		if admitted == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("first unauthenticated connection was not admitted")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	second, err := network.QUICDial(context.Background(), addr, network.QUICSettings{MaxIdleTimeout: 30 * time.Second})
+	if err == nil {
+		defer second.CloseWithError(0, "test complete")
+		select {
+		case <-second.Context().Done():
+		case <-time.After(3 * time.Second):
+			t.Fatal("second unauthenticated connection remained open past the configured limit")
+		}
 	}
 }
