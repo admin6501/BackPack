@@ -162,8 +162,9 @@ func (r *SSHRunner) exec(ctx context.Context, name string, t SSHTarget, req Requ
 		}
 	}
 
-	cmd := quote(app.BinPath) + " node exec " + quote(b64(raw))
-	stdout, err := runOver(c, cmd, nil)
+	cmd := quote(app.BinPath) + " node exec -"
+	stdin := []byte(b64(raw) + "\n")
+	stdout, err := runOver(c, cmd, stdin)
 	if err != nil {
 		if errors.Is(err, ErrNeedsInstall) {
 			return Response{}, err
@@ -176,7 +177,7 @@ func (r *SSHRunner) exec(ctx context.Context, name string, t SSHTarget, req Requ
 		if derr != nil {
 			return Response{}, err
 		}
-		stdout, err = runOver(c, cmd, nil)
+		stdout, err = runOver(c, cmd, stdin)
 		if err != nil {
 			return Response{}, backpackMissing(err)
 		}

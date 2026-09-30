@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -170,7 +171,11 @@ func (s *fakeServer) handle(c net.Conn, cfg *ssh.ServerConfig) {
 					ch.SendRequest("exit-status", false, ssh.Marshal(struct{ S uint32 }{0}))
 					return
 				}
-				fmt.Fprintln(ch, answerTo(payload.Command))
+				stdin, err := io.ReadAll(ch)
+				if err != nil {
+					return
+				}
+				fmt.Fprintln(ch, answerTo(payload.Command, stdin))
 				ch.SendRequest("exit-status", false, ssh.Marshal(struct{ S uint32 }{0}))
 				return
 			}
@@ -181,10 +186,11 @@ func (s *fakeServer) handle(c net.Conn, cfg *ssh.ServerConfig) {
 // answerTo does what `backpack node exec` does on the far machine, except that
 // it echoes the request back instead of performing it — so a test can see
 // exactly what arrived.
-func answerTo(cmd string) string {
-	i := strings.LastIndex(cmd, " ")
-	arg := strings.Trim(cmd[i+1:], "'")
-	raw, err := base64.StdEncoding.DecodeString(arg)
+func answerTo(cmd string, stdin []byte) string {
+	if !strings.HasSuffix(cmd, " node exec -") {
+		return "request was put in process arguments"
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(stdin)))
 	if err != nil {
 		return "not base64"
 	}
