@@ -31,9 +31,10 @@ There is no bounty. This is a project one person maintains.
 ## Supported versions
 
 The current release, and only the current release. There are no long-term
-support branches: the update path is built into the product, it verifies a
-signature and a checksum, and it rolls itself back if the tunnels do not come
-back up. Staying current is the supported configuration.
+support branches: the update path is built into the product, it checks the
+release checksum and verifies a signature when a release signing key is pinned.
+It rolls itself back if the tunnels do not come back up. Staying current is the
+supported configuration.
 
 ## What is in scope
 
