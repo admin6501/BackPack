@@ -97,6 +97,22 @@ var rekeyCheck = 5 * time.Second
 // through previousGrace — so erring early is cheap.
 var peerSilentAfter = 15 * time.Second
 
+// A path may stop passing one datagram flow while leaving the socket open.
+// Reopening the carrier gives UDP/QUIC a new source port and XDI a new echo
+// identifier. Keep the delay on the tunnel so tests can shorten it without
+// changing a timer read by another running generation.
+const defaultFlowStuckAfter = 90 * time.Second
+
+var errFlowStuck = errors.New("l3: the carrier stopped answering handshakes; reopening its flow")
+
+func stuckFlowCarrier(carrier string) bool {
+	switch carrier {
+	case "", CarrierUDP, CarrierQuic, CarrierXdi, CarrierPck, CarrierSNI:
+		return true
+	}
+	return false // spoof has no source port or echo identifier to rotate
+}
+
 // Stats is what the tunnel reports about itself.
 type Stats struct {
 	PacketsIn, PacketsOut uint64
@@ -274,6 +290,10 @@ type Tunnel struct {
 	// silentRekey marks the handshake that unanswered started, so it is not
 	// reported as a routine rekey.
 	silentRekey atomic.Bool
+	// flowStuck marks a generation ended to reopen a dead flow.
+	flowStuck atomic.Bool
+	// flowStuckAfter is fixed before Run starts and never changes while it runs.
+	flowStuckAfter time.Duration
 
 	// The listening side answers a retransmitted first message with the
 	// identical reply rather than starting a second handshake, which would
@@ -313,7 +333,7 @@ func New(cfg Config, log *logrus.Logger) (*Tunnel, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
-	return &Tunnel{
+	t := &Tunnel{
 		cfg:           cfg,
 		encap:         encap,
 		log:           log,
@@ -323,7 +343,9 @@ func New(cfg Config, log *logrus.Logger) (*Tunnel, error) {
 		probeWaiters:  make(map[uint32]chan uint32),
 		badHandshakes: reportEvery{every: time.Minute},
 		foreignTags:   reportEvery{every: time.Minute},
-	}, nil
+	}
+	t.flowStuckAfter = defaultFlowStuckAfter
+	return t, nil
 }
 
 // Run opens the device and the carrier and serves the tunnel until ctx ends.
@@ -418,7 +440,7 @@ func (t *Tunnel) Run(ctx context.Context) error {
 
 	if t.cfg.Mode == ModeDial {
 		wg.Add(1)
-		go func() { defer wg.Done(); t.handshakeLoop(genCtx) }()
+		go func() { defer wg.Done(); t.handshakeLoop(genCtx, endGeneration) }()
 	}
 
 	// Both ends probe: each measures what it can send, and sets its own
@@ -430,6 +452,9 @@ func (t *Tunnel) Run(ctx context.Context) error {
 	wg.Wait()
 	if ctx.Err() != nil {
 		return nil
+	}
+	if t.flowStuck.Swap(false) {
+		return errFlowStuck
 	}
 	return errors.New("l3: the tunnel stopped unexpectedly")
 }
@@ -1218,9 +1243,10 @@ func sameHost(a, b net.Addr) bool {
 
 // handshakeLoop keeps the dialling side supplied with a live session: it
 // negotiates the first one, and replaces it before it ages out.
-func (t *Tunnel) handshakeLoop(ctx context.Context) {
+func (t *Tunnel) handshakeLoop(ctx context.Context, end func()) {
 	ticker := time.NewTicker(rekeyCheck)
 	defer ticker.Stop()
+	var failingSince time.Time
 
 	for {
 		if t.peerSilent(time.Now()) {
@@ -1245,6 +1271,15 @@ func (t *Tunnel) handshakeLoop(ctx context.Context) {
 				if ctx.Err() != nil {
 					return
 				}
+				if failingSince.IsZero() {
+					failingSince = time.Now()
+				}
+				if stuckFlowCarrier(t.cfg.Carrier) && time.Since(failingSince) >= t.flowStuckAfter {
+					t.log.Warnf("l3: no handshake answer over %s for %s; reopening the carrier to try a new flow", t.cfg.Carrier, t.flowStuckAfter)
+					t.flowStuck.Store(true)
+					end()
+					return
+				}
 				t.log.Warnf("l3: handshake did not complete: %v — retrying", err)
 				select {
 				case <-ctx.Done():
@@ -1253,6 +1288,7 @@ func (t *Tunnel) handshakeLoop(ctx context.Context) {
 				}
 				continue
 			}
+			failingSince = time.Time{}
 		}
 		select {
 		case <-ctx.Done():
