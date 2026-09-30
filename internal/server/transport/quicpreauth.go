@@ -11,7 +11,7 @@ const (
 	// QUIC transport handshakes are not tunnel authentication. Keep the
 	// number of connections waiting for a valid tunnel token bounded across
 	// the whole listener, and per peer so one source cannot consume the pool.
-	maxUnauthenticatedQUICConnections       = 128
+	maxUnauthenticatedQUICConnections        = 128
 	maxUnauthenticatedQUICConnectionsPerPeer = 8
 )
 

@@ -26,7 +26,7 @@ func TestQUICPreAuthLimiterBoundsConnectionsPerPeerAndGlobally(t *testing.T) {
 
 	gate := &quicGate{pending: make(chan struct{}, 1), lease: first}
 	gate.settled(true, false) // A valid token proof releases the pending slot.
-	first.release()            // Closing the connection later must not release it twice.
+	first.release()           // Closing the connection later must not release it twice.
 	third, ok := limiter.acquire(&net.UDPAddr{IP: net.ParseIP("192.0.2.1"), Port: 1005})
 	if !ok {
 		t.Fatal("peer slot was not released after authentication")
