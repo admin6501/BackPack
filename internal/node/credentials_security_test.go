@@ -16,14 +16,14 @@ func TestChangingAddressNeedsNewPasswordBeforeDroppingHostKey(t *testing.T) {
 	if err := SetCredentials("peer", "192.0.2.2", 22, "root", ""); err == nil {
 		t.Fatal("new unpinned host inherited the old password")
 	}
-	n, _ := Find("peer")
+	n, _ := findWithSecret("peer")
 	if n.Host != "192.0.2.1" || n.Fingerprint != "SHA256:pinned" || n.Password != "old-password" {
 		t.Fatalf("rejected edit changed the node: %+v", n)
 	}
 	if err := SetCredentials("peer", "192.0.2.2", 22, "root", "new-password"); err != nil {
 		t.Fatal(err)
 	}
-	n, _ = Find("peer")
+	n, _ = findWithSecret("peer")
 	if n.Host != "192.0.2.2" || n.Fingerprint != "" || n.Password != "new-password" {
 		t.Fatalf("accepted edit did not replace the credentials: %+v", n)
 	}
