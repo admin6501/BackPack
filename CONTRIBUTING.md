@@ -17,21 +17,27 @@ before you write anything:
 
 You keep the copyright on what you write. There is no CLA.
 
-## The bar
+## Running checks locally
 
-CI enforces all of this, so run it before you push:
+Use the Go version in `go.mod` (currently 1.26.6). Node.js 22 is used in CI
+for the web panel tests; without Node.js, those tests are skipped locally.
+Before opening a code change, run the relevant checks:
 
-```
+```sh
 gofmt -l .                      # must print nothing
 go vet ./...
-go test ./...
-go test ./... -race             # enforced; the transports are concurrent
+go test ./... -timeout 20m
+go test ./... -race -timeout 20m # the transports are concurrent
 go run honnef.co/go/tools/cmd/staticcheck@latest ./...
 go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 ```
 
-Coverage is measured with `-coverpkg` and has a floor that only goes up. If it
-drops, find out what stopped being exercised before lowering it.
+CI also runs fuzz tests, cross-builds, a sustained traffic test, and a wire
+compatibility test against the previous release. Coverage is measured with
+`-coverpkg=./...`; both the overall and per-package floors are checked in
+`.github/workflows/ci.yml`. If coverage drops, investigate what stopped being
+exercised before changing a floor. For documentation-only changes, verify the
+links and examples you changed; the pull request still runs CI.
 
 ## How this codebase is written, and why it will look unusual
 
@@ -72,11 +78,12 @@ entry points were found by hand before the last of those existed.
 
 ## Opening a change
 
-- One thing per pull request. A refactor and a fix in one branch is a branch
-  nobody can review.
+- Keep each pull request focused. Include related fixes and tests in the same
+  change so the behaviour can be reviewed together.
 - Say what a user would have seen before your change and what they see after.
-- New behaviour comes with a test at a public seam. Not a test of the function
-  you wrote — a test of the thing a user can now do.
+- For new behaviour or a bug fix, test the outcome at a useful boundary: a CLI
+  action, panel API, configuration load, or traffic across a tunnel. Include
+  reproduction steps when the result depends on a particular network or host.
 - Structural changes go in one sub-package or one transport at a time, never as
   one sweep. `internal/manage` is being split that way on purpose; see
   `internal/manage/core/doc.go` for why the seam was cut where it was.
