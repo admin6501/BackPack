@@ -31,6 +31,10 @@ the API host — never appears in a message.
 The admin set up with the bot is its **owner**. Further admins can be added
 beside it, each with full or read-only (`:ro`) access:
 
+Use the bot in a **private chat only**. Group messages are ignored, and button
+actions opened from a group are refused, so panel credentials and backup links
+are never delivered into a group conversation.
+
 | | Owner | Admin | Read-only admin |
 |---|:--:|:--:|:--:|
 | Status, tunnels, alerts, health, history | ✅ | ✅ | ✅ |
@@ -51,6 +55,10 @@ either. See [access control](access-control.md).
 
 گزارش وضعیت و [هشدارها](alerts.md) در تلگرام — حتی از داخل ایران که تلگرام
 بسته است.
+
+از ربات فقط در **گفت‌وگوی خصوصی** استفاده کن. پیام‌های گروهی نادیده گرفته
+می‌شوند و دکمه‌هایی که در گروه باز شوند رد می‌شوند؛ بنابراین رمز پنل یا فایل
+پشتیبان در گروه فرستاده نمی‌شود.
 
 **چطور از ایران به تلگرام می‌رسد؟** یک پورت لوکال روی تونل مستقیم به API تلگرام
 forward می‌شود و **سمت خارج** اتصال بیرونی را برقرار می‌کند. ترافیک بین ربات و

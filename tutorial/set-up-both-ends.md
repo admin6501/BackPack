@@ -31,6 +31,11 @@ first attempt fails, the local tunnel remains in place; fix the error and run
 **Manage → Set up the other server** again. The panel and CLI use the same SSH
 setup route and a 20-minute installer timeout.
 
+For Fleet operations from the web panel, keep Backpack **v1.8.13 or newer on
+both the panel host and the managed server**. The panel sends the request over
+SSH standard input so tunnel tokens do not appear in the remote process list;
+an older remote binary cannot read this request format.
+
 **Both tunnel services are running** confirms the processes started. A separate
 peer-connection check follows, but even that is not a test of your application:
 send traffic to an exposed port and read **Tunnel Metrics** on both ends.
@@ -77,6 +82,9 @@ end?** سرور دوم را انتخاب یا با مشخصات SSH اضافه �
 مطمئن بررسی کن؛ سپس فقط **مدخل سرور** را از Servers حذف و دوباره اضافه کن.
 حذف مدخل، تونل‌های روی سرورها را پاک نمی‌کند. نام پررنگ کارت، نام ثبت‌شده در
 Backpack است؛ نام کوچک زیر آن، hostname خود سیستم‌عامل است.
+
+برای عملیات Fleet از پنل، هر دو طرف باید نسخهٔ ۱.۸.۱۳ یا جدیدتر داشته باشند؛
+درخواست از SSH stdin فرستاده می‌شود تا token در فهرست پردازه‌ها دیده نشود.
 
 </div>
 

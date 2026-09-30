@@ -10,8 +10,9 @@ Three things make it more than "WS with TLS":
   normal browser traffic.
 - **A session-bound credential.** The token is never sent. Each side derives
   keying material from the TLS session and the client proves it holds the token
-  with an HMAC over that material — a man in the middle has a different session
-  and cannot replay it.
+  with an HMAC over that material; the server proves its identity over the same
+  session too — a man in the middle has a different session and cannot replay
+  either proof.
 - **A decoy site.** Anything that is not a genuine tunnel connection — a browser,
   a scanner, a probe with the wrong token — gets a stock nginx: the "Welcome to
   nginx!" page at `/` and a normal `404` on every other path. Each install wears
@@ -23,6 +24,11 @@ would itself be suspicious. (Where it would not be, [Stealth](tcp-stealth.md) is
 lighter.)
 
 > Read [TCP](tcp.md) for the parts of the wizard not covered here.
+
+**Upgrade order:** when moving to v1.8.13 or newer, update the Iran-side WSS
+server before its clients. New clients require the server's TLS-bound proof.
+If a TLS-terminating proxy sits in front, enable **Simple Token Auth** on both
+ends only when that proxy must terminate TLS.
 
 ---
 
@@ -117,6 +123,9 @@ answering, and it is what a scanner sees.
 تقلبی** که به هر کاوشگر و مرورگری یک nginx معمولی نشان می‌دهد — صفحهٔ «Welcome to
 nginx» روی `/` و `404` روی هر مسیر دیگر. هر نصب نسخهٔ nginx و تاریخ صفحهٔ خودش را
 از توکن خودش می‌سازد، پس دو سرور شبیه هم جواب نمی‌دهند.
+
+از نسخهٔ ۱.۸.۱۳، سرور هم هویت خود را روی نشست TLS اثبات می‌کند. هنگام ارتقا،
+اول سرور WSS ایران و بعد کلاینت‌ها را به‌روز کن.
 
 سر راه‌اندازی روی ایران یک صفحهٔ **گواهی** اضافه می‌شود: *self-signed* (پیش‌فرض،
 همه‌جا کار می‌کند و رمزنگاری‌اش دقیقاً به همان خوبی است)، *Let's Encrypt* (نیاز

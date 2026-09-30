@@ -63,6 +63,11 @@ panel shows a key to scan or type into the app, and nothing changes until you
 type back the six digits it produces — an app that never got the secret cannot
 lock you out. Then it shows **ten recovery codes**, once.
 
+Repeated sign-in guesses are limited by source address: five consecutive
+incorrect password or API-token attempts trigger a ten-minute lockout. A
+successful password followed by a second-factor prompt allows three code
+attempts before that prompt expires; sign in again to start a fresh prompt.
+
 **Keep the recovery codes somewhere that is not this server.** Each one signs
 you in once, in the same box as the code, and they are the way back if the phone
 is gone. Fresh ones can be issued at any time from the same screen, which
@@ -107,6 +112,10 @@ the same Security pane if that matters.
 بیرون از همین سرور نگه دار. اگر هم گوشی و هم کدها را از دست دادی، از خود سرور:
 `CLI → Web Panel → Two-factor sign-in` و خاموشش کن؛ آنجا رمز نمی‌پرسد، چون هر کسی
 که بتواند آن را اجرا کند همین حالا root است.
+
+برای مهار حدس‌زدن رمز، پنج تلاش ناموفق پیاپی از یک نشانی IP، ورود را ۱۰ دقیقه
+قفل می‌کند. پس از رمز درست، برای واردکردن کد مرحلهٔ دوم سه فرصت در یک درخواست
+سه‌دقیقه‌ای وجود دارد.
 
 **ورود:** لینک و کد ورود در CLI زیر گزینهٔ **Web Panel** نشان داده می‌شود (پورت،
 رمز و گواهی پنل هم همان‌جا تنظیم می‌شود). اول پورت را باز کن:

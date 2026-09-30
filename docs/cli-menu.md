@@ -184,6 +184,11 @@ forward a tunnel port to `127.0.0.1:<that port>`.
 | **Port to listen on** | loopback only; you choose, nothing is assumed |
 | **Require a username/password** | optional — safe to skip, since the proxy binds loopback and is only reachable through the token-authenticated tunnel |
 
+For safety, the proxy refuses destinations that resolve to loopback, link-local,
+multicast or unspecified addresses, and the cloud metadata endpoint. Ordinary
+private subnet addresses remain available; hostnames are checked after DNS
+resolution too.
+
 ---
 
 ## 4 — Backup & Restore
@@ -212,8 +217,8 @@ the URL, the login code and the state.
 | **Regenerate login code** | a new random 8-digit code |
 | **Set a custom password** | replaces the login code with your own |
 | **Certificate** | serve the panel over HTTPS |
-| **Restart panel** | also starts it when stopped |
-| **Stop panel** | disables the web UI. Monitoring, alerts and the watchdog keep running — they live in a separate service |
+| **Restart panel** | also starts it when stopped; clears a saved stop request |
+| **Stop panel** | disables the web UI until restarted, including across later CLI launches. Monitoring, alerts and the watchdog keep running — they live in a separate service |
 
 [More](web-panel.md)
 
@@ -228,7 +233,7 @@ count.
 |---|---|
 | **Configure / Update bot** | token, admin id, and how the bot reaches Telegram (automatic through a tunnel peer, always a named tunnel, or direct) |
 | **Alerts** | warn when CPU, memory or disk crosses a threshold, a tunnel goes down or comes back, or a new release appears — each with a recovery message. [More](alerts.md) |
-| **Admins** | who else may use the bot, and who may only look |
+| **Admins** | who else may use the bot, and who may only look. Commands and buttons work in private chats only; group messages are ignored |
 | **Diagnose relay** | names the exact hop that is broken when messages do not arrive |
 | **Send a test report now** | verifies the whole chain |
 | **Disable reports** | stops the scheduled reports |
@@ -402,6 +407,12 @@ MSS clamp، فلگ‌های TCP (فقط pck)، IP Spoofing (فقط spoof) و گ�
 TCP_NODELAY، keepalive، heartbeat، سطح لاگ، لاگ JSON؛ روی سرور channel size؛
 روی کلاینت اندازهٔ pool و aggressive pool؛ MSS clamp؛ تنظیمات mux؛ تنظیمات KCP و
 FEC؛ و zero-copy (فقط روی tcp ساده).
+
+**Built-in Proxy** مقصدهایی را که به loopback، link-local، multicast، آدرس
+نامشخص یا endpoint متادیتای ابری resolve شوند رد می‌کند؛ آدرس‌های خصوصی معمولی
+مجازند. **Stop panel** پس از اجرای دوبارهٔ CLI هم باقی می‌ماند تا با Restart
+پاک شود. ربات تلگرام را فقط در گفت‌وگوی خصوصی استفاده کن؛ پیام‌های گروهی نادیده
+گرفته و دکمه‌های گروهی رد می‌شوند.
 
 </div>
 
