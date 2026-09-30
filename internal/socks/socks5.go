@@ -127,7 +127,7 @@ func handle(conn net.Conn, auth AuthFunc) {
 	switch head[1] {
 	case cmdConn:
 		target := net.JoinHostPort(host, strconv.Itoa(int(binary.BigEndian.Uint16(portBuf))))
-		remote, err := net.DialTimeout("tcp", target, 15*time.Second)
+		remote, err := DialTarget("tcp", target, 15*time.Second)
 		if err != nil {
 			reply(conn, 0x05)
 			return

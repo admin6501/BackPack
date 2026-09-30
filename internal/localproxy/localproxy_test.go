@@ -13,6 +13,13 @@ import (
 	"github.com/backpack/backpack/internal/socks"
 )
 
+func allowLoopbackTarget(t *testing.T) {
+	t.Helper()
+	previous := socks.Target
+	socks.Target = func(net.IP) bool { return true }
+	t.Cleanup(func() { socks.Target = previous })
+}
+
 // startEcho is a TCP service that echoes what it receives — the destination
 // the proxy connects out to.
 func startEcho(t *testing.T) string {
@@ -55,6 +62,7 @@ func waitListening(t *testing.T, addr string) {
 
 // The built-in SOCKS5 proxy must carry a CONNECT to the destination, no-auth.
 func TestSocks5ProxyNoAuth(t *testing.T) {
+	allowLoopbackTarget(t)
 	Dir = t.TempDir()
 	echo := startEcho(t)
 	host, portStr, _ := net.SplitHostPort(echo)
@@ -90,6 +98,7 @@ func TestSocks5ProxyNoAuth(t *testing.T) {
 
 // The built-in HTTP proxy must tunnel a CONNECT to the destination.
 func TestHTTPProxyConnect(t *testing.T) {
+	allowLoopbackTarget(t)
 	Dir = t.TempDir()
 	echo := startEcho(t)
 
@@ -134,6 +143,7 @@ func TestHTTPProxyConnect(t *testing.T) {
 
 // A password-protected proxy must reject the wrong credentials.
 func TestSocks5ProxyAuth(t *testing.T) {
+	allowLoopbackTarget(t)
 	Dir = t.TempDir()
 	echo := startEcho(t)
 	host, portStr, _ := net.SplitHostPort(echo)
