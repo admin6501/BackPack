@@ -573,7 +573,7 @@ func (s *server) note(r *http.Request, who caller, status int) {
 func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		ip := clientIP(r)
-		if blocked, left := limiter.blocked(ip); blocked {
+		if ok, left := limiter.attempt(ip); !ok {
 			http.Error(w, fmt.Sprintf("too many failed attempts — try again in %d minutes",
 				int(left.Minutes())+1), http.StatusTooManyRequests)
 			return
@@ -587,7 +587,7 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		// The second step of a two-factor login: the password was accepted a
 		// moment ago and this is the code for it. Checked first, because a
 		// request carrying a pending token is never a password attempt.
-		if c, err := r.Cookie(twoFactorCookie); err == nil && s.pending.valid(c.Value, ip) {
+		if c, err := r.Cookie(twoFactorCookie); err == nil && s.pending.attempt(c.Value, ip) {
 			if checkSecondFactor(r.FormValue("code")) {
 				s.pending.destroy(c.Value)
 				limiter.reset(ip)
@@ -601,9 +601,15 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			// password does. The pending token is left alive so the operator
 			// can try again within its three minutes rather than starting from
 			// the password.
-			limiter.fail(ip)
 			time.Sleep(1 * time.Second)
-			s.serveSecondFactorPage(w, r, http.StatusUnauthorized)
+			if s.pending.valid(c.Value, ip) {
+				s.serveSecondFactorPage(w, r, http.StatusUnauthorized)
+				return
+			}
+			http.SetCookie(w, clearedCookie(r, twoFactorCookie))
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write(withNonce(withBase(withLoginState(loginHTML, true), basePrefix()), r))
 			return
 		}
 
@@ -614,7 +620,6 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			// factor. Where there is one, it buys the code prompt and nothing
 			// else — see totpauth.go.
 			if twoFactorOn() {
-				limiter.reset(ip)
 				tok := s.pending.create(ip)
 				http.SetCookie(w, authCookie(r, twoFactorCookie, tok, twoFactorTTL))
 				s.serveSecondFactorPage(w, r, http.StatusOK)
@@ -626,7 +631,6 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			redirectTo(w, r, "/", http.StatusSeeOther)
 			return
 		}
-		limiter.fail(ip)
 		time.Sleep(1 * time.Second)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusUnauthorized)

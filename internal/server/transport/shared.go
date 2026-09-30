@@ -180,6 +180,17 @@ func authorizeWSRequest(r *http.Request, token string, simpleAuth bool) bool {
 	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }
 
+func serverProof(r *http.Request, token string, simpleAuth bool) http.Header {
+	if r.TLS == nil || simpleAuth {
+		return nil
+	}
+	answer, err := network.WSSServerAnswer(r.TLS, token)
+	if err != nil {
+		return nil
+	}
+	return http.Header{network.WSSServerProofHeader: {answer}}
+}
+
 type TunnelChannel struct { // for websocket
 	conn *websocket.Conn
 	ping chan struct{}

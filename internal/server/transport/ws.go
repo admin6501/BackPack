@@ -359,7 +359,7 @@ func (s *WsTransport) tunnelListener(g *wsGen) {
 				return
 			}
 
-			conn, err := upgrader.Upgrade(w, r, nil)
+			conn, err := upgrader.Upgrade(w, r, serverProof(r, s.config.Token, s.config.SimpleAuth))
 			if err != nil {
 				s.logger.Errorf("failed to upgrade connection from %s: %v", r.RemoteAddr, err)
 				return

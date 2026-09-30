@@ -514,7 +514,12 @@ type tgMessage struct {
 	From      tgUser `json:"from"`
 	Chat      struct {
 		ID int64 `json:"id"`
+		Type string `json:"type"`
 	} `json:"chat"`
+}
+
+func (m *tgMessage) privateChat() bool {
+	return m == nil || m.Chat.Type == "private"
 }
 
 type tgUser struct {
@@ -614,6 +619,10 @@ func getUpdates(c Config, offset int64) ([]tgUpdate, error) {
 func handleUpdate(c Config, u tgUpdate) {
 	if u.Callback != nil {
 		user := strconv.FormatInt(u.Callback.From.ID, 10)
+		if !u.Callback.Message.privateChat() {
+			answerCallback(c, u.Callback.ID, tr(c.Language(), "Use this bot in a private chat."), true)
+			return
+		}
 		if !c.isAdmin(user) {
 			answerCallback(c, u.Callback.ID, tr(c.Language(), "Not authorised."), true)
 			return
@@ -633,7 +642,7 @@ func handleUpdate(c Config, u tgUpdate) {
 		return
 	}
 	user := strconv.FormatInt(u.Message.From.ID, 10)
-	if !c.isAdmin(user) {
+	if !c.isAdmin(user) || !u.Message.privateChat() {
 		return
 	}
 	chat := strconv.FormatInt(u.Message.Chat.ID, 10)

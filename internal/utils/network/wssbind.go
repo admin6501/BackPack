@@ -77,3 +77,34 @@ func WSSServerProof(cs *tls.ConnectionState, token string) (string, error) {
 	}
 	return WSSBindingProof(ekm, token), nil
 }
+
+// The response proof is domain-separated from the client's credential.
+const WSSServerProofHeader = "X-Backpack-Proof"
+
+func wssServerAnswer(ekm []byte, token string) string {
+	mac := hmac.New(sha256.New, []byte(token))
+	mac.Write([]byte("server"))
+	mac.Write(ekm)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func WSSServerAnswer(cs *tls.ConnectionState, token string) (string, error) {
+	if cs == nil {
+		return "", errNoTLSState
+	}
+	ekm, err := cs.ExportKeyingMaterial(WSSBindingLabel, nil, wssBindingLength)
+	if err != nil {
+		return "", err
+	}
+	return wssServerAnswer(ekm, token), nil
+}
+
+var errWSSServerUnproven = errors.New("wss: the server did not prove it holds the tunnel token")
+
+// Require proof even on the first connection. Older servers must be updated.
+func checkWSSServer(ekm []byte, token, answer string) error {
+	if !hmac.Equal([]byte(answer), []byte(wssServerAnswer(ekm, token))) {
+		return errWSSServerUnproven
+	}
+	return nil
+}
