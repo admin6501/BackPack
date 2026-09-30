@@ -119,7 +119,7 @@ type pckConn struct {
 	mu    sync.Mutex
 	peers map[pckPeerKey]*pckPeer
 
-	closed atomic.Bool
+	closed     atomic.Bool
 	queueDrops atomic.Uint64
 }
 
