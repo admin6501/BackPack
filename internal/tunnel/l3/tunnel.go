@@ -289,9 +289,11 @@ type Tunnel struct {
 	unanswered atomic.Int64
 	// silentRekey marks the handshake that unanswered started, so it is not
 	// reported as a routine rekey.
-	silentRekey	atomic.Bool
-	flowStuck	atomic.Bool
-	flowStuckAfter	time.Duration
+	silentRekey atomic.Bool
+	// flowStuck marks a generation ended to reopen a dead flow.
+	flowStuck atomic.Bool
+	// flowStuckAfter is fixed before Run starts and never changes while it runs.
+	flowStuckAfter time.Duration
 
 	// The listening side answers a retransmitted first message with the
 	// identical reply rather than starting a second handshake, which would
@@ -331,18 +333,19 @@ func New(cfg Config, log *logrus.Logger) (*Tunnel, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
-	return &Tunnel{
-		cfg:		cfg,
-		encap:		encap,
-		log:		log,
-		replies:	make(chan handshakeReply, 4),
-		mtuCurrent:	cfg.MTU,
-		probe:		defaultProbeTiming(),
-		probeWaiters:	make(map[uint32]chan uint32),
-		flowStuckAfter:	defaultFlowStuckAfter,
-		badHandshakes:	reportEvery{every: time.Minute},
-		foreignTags:	reportEvery{every: time.Minute},
-	}, nil
+	t := &Tunnel{
+		cfg:           cfg,
+		encap:         encap,
+		log:           log,
+		replies:       make(chan handshakeReply, 4),
+		mtuCurrent:    cfg.MTU,
+		probe:         defaultProbeTiming(),
+		probeWaiters:  make(map[uint32]chan uint32),
+		badHandshakes: reportEvery{every: time.Minute},
+		foreignTags:   reportEvery{every: time.Minute},
+	}
+	t.flowStuckAfter = defaultFlowStuckAfter
+	return t, nil
 }
 
 // Run opens the device and the carrier and serves the tunnel until ctx ends.
