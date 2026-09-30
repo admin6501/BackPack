@@ -50,6 +50,10 @@ nothing — which looks exactly like every other fault there is.
 On both machines: `sudo backpack` → Setup Iran / Setup Kharej → **Direct**, and
 choose **Spoof** when it asks how the packets should travel.
 
+The private TUN addresses are separate from the forged source. Give each tunnel
+on a server its own `10.10.N.0/30` block; for example, `10.10.0.1` conflicts
+with an existing `10.10.0.2/30`. The CLI rejects a manually reused block.
+
 After the usual questions the wizard runs a **4-step** spoof screen.
 
 ### Step 1 — what the packets look like on the wire
@@ -251,6 +255,10 @@ instead. Change one at a time and test.
 
 ۱. **اول تونل را بدون جعل بساز.** در مرحلهٔ «Forged source» فقط Enter بزن. تونلی
 سالم روی آدرس واقعی خودت می‌گیری. مطمئن شو کار می‌کند.
+
+آدرس خصوصی TUN با forged source فرق دارد؛ برای هر تونل روی یک سرور، بلوک
+جداگانهٔ `10.10.N.0/30` بگذار. مثلاً `10.10.0.1` با تونلی که
+`10.10.0.2/30` دارد تداخل می‌کند و CLI آن را رد می‌کند.
 
 ۲. بعد `Manage → IP Spoofing Tester` را اجرا کن: روی یک سرور **Receiver** (اول
 این را استارت کن) و روی سرور دیگر **Sender**. لیست/رنج/CIDR آدرس‌های کاندید را
