@@ -12,6 +12,9 @@ import (
 // A UDP datagram sent through UDP ASSOCIATE must reach the destination and its
 // reply must come back — proving the built-in SOCKS5 proxy carries UDP.
 func TestUDPAssociateRoundTrip(t *testing.T) {
+	previous := Target
+	Target = func(net.IP) bool { return true }
+	defer func() { Target = previous }()
 	// UDP echo destination.
 	echo, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 	if err != nil {
