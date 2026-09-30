@@ -197,8 +197,9 @@ func setupL3(side directSide) {
 		// Exactly as the Iran server printed them: this machine's comes first.
 		cfg.LocalIP = tui.PromptDefault("This Server's Tunnel Address", cfg.LocalIP)
 		cfg.PeerIP = tui.PromptDefault("The Iran Server's Tunnel Address", cfg.PeerIP)
-		for err := l3.CheckTunnelEnds(cfg.LocalIP, cfg.PeerIP); err != nil; err = l3.CheckTunnelEnds(cfg.LocalIP, cfg.PeerIP) {
+		for err := validateL3TunnelAddresses(cfg.LocalIP, cfg.PeerIP); err != nil; err = validateL3TunnelAddresses(cfg.LocalIP, cfg.PeerIP) {
 			tui.Error(err.Error())
+			cfg.LocalIP, cfg.PeerIP = freeL3Subnet(side)
 			cfg.LocalIP = tui.PromptDefault("This Server's Tunnel Address", cfg.LocalIP)
 			cfg.PeerIP = tui.PromptDefault("The Iran Server's Tunnel Address", cfg.PeerIP)
 		}
@@ -468,6 +469,28 @@ func l3Block(addr string) string {
 	return ""
 }
 
+// validateL3TunnelAddresses refuses a pair that collides with a tunnel already
+// configured on this machine. The web form has this check; the classic CLI
+// wizard used to check only whether local and peer were routable with each
+// other, so manually entering an existing 10.10.N.0/30 block could steal its
+// route from an older interface.
+func validateL3TunnelAddresses(localIP, peerIP string) error {
+	if err := l3.CheckTunnelEnds(localIP, peerIP); err != nil {
+		return err
+	}
+	if err := checkL3BlockAvailable(localIP, l3BlockOwner(localIP)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkL3BlockAvailable(localIP, owner string) error {
+	if owner == "" {
+		return nil
+	}
+	return fmt.Errorf("address block %sx is already used by tunnel %q on this server; choose a free block for this tunnel", l3Block(localIP), owner)
+}
+
 // defaultL3MTU is deliberately low. A tunnel whose packets are slightly too
 // big does not fail loudly: small things work and downloads stall. Starting
 // under the budget and letting an operator raise it once the tunnel is proven
@@ -488,8 +511,9 @@ func askL3Advanced(cfg *l3Spec, side directSide, addresses bool) {
 		tui.Info("other tunnel on this server uses; the code carries them to kharej.")
 		cfg.LocalIP = tui.PromptDefault("This server's tunnel address", cfg.LocalIP)
 		cfg.PeerIP = tui.PromptDefault("The kharej server's tunnel address", cfg.PeerIP)
-		for err := l3.CheckTunnelEnds(cfg.LocalIP, cfg.PeerIP); err != nil; err = l3.CheckTunnelEnds(cfg.LocalIP, cfg.PeerIP) {
+		for err := validateL3TunnelAddresses(cfg.LocalIP, cfg.PeerIP); err != nil; err = validateL3TunnelAddresses(cfg.LocalIP, cfg.PeerIP) {
 			tui.Error(err.Error())
+			cfg.LocalIP, cfg.PeerIP = freeL3Subnet(side)
 			cfg.LocalIP = tui.PromptDefault("This server's tunnel address", cfg.LocalIP)
 			cfg.PeerIP = tui.PromptDefault("The kharej server's tunnel address", cfg.PeerIP)
 		}

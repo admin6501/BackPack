@@ -8,7 +8,6 @@ import (
 	"github.com/backpack/backpack/internal/app"
 	"github.com/backpack/backpack/internal/snispoof"
 	"github.com/backpack/backpack/internal/tui"
-	"github.com/backpack/backpack/internal/tunnel/l3"
 )
 
 // The classic direct wizard, kept for IP spoofing and SNI spoofing.
@@ -63,9 +62,11 @@ func setupL3Classic(side directSide, carrier string) {
 	tui.Info("Both servers must agree, with the addresses swapped.")
 	cfg.LocalIP = tui.PromptDefault("This machine's tunnel address", cfg.LocalIP)
 	cfg.PeerIP = tui.PromptDefault("The other machine's tunnel address", cfg.PeerIP)
-	for l3.CheckTunnelEnds(cfg.LocalIP, cfg.PeerIP) != nil {
-		tui.Error("The other machine's address cannot be this machine's own (" + hostOnly(cfg.LocalIP) + ").")
-		cfg.PeerIP = tui.PromptDefault("The other machine's tunnel address", "")
+	for err := validateL3TunnelAddresses(cfg.LocalIP, cfg.PeerIP); err != nil; err = validateL3TunnelAddresses(cfg.LocalIP, cfg.PeerIP) {
+		tui.Error(err.Error())
+		cfg.LocalIP, cfg.PeerIP = freeL3Subnet(side)
+		cfg.LocalIP = tui.PromptDefault("This machine's tunnel address", cfg.LocalIP)
+		cfg.PeerIP = tui.PromptDefault("The other machine's tunnel address", cfg.PeerIP)
 	}
 
 	// Same order as the reverse wizard: address, name, token, ports,
