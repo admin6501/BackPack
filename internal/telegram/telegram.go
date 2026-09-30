@@ -513,7 +513,7 @@ type tgMessage struct {
 	Text      string `json:"text"`
 	From      tgUser `json:"from"`
 	Chat      struct {
-		ID int64 `json:"id"`
+		ID   int64  `json:"id"`
 		Type string `json:"type"`
 	} `json:"chat"`
 }
