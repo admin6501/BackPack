@@ -34,6 +34,12 @@ The [TCP walkthrough](tcp.md), with **`UDP` → `UDP + QUIC`** on both ends.
   recovery are QUIC's own, and the presets have little left to tune.
 - **PROXY protocol is available.**
 
+Before the tunnel token is proved, the server accepts at most eight pending
+streams per QUIC connection, 128 unauthenticated connections in total, and eight
+per IPv4 address or IPv6 `/64`. A successful proof frees the connection slot;
+these limits protect the listener before authentication and do not cap an
+authenticated tunnel.
+
 ---
 
 ## Testing it honestly
@@ -65,6 +71,10 @@ both ends — the token, ports and name are kept.
 
 راه‌اندازی مثل [TCP](tcp.md) با انتخاب `UDP` → `UDP + QUIC` در دو طرف. پورت تونل
 را روی **`udp`** باز کن. گواهی TLS لازم ندارد و MSS clamp هم ندارد.
+
+سرور پیش از احراز هویت، تا ۸ stream برای هر اتصال، ۱۲۸ اتصال در کل و ۸ اتصال
+برای هر IPv4 یا IPv6 `/64` می‌پذیرد. با اثبات token یا بسته‌شدن اتصال، سهمیه
+آزاد می‌شود؛ اتصال‌های احراز‌شده مشمول این محدودیت‌ها نیستند.
 
 </div>
 

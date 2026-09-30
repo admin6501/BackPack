@@ -130,6 +130,12 @@ same link ran at full speed. That finding still stands, which is why the Link
 Test's advisor recommends KCP for a lossy link and names QUIC only as the other
 thing to try. Test it on your own route before committing to it.
 
+Before token authentication, the server limits pending QUIC work: at most eight
+unauthenticated streams per connection, 128 pending connections overall, and
+eight per IPv4 address or IPv6 `/64`. The connection allowance is released when
+the token proof succeeds or the connection closes; authenticated traffic is
+not subject to these pre-authentication limits.
+
 ---
 
 ## Experimental family
@@ -190,7 +196,10 @@ Two things make these more than "WS with TLS":
   bearer token readable by anything that terminates the TLS on the path. So the
   token is not sent: each side derives keying material from the TLS session and
   the client proves it holds the token with an HMAC over that material. A man in
-  the middle has a different session and cannot replay it.
+  the middle has a different session and cannot replay it. Current servers also
+  prove their identity over that session, and clients verify the proof. Upgrade
+  the Iran-side WSS server to v1.8.13 or newer before its clients. Simple Token
+  Auth remains the opt-in exception for a TLS-terminating proxy.
 - **Decoy site.** Anything that is not a genuine tunnel connection — a browser,
   a scanner, a probe with the wrong token — is answered by a stock **nginx**:
   the "Welcome to nginx!" page at `/`, a normal `404` everywhere else, with the
@@ -238,6 +247,12 @@ UDP را می‌بندد ولی ICMP را نه) و *IP Spoofing* که مبدأ �
 
 روی **همهٔ** ترنسپورت‌ها می‌شود UDP پورت‌های forward شده را هم عبور داد — یک
 تنظیم جدا و پیش‌فرض خاموش است: [Forwarded UDP](forwarded-udp.md).
+
+در WSS نسخهٔ ۱.۸.۱۳ به بعد، سرور هم هویت خود را روی نشست TLS اثبات می‌کند؛
+هنگام ارتقا ابتدا سرور WSS ایران و بعد کلاینت‌ها را به‌روز کن. در QUIC، پیش از
+اثبات token حداکثر ۸ stream برای هر اتصال، ۱۲۸ اتصال در کل و ۸ اتصال برای هر
+IPv4 یا پیشوند IPv6 از نوع `/64` پذیرفته می‌شود. با موفقیت احراز هویت یا بسته‌شدن
+اتصال، سهمیه آزاد می‌شود.
 
 </div>
 

@@ -92,14 +92,22 @@ If it ever changes, the panel refuses to connect and says so. Either that server
 was rebuilt, or something is answering in its place. Remove it from the fleet
 and add it again if the change was expected.
 
-Changing a server's address clears the key with it: a different machine is
-entitled to a different one.
+Changing a server's address requires the SSH password again before the panel
+clears the pinned key: a different machine is entitled to a different one.
+After confirmation, the panel pins the key presented by the new address on its
+next successful connection.
 
 ### Where the password is kept
 
 In `/etc/backpack/nodes.json`, on the panel's own server, `0600` and owned by
 root — the same file and the same permissions as every other secret Backpack
 holds. It is never sent to the browser.
+
+For Fleet operations, keep Backpack **v1.8.13 or newer on both the panel host
+and every managed server**. The panel sends each request through SSH standard
+input rather than putting the encoded request (which may contain tunnel tokens)
+in the remote process arguments. An older remote binary does not accept this
+invocation; update it before using Fleet operations from the panel.
 
 ## Building a tunnel on both ends
 
@@ -268,11 +276,16 @@ log, sink a speed test — and refuses anything else. It is not meant to be type
 **کلید میزبان:** بار اول، پنل SHA-256 کلید میزبان را ثبت می‌کند و از آن به بعد
 هر اتصال باید با همان بخواند — همان «trust on first use» که وقتی به ssh `yes`
 می‌گویی. اگر عوض شود پنل وصل نمی‌شود و می‌گوید؛ یا سرور از نو ساخته شده یا چیز
-دیگری جایش جواب می‌دهد. عوض‌کردن آدرس سرور کلید را هم پاک می‌کند.
+دیگری جایش جواب می‌دهد. برای عوض‌کردن آدرس، پنل دوباره رمز SSH را می‌خواهد و پس
+از تأیید، کلید آدرس تازه را در اتصال بعدی ثبت می‌کند.
 
 **رمز کجاست:** در `/etc/backpack/nodes.json` روی سرور خود پنل، با مجوز `0600` و
 مالکیت root — همان فایل و همان مجوزی که هر راز دیگر Backpack دارد. هیچ‌وقت به
 مرورگر فرستاده نمی‌شود.
+
+برای عملیات Fleet، روی پنل و همهٔ سرورهای مدیریت‌شده نسخهٔ **۱.۸.۱۳ یا جدیدتر**
+لازم است. درخواست SSH از ورودی استاندارد فرستاده می‌شود تا token در آرگومان‌های
+پردازه دیده نشود؛ نسخه‌های قدیمی سرور مقصد این قالب را نمی‌پذیرند.
 
 **ساختن تونل روی هر دو سر:** وقتی جفت را از پنل می‌سازی، **هر دو** سر نوشته
 می‌شود، پس تنظیم‌های جفتی (توکن، ترنسپورت، پورت) نمی‌توانند با هم اختلاف داشته
