@@ -4,7 +4,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/backpack/backpack/internal/node"
 )
@@ -27,7 +29,7 @@ import (
 
 const nodeUsage = `backpack node — the panel-managed side of this server
 
-  backpack node exec <request>
+  backpack node exec -
         Perform one operation and print the answer. Both are JSON, base64
         encoded. This is what a Backpack panel runs over SSH; there is no
         reason to type it.
@@ -54,10 +56,8 @@ func runNode(args []string) {
 
 // nodeExec performs one operation for a panel reaching this server over SSH.
 //
-// The request arrives as an argument rather than on stdin because the panel
-// gets to this through a shell, and a shell handed one opaque word has fewer
-// ways to go wrong than one handed a redirect as well. Base64 for the same
-// reason: nothing in it can be read as shell syntax, whatever the request holds.
+// The request arrives on stdin. Command-line arguments are visible to other
+// users via the process list, and this request can contain a tunnel token.
 //
 // The answer always goes to stdout, including a refusal — the panel reads a
 // Response either way, and a command that failed with nothing on stdout would
@@ -65,13 +65,13 @@ func runNode(args []string) {
 // and is a different problem. The exit status stays 0 for the same reason; a
 // non-zero one means this command failed, not that the operation did.
 func nodeExec(args []string) {
-	if len(args) != 1 {
-		fmt.Fprintln(os.Stderr, "node exec takes one base64 request")
+	if len(args) != 1 || args[0] != "-" {
+		fmt.Fprintln(os.Stderr, "node exec requires - and a base64 request on stdin; update both managed servers")
 		os.Exit(2)
 	}
-	raw, err := base64.StdEncoding.DecodeString(args[0])
+	raw, err := readNodeRequest(os.Stdin)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "the request is not valid base64:", err)
+		fmt.Fprintln(os.Stderr, "the request could not be read:", err)
 		os.Exit(2)
 	}
 	var req node.Request
@@ -85,4 +85,15 @@ func nodeExec(args []string) {
 		os.Exit(1)
 	}
 	fmt.Println(base64.StdEncoding.EncodeToString(out))
+}
+
+func readNodeRequest(in io.Reader) ([]byte, error) {
+	encoded, err := io.ReadAll(io.LimitReader(in, (16<<20)+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(encoded) > 16<<20 {
+		return nil, fmt.Errorf("request exceeds 16 MiB")
+	}
+	return base64.StdEncoding.DecodeString(strings.TrimSpace(string(encoded)))
 }
