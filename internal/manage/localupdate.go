@@ -35,7 +35,17 @@ func localUpdateDirs() []string { return localUpdateDirsFn() }
 // localUpdateDirsFn is the list, behind a variable so a test can point the
 // search somewhere that is not this machine's /root.
 var localUpdateDirsFn = func() []string {
-	return []string{"/root", app.InstallDir, "."}
+	return []string{"/root", app.InstallDir}
+}
+
+// A local release is executed as root to read its version. Only private,
+// root-owned or current-user-owned directories may supply one.
+func trustedUpdateDir(dir string) bool {
+	fi, err := os.Stat(dir)
+	if err != nil || !fi.IsDir() || fi.Mode().Perm()&0o002 != 0 {
+		return false
+	}
+	return ownedByRootOrMe(fi)
 }
 
 // LocalAssetName is the file this machine can install: the archive for its own
@@ -69,6 +79,9 @@ type LocalUpdate struct {
 func FindLocalUpdate() (LocalUpdate, bool) {
 	name := LocalAssetName()
 	for _, dir := range localUpdateDirs() {
+		if !trustedUpdateDir(dir) {
+			continue
+		}
 		path := filepath.Join(dir, name)
 		fi, err := os.Stat(path)
 		if err != nil || fi.IsDir() || fi.Size() == 0 {
