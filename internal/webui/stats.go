@@ -150,6 +150,9 @@ type TunnelInfo struct {
 	Direction    string `json:"direction"`
 	Carrier      string `json:"carrier"`
 	Addr         string `json:"addr"`
+	// PeerAddr is the far end's IP address. On a client it is the resolved
+	// remote address; on a listener it is the connected client's source IP.
+	PeerAddr     string `json:"peerAddr,omitempty"`
 	Ports        string `json:"ports"`
 	State        string `json:"state"`
 	Ping         int    `json:"ping"` // milliseconds, -1 = n/a
@@ -560,6 +563,7 @@ func gatherTunnels(run node.Runner) []TunnelInfo {
 						peers = []peerConn{{IP: ip, RTT: -1}}
 					}
 				}
+				info.PeerAddr = tunnelPeerAddr(false, "", peers, snap.Peer)
 				if len(peers) > 0 {
 					p := peers[0]
 					// Prefer the kernel-measured RTT of the live tunnel socket
@@ -583,6 +587,7 @@ func gatherTunnels(run node.Runner) []TunnelInfo {
 				datagram := manage.IsDatagram(t.Transport)
 				if resolvable {
 					ip := resolveIP(h)
+					info.PeerAddr = tunnelPeerAddr(true, ip, nil, snap.Peer)
 					// A TCP probe is only meaningful for the TCP-based transports.
 					// KCP and UDP listen on a UDP port, so a TCP connect there
 					// always fails — using its result for ping (or worse, for
@@ -1001,6 +1006,23 @@ func peerHost(peer string) string {
 		return peer
 	}
 	return host
+}
+
+// tunnelPeerAddr returns the endpoint on the far side of this tunnel. A
+// dialing end resolves its configured remote address; a listening end learns
+// the actual source IP from the accepted socket, or from the engine snapshot for
+// transports that do not appear in the TCP socket table.
+func tunnelPeerAddr(dialsOut bool, resolvedIP string, peers []peerConn, snapshotPeer string) string {
+	if dialsOut {
+		if ip := peerHost(snapshotPeer); ip != "" {
+			return ip
+		}
+		return resolvedIP
+	}
+	if len(peers) > 0 {
+		return peers[0].IP
+	}
+	return peerHost(snapshotPeer)
 }
 
 // fillDirectConfig reports what a direct or layer-3 tunnel actually has.

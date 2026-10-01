@@ -62,8 +62,10 @@ command to carry to the other end and nothing to wait for. See
 ### Tunnels — `#/tunnels`
 
 The fleet of tunnels as cards, each with its state, its rate chart, and the
-actions for it. This is where start, stop, restart and delete live, and where
-every per-tunnel screen below is opened from.
+actions for it. Each card shows the far-end IP: the resolved remote address on
+a client, or the connected peer's source IP on a listener. Location
+and ISP are shown when a lookup is available. This is where start, stop, restart
+and delete live, and where every per-tunnel screen below is opened from.
 
 *CLI: Manage → Manage Tunnels.*
 
@@ -132,6 +134,10 @@ check از Overview، موقع بستن تو را روی Tunnels نمی‌اند
 است — پنل را یک mux در Go سرو می‌کند که چیزی از مسیرهای سمت مرورگر نمی‌داند، و
 hash همه‌جا درست reload می‌شود. هر صفحه‌ای در این فهرست را می‌شود bookmark کرد.
 نشانی‌ها نسبت به **مسیر مخفی** پنل‌اند که برای هر نصب تصادفی است.
+
+در کارت هر تونل IP سمت مقابل هم دیده می‌شود: در کلاینت، نشانی مقصدِ تنظیم‌شده یا
+IP حل‌شده؛ در سرورِ شنونده، IP مبدأ اتصالی که برقرار شده است. شهر و ارائه‌دهندهٔ
+اینترنت هم اگر قابل‌شناسایی باشند نمایش داده می‌شوند.
 
 **اسکرین‌شات عمداً اینجا نیست.** عکسِ یک پنل با اولین تغییر ظاهر کهنه می‌شود و هیچ
 چیزی این را تشخیص نمی‌دهد؛ این نقشه نمی‌تواند کهنه شود، چون یک تست مسیرها را از
