@@ -147,9 +147,9 @@ type TunnelInfo struct {
 	// has to learn about every new tunnel kind, and the place nobody remembers
 	// to update. "l3/pck" on a card was the symptom: an internal name, leaking
 	// out because there was one field where there are two facts.
-	Direction    string `json:"direction"`
-	Carrier      string `json:"carrier"`
-	Addr         string `json:"addr"`
+	Direction string `json:"direction"`
+	Carrier   string `json:"carrier"`
+	Addr      string `json:"addr"`
 	// PeerAddr is the far end's IP address. On a client it is the resolved
 	// remote address; on a listener it is the connected client's source IP.
 	PeerAddr     string `json:"peerAddr,omitempty"`

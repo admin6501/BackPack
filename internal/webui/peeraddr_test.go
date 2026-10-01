@@ -7,12 +7,12 @@ import (
 
 func TestTunnelPeerAddrUsesTheFarEndForEachRole(t *testing.T) {
 	tests := []struct {
-		name       string
-		dialsOut   bool
-		resolved   string
-		peers      []peerConn
-		snapshot   string
-		want       string
+		name     string
+		dialsOut bool
+		resolved string
+		peers    []peerConn
+		snapshot string
+		want     string
 	}{
 		{
 			name:     "client uses resolved remote IP",
@@ -21,11 +21,11 @@ func TestTunnelPeerAddrUsesTheFarEndForEachRole(t *testing.T) {
 			want:     "203.0.113.8",
 		},
 		{
-			name:       "client prefers the currently connected peer over DNS",
-			dialsOut:   true,
-			resolved:   "203.0.113.8",
-			snapshot:   "203.0.113.9:2433",
-			want:       "203.0.113.9",
+			name:     "client prefers the currently connected peer over DNS",
+			dialsOut: true,
+			resolved: "203.0.113.8",
+			snapshot: "203.0.113.9:2433",
+			want:     "203.0.113.9",
 		},
 		{
 			name:     "client does not label an unresolved hostname as an IP",
