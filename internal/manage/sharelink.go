@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -196,6 +197,9 @@ func DecodeShareLink(s string) (ShareLink, error) {
 	// handed an unbounded read from something pasted in.
 	raw, err := io.ReadAll(io.LimitReader(zr, 64<<10))
 	if err != nil {
+		if errors.Is(err, gzip.ErrChecksum) {
+			return out, fmt.Errorf("the setup link is damaged — its checksum does not match; copy it again from the source server")
+		}
 		return out, fmt.Errorf("the setup link is incomplete — copy the whole of it, including the end")
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
