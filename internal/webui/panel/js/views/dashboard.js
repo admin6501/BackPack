@@ -232,7 +232,10 @@ function card(t, idx) {
   const ports = String(t.ports || '').split(',')
     .map(p => p.trim()).filter(Boolean)
     .map(p => p.split('=')[0]).join(', ');
-  const [ip, port] = String(t.addr || '').split(':');
+  const addr = String(t.addr || '');
+  const port = t.tunnelPort || addr.slice(addr.lastIndexOf(':') + 1);
+  const peerIP = t.peerAddr || '';
+  const peerLabel = peerIP ? `Peer IP ${peerIP}` : 'Peer IP unavailable';
 
   const series = seriesOf(t);
   const st = statsOf(series.map(p => p.v));
@@ -247,12 +250,10 @@ ${field(t, idx)}
     <div class="fl">${flag(t.peerCountry) || flag(t.country) || '·'}</div>
     <div class="id">
       <b>${esc(t.name)}</b>
-      <!-- The address is the fallback, not a dash. A location comes from a
-           lookup that can fail — and when it does, the one thing this card can
-           always say about the far end is where it is, which is more use than
-           a line saying nothing. -->
+      <!-- Location and ISP are useful when the lookup has an answer; otherwise
+           the peer IP is still a concrete description of the far end. -->
       <small>${esc([t.peerLocation, t.peerISP].filter(Boolean).join(' · ')
-                || (t.addr || '').split(':')[0] || '—')}</small>
+                || peerIP || '—')}</small>
     </div>
     ${st ? `<div class="vw" role="group" aria-label="Chart shape">
       <button data-view="curve" class="${view === 'curve' ? 'on' : ''}" title="Line">${VIEW.curve}</button>
@@ -281,7 +282,7 @@ ${field(t, idx)}
   <div class="hcap">${esc(bytes(t.totalBytes || 0))}${t.uptime ? ` · up ${esc(t.uptime)}` : ''}</div>
 
   <div class="lines">
-    <span class="ip">${esc(ip || '—')}</span><span class="sep"></span>
+    <span class="ip" title="${esc(peerLabel)}" aria-label="${esc(peerLabel)}">${esc(peerIP || '—')}</span><span class="sep"></span>
     <span class="pt">port ${esc(port || t.tunnelPort || '—')}</span>
   </div>
 </div>
@@ -405,7 +406,7 @@ const ACTION_DONE = {
 function cardSig(t) {
   return JSON.stringify([
     t.state, t.serviceDown, t.role, t.direction, t.transport, t.carrier, t.addr, t.ports,
-    t.ping, t.uptime, t.bytesIn, t.bytesOut, t.bytesTotal, t.country, t.peerCountry,
+    t.peerAddr, t.ping, t.uptime, t.bytesIn, t.bytesOut, t.bytesTotal, t.country, t.peerCountry,
     t.peerLocation, t.peerISP, t.botRelay, t.botRelayPort, t.tunnelPort,
     t.kcpLossPercent, t.pool, t.preset, t.certType, t.certDomain, t.certExpiry,
     t.maxConnections, t.bandwidthMbps,
