@@ -1,6 +1,7 @@
 package manage
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -90,6 +91,50 @@ func TestBadLinksSayWhatIsWrong(t *testing.T) {
 		if !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: error %q does not mention %q", tc.name, err, tc.want)
 		}
+	}
+}
+
+// A damaged gzip trailer is a checksum failure, not a truncated paste. In
+// particular, changing one valid base64 character can leave a syntactically
+// valid link whose payload is corrupt; operators need an accurate diagnosis.
+func TestShareLinkChecksumFailureIsReportedAsDamaged(t *testing.T) {
+	s, err := sampleLink().Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := strings.TrimPrefix(s, "backpack://1.")
+	compressed, err := base64.RawURLEncoding.DecodeString(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(compressed) < 8 {
+		t.Fatal("encoded gzip payload is unexpectedly short")
+	}
+	compressed[len(compressed)-8] ^= 0x01 // corrupt the gzip CRC32 trailer
+	damaged := "backpack://1." + base64.RawURLEncoding.EncodeToString(compressed)
+	if _, err := DecodeShareLink(damaged); err == nil || !strings.Contains(err.Error(), "damaged") || strings.Contains(err.Error(), "incomplete") {
+		t.Fatalf("checksum failure should be reported as damaged, got %v", err)
+	}
+}
+
+// A truncated compressed stream is still reported as incomplete, so the more
+// precise checksum error does not change the useful message for an actual cut.
+func TestTruncatedShareLinkIsReportedAsIncomplete(t *testing.T) {
+	s, err := sampleLink().Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := strings.TrimPrefix(s, "backpack://1.")
+	compressed, err := base64.RawURLEncoding.DecodeString(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(compressed) < 9 {
+		t.Fatal("encoded gzip payload is unexpectedly short")
+	}
+	truncated := "backpack://1." + base64.RawURLEncoding.EncodeToString(compressed[:len(compressed)-1])
+	if _, err := DecodeShareLink(truncated); err == nil || !strings.Contains(err.Error(), "incomplete") {
+		t.Fatalf("truncated stream should be reported as incomplete, got %v", err)
 	}
 }
 
