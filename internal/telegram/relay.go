@@ -256,8 +256,8 @@ func explainSendFailure(c Config, err error) error {
 	name, port := c.ViaTunnel, c.SocksPort
 	if n, p, rerr := resolveRelay(c); rerr == nil {
 		if c.ViaTunnel == AutoRelay && n == "" {
-			return fmt.Errorf("%w\n\nAutomatic mode found no relay tunnel and tried Telegram directly. " +
-				"If direct Telegram access is blocked here, set the bot relay on the Iran server " +
+			return fmt.Errorf("%w\n\nAutomatic mode found no relay tunnel and tried Telegram directly. "+
+				"If direct Telegram access is blocked here, set the bot relay on the Iran server "+
 				"to Automatic and keep a server-side tunnel to kharej online", err)
 		}
 		if n != "" {
