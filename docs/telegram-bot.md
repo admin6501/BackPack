@@ -14,6 +14,12 @@ drops**, so you never have to choose or re-choose which tunnel relays. When it
 still cannot get out, **Diagnose** walks the chain hop by hop and names the
 exact link that is broken.
 
+In **Automatic** mode a usable server-side tunnel is preferred. If this
+machine has no such tunnel but can reach Telegram directly (as is usually true
+on kharej), the bot uses that direct connection. If neither route works,
+Diagnose reports that Telegram is unreachable rather than treating a working
+kharej-side client tunnel as a server relay.
+
 ## Setup
 
 **Telegram Bot → Configure** in the CLI (or **Settings** in the [web
@@ -67,6 +73,11 @@ forward می‌شود و **سمت خارج** اتصال بیرونی را برق
 ربات **خودش یک تونل زنده را انتخاب می‌کند و وقتی آن یکی بیفتد به تونل دیگری
 می‌رود**، پس لازم نیست تو انتخاب کنی. اگر باز هم بیرون نرفت، گزینهٔ **Diagnose**
 زنجیره را قدم‌به‌قدم می‌رود و می‌گوید دقیقاً کدام حلقه خراب است.
+
+در حالت **Automatic** اول تونل زندهٔ سمت server انتخاب می‌شود. اگر چنین تونلی
+روی این دستگاه نباشد ولی خود دستگاه بتواند مستقیم به تلگرام وصل شود (که معمولاً
+روی خارج ممکن است)، ربات همان مسیر مستقیم را استفاده می‌کند. اگر هیچ‌کدام ممکن
+نباشد، Diagnose می‌گوید تلگرام از این دستگاه قابل دسترس نیست.
 
 **راه‌اندازی:** `Telegram Bot → Configure` در CLI (یا Settings در
 [پنل وب](web-panel.md)). به یک توکن ربات از `@BotFather` و آیدی عددی خودت از
