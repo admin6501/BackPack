@@ -17,6 +17,7 @@ type quotaContextKey struct{}
 
 type quotaGuard struct {
 	limit  uint64
+	mode   string
 	cancel context.CancelFunc
 }
 
@@ -42,17 +43,17 @@ func quotaExhausted(path string, cfg *config.Config) (bool, error) {
 		}
 		return false, fmt.Errorf("cannot read traffic history: %w", err)
 	}
-	return s.BytesIn >= limit || s.BytesOut >= limit || s.BytesIn >= limit-s.BytesOut, nil
+	return config.TrafficQuotaUsage(cfg.TrafficLimitMode, s.Role, s.BytesIn, s.BytesOut) >= limit, nil
 }
 
-// watch ends a generation when its cumulative traffic reaches the allowance.
+// watch ends a generation when its selected traffic reaches the allowance.
 // The engine's normal shutdown closes forwarded listeners and live sessions.
 func (q *quotaGuard) watch(ctx context.Context, c *metrics.Collector) {
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		s := c.Snapshot()
-		if s.BytesIn >= q.limit || s.BytesOut >= q.limit || s.BytesIn >= q.limit-s.BytesOut {
+		if config.TrafficQuotaUsage(q.mode, s.Role, s.BytesIn, s.BytesOut) >= q.limit {
 			if err := c.Write(); err != nil {
 				logger.Errorf("traffic quota reached; cannot persist history: %v", err)
 			}

@@ -20,7 +20,8 @@ them both ends have to agree on. This says what exists.
 | `direct` | `DirectConfig` | Direct is a direct layer-4 tunnel — the same forwarded ports, dialled the other way round. Present only in a configuration that asks for one, on the same terms as L3 above. See config/direct.go. |
 | `l3` | `L3Config` | L3 is a direct layer-3 tunnel, and is present only in a configuration that asks for one. It shares nothing with Server and Client: a file without an [l3] table leaves this zero, L3.Enabled() reads false, and the reverse tunnel runs exactly as it always has. See config/l3.go. |
 | `server` | `ServerConfig` | Server is the reverse tunnel's Iran end: it listens for the client and exposes the forwarded ports. Present only in a configuration that asks for one; the three engines are mutually exclusive. |
-| `traffic_limit_gb` | `int64` | TrafficLimitGB stops this tunnel when cumulative inbound plus outbound payload reaches this many GiB. Zero disables the quota. |
+| `traffic_limit_gb` | `int64` | TrafficLimitGB stops this tunnel when the selected traffic direction reaches this many GiB. Zero disables the quota. |
+| `traffic_limit_mode` | `string` | TrafficLimitMode selects which user-facing traffic direction is counted: both (the legacy/default behavior), download, or upload. |
 
 ## KCP tuning
 
@@ -239,4 +240,4 @@ them both ends have to agree on. This says what exists.
 
 ---
 
-*Generated from `config/` on 2026-09-25. Last verified against Backpack v1.8.15.*
+*Generated from `config/` on 2026-10-02. Last verified against Backpack v1.8.16.*

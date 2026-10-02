@@ -342,6 +342,8 @@ export async function editView(ctx) {
           // Direct settings use a flat JSON shape; reverse settings nest limits.
           const quota = root.querySelector('[name="limits.trafficLimitGB"]');
           if (quota) quota.name = 'trafficLimitGB';
+          const mode = root.querySelector('[name="limits.trafficLimitMode"]');
+          if (mode) mode.name = 'trafficLimitMode';
         }
       } catch (e) { oops(e); }
       if (direct) {
@@ -352,7 +354,7 @@ export async function editView(ctx) {
           if (p.dataset.tab !== 'Connection') p.remove();
         });
         root.querySelectorAll('.pane[data-tab="Connection"] .f, .pane[data-tab="Connection"] .two')
-          .forEach(row => { if (!row.querySelector('[name="trafficLimitGB"]')) row.remove(); });
+          .forEach(row => { if (!row.querySelector('[name="trafficLimitGB"], [name="trafficLimitMode"]')) row.remove(); });
         root.querySelectorAll('.tabs button').forEach(b => {
           if (b.textContent.trim() !== 'Connection' && !b.classList.contains('hist')) b.remove();
         });
@@ -413,6 +415,8 @@ export async function editView(ctx) {
          the dialog opened, so no edit made on this screen could be saved at
          all. It now means what it was drawn to mean. */
       const save = root.querySelector('.save, [data-save], .primary');
+      const quotaMode = root.querySelector('[name="trafficLimitMode"], [name="limits.trafficLimitMode"]');
+      if (quotaMode && settings.trafficLimitMode) quotaMode.value = settings.trafficLimitMode;
       if (save) {
         const enable = () => { save.disabled = false; };
         ['input', 'change'].forEach(ev => root.addEventListener(ev, enable));
@@ -428,7 +432,7 @@ export async function editView(ctx) {
           return;
         }
         const payload = direct
-          ? { name, direct: { trafficLimitGB: Number(quota.value) } }
+          ? { name, direct: { trafficLimitGB: Number(quota.value), trafficLimitMode: quotaMode?.value || 'both' } }
           : { name, ...read(root) };
         save.disabled = true;
         try {

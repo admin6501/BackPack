@@ -1,18 +1,21 @@
 # Traffic quota and resetting usage
 
 Each server records incoming and outgoing bytes **per tunnel**. A quota is a
-whole number of **GiB** on their sum, not a speed limit. `0` means unlimited.
+whole number of **GiB** for download, upload, or both; `both` is the default and
+preserves the historical sum. Download/upload are from the Iran user’s perspective,
+so incoming and outgoing reverse on the kharej end. `0` means unlimited.
 Counters survive service restarts and updates; resetting is an explicit action.
 
 ## Give a tunnel an allowance
 
 1. Run `sudo backpack` on the **Iran entry server** for a reverse tunnel.
    Choose **Manage → Manage Tunnels → [name] → Traffic quota**.
-2. Enter the total allowance in GiB, for example `4000`. This preserves
-   consumption already recorded. Raising a quota does not begin a fresh period.
+2. Enter the allowance in GiB, for example `4000`, and choose download, upload,
+   or both. This preserves consumption already recorded. Raising a quota does
+   not begin a fresh period.
 3. Open **Manage → Tunnel Metrics** and read **Traffic in**, **Traffic out**,
    **Traffic total**, and **Traffic quota** for this tunnel. The displayed
-   remaining amount is the allowance minus the local total.
+   remaining amount is the allowance minus the selected traffic direction.
 
 The web panel also accepts the quota in the tunnel's **Edit** form and displays
 it under **Metrics**. At the cap, forwarded listeners pause; the service remains
@@ -43,8 +46,9 @@ See [Tunnel Metrics](../docs/tunnel-metrics.md) and
 ## خلاصهٔ فارسی
 
 در **Manage → Manage Tunnels → نام تونل → Traffic quota** سقف را بر حسب GiB
-وارد کن. مثلاً `4000` یعنی چهار هزار GiB؛ عدد `0` یعنی نامحدود. مصرف قبلی با
-تغییر سقف پاک نمی‌شود. باقی‌مانده را در **Manage → Tunnel Metrics** ببین.
+وارد کن و حالت «دانلود»، «آپلود» یا «هر دو» را انتخاب کن؛ «هر دو» پیش‌فرض
+است و دانلود/آپلود از دید کاربر ایران سنجیده می‌شود. `4000` یعنی چهار هزار GiB؛
+`0` یعنی نامحدود. مصرف قبلی با تغییر سقف پاک نمی‌شود. باقی‌مانده را در **Manage → Tunnel Metrics** ببین.
 
 برای شروع دورهٔ جدید، **Reset traffic** همان تونل را انتخاب و تأیید کن. فقط
 شمارنده‌های **همین سرور** صفر می‌شوند؛ تونل فعال لحظه‌ای دوباره وصل می‌شود.

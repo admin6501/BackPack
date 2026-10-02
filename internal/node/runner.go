@@ -259,6 +259,13 @@ func outdatedBackpack(msg string) bool {
 	if strings.Contains(msg, `unknown command "exec"`) {
 		return true
 	}
+	// A node binary can recognise the command but expect a different request
+	// encoding. It reports this decode error instead of its usual unknown-command
+	// help. Treat it like the other incompatible versions: the fleet join flow
+	// can install the current build over SSH before trying again.
+	if strings.Contains(msg, "the request is not valid base64:") {
+		return true
+	}
 	// Older still, or built differently: the usage arrives without the line
 	// above it. Two markers rather than one, so an unrelated message that
 	// happens to contain the word "backpack" is not read as this.

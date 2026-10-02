@@ -82,3 +82,14 @@ jobs:
             assets+=(release/SHA256SUMS.sig)
           fi
           gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+
+      - name: Verify the published archive bytes against the published checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          downloaded="$(mktemp -d)"
+          trap 'rm -rf "$downloaded"' EXIT
+          gh release download "$RELEASE_TAG" --dir "$downloaded" \
+            --pattern 'backpack_linux_*.tar.gz' --pattern 'SHA256SUMS'
+          (cd "$downloaded" && sha256sum -c SHA256SUMS)

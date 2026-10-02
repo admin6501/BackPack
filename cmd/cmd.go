@@ -144,7 +144,7 @@ func Run(configPath string, ctx context.Context) {
 		// private child inside runEngine leaves the outer loop waiting forever.
 		if cfg.TrafficLimitGB > 0 {
 			runCtx = context.WithValue(runCtx, quotaContextKey{},
-				&quotaGuard{limit: uint64(cfg.TrafficLimitGB) << 30, cancel: cancel})
+				&quotaGuard{limit: uint64(cfg.TrafficLimitGB) << 30, mode: cfg.TrafficLimitMode, cancel: cancel})
 		}
 		done := make(chan struct{})
 		// Ending this generation is exactly what a configuration change does,

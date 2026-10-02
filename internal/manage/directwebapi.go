@@ -109,9 +109,10 @@ type NewDirectTunnel struct {
 	GREKey uint32 `json:"greKey"`
 
 	// MaxConnections and BandwidthMbps cap the forwarded ports (0 = unlimited).
-	MaxConnections int   `json:"maxConnections"`
-	BandwidthMbps  int   `json:"bandwidthMbps"`
-	TrafficLimitGB int64 `json:"trafficLimitGB"`
+	MaxConnections   int    `json:"maxConnections"`
+	BandwidthMbps    int    `json:"bandwidthMbps"`
+	TrafficLimitGB   int64  `json:"trafficLimitGB"`
+	TrafficLimitMode string `json:"trafficLimitMode"`
 }
 
 // DirectCarriers is what the panel offers, in the order it offers them. It is
@@ -362,6 +363,9 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 	if n.TrafficLimitGB < 0 || uint64(n.TrafficLimitGB) > ^uint64(0)>>30 {
 		return l3Spec{}, fmt.Errorf("traffic quota must be between 0 and %d GiB", ^uint64(0)>>30)
 	}
+	if n.TrafficLimitMode != "" && n.TrafficLimitMode != "both" && n.TrafficLimitMode != "download" && n.TrafficLimitMode != "upload" {
+		return l3Spec{}, fmt.Errorf("traffic quota mode must be both, download, or upload")
+	}
 	var side directSide
 	switch strings.ToLower(strings.TrimSpace(n.Side)) {
 	case "iran":
@@ -437,8 +441,9 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 	}
 
 	spec := l3Spec{
-		TrafficLimitGB: n.TrafficLimitGB,
-		Name:           name, Side: side, Carrier: carrier,
+		TrafficLimitGB:   n.TrafficLimitGB,
+		TrafficLimitMode: n.TrafficLimitMode,
+		Name:             name, Side: side, Carrier: carrier,
 		// Always Backpack's own GRE inside the Noise session. There is no
 		// choice here and the panel does not offer one; see askL3Encap's
 		// removal in the CLI wizard for why.
@@ -525,21 +530,22 @@ func SuggestDirectPort() string {
 // all three have to match the other end, so changing one here alone would only
 // break the tunnel.
 type DirectSettings struct {
-	TrafficLimitGB int64  `json:"trafficLimitGB"`
-	Name           string `json:"name"`
-	Side           string `json:"side"`
-	Carrier        string `json:"carrier"`
-	Encap          string `json:"encap"`
-	Addr           string `json:"addr"`
-	Token          string `json:"token"`
-	Iface          string `json:"iface"`
-	LocalIP        string `json:"localIp"`
-	PeerIP         string `json:"peerIp"`
-	MTU            int    `json:"mtu"`
-	AutoMTU        bool   `json:"autoMtu"`
-	Preset         string `json:"preset"`
-	Ports          string `json:"ports"`
-	AcceptUDP      bool   `json:"acceptUdp"`
+	TrafficLimitGB   int64  `json:"trafficLimitGB"`
+	TrafficLimitMode string `json:"trafficLimitMode"`
+	Name             string `json:"name"`
+	Side             string `json:"side"`
+	Carrier          string `json:"carrier"`
+	Encap            string `json:"encap"`
+	Addr             string `json:"addr"`
+	Token            string `json:"token"`
+	Iface            string `json:"iface"`
+	LocalIP          string `json:"localIp"`
+	PeerIP           string `json:"peerIp"`
+	MTU              int    `json:"mtu"`
+	AutoMTU          bool   `json:"autoMtu"`
+	Preset           string `json:"preset"`
+	Ports            string `json:"ports"`
+	AcceptUDP        bool   `json:"acceptUdp"`
 
 	MaxConnections int `json:"maxConnections"`
 	BandwidthMbps  int `json:"bandwidthMbps"`
@@ -563,14 +569,15 @@ type DirectSettings struct {
 
 // DirectEdit is what the panel may change.
 type DirectEdit struct {
-	TrafficLimitGB *int64  `json:"trafficLimitGB"`
-	Ports          *string `json:"ports"`
-	AcceptUDP      *bool   `json:"acceptUdp"`
-	Preset         *string `json:"preset"`
-	MTU            *int    `json:"mtu"`
-	AutoMTU        *bool   `json:"autoMtu"`
-	MaxConnections *int    `json:"maxConnections"`
-	BandwidthMbps  *int    `json:"bandwidthMbps"`
+	TrafficLimitGB   *int64  `json:"trafficLimitGB"`
+	TrafficLimitMode *string `json:"trafficLimitMode"`
+	Ports            *string `json:"ports"`
+	AcceptUDP        *bool   `json:"acceptUdp"`
+	Preset           *string `json:"preset"`
+	MTU              *int    `json:"mtu"`
+	AutoMTU          *bool   `json:"autoMtu"`
+	MaxConnections   *int    `json:"maxConnections"`
+	BandwidthMbps    *int    `json:"bandwidthMbps"`
 
 	// Spoof replaces the carrier's settings wholesale, and Stealth turns the
 	// obfuscation group on or off. Both are nil unless the form sent them, on
@@ -596,6 +603,7 @@ func DirectSettingsOf(name string) (DirectSettings, error) {
 	}
 	out := directSettingsFrom(name, cfg.L3)
 	out.TrafficLimitGB = cfg.TrafficLimitGB
+	out.TrafficLimitMode = config.NormalizeTrafficLimitMode(cfg.TrafficLimitMode)
 	return out, nil
 }
 
@@ -657,11 +665,19 @@ func EditDirectSettings(name string, e DirectEdit) error {
 	}
 	spec := directSpecFrom(name, l)
 	spec.TrafficLimitGB = cfg.TrafficLimitGB
+	spec.TrafficLimitMode = cfg.TrafficLimitMode
 	if e.TrafficLimitGB != nil {
 		if *e.TrafficLimitGB < 0 || *e.TrafficLimitGB > int64(^uint64(0)>>30) {
 			return fmt.Errorf("traffic quota must be between 0 and %d GiB", uint64(^uint64(0)>>30))
 		}
 		spec.TrafficLimitGB = *e.TrafficLimitGB
+	}
+	if e.TrafficLimitMode != nil {
+		mode := *e.TrafficLimitMode
+		if mode != "both" && mode != "download" && mode != "upload" {
+			return fmt.Errorf("traffic quota mode must be both, download, or upload")
+		}
+		spec.TrafficLimitMode = mode
 	}
 	if e.Preset != nil {
 		findL3Preset(strings.ToLower(strings.TrimSpace(*e.Preset))).apply(&spec)
