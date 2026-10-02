@@ -142,7 +142,24 @@ export function settingsView(ctx) {
         return pane ? [...pane.querySelectorAll('button')].filter(b => re.test(b.textContent.trim())) : [];
       };
 
-      if (tg.status === 'fulfilled') fill(root, tg.value);
+      if (tg.status === 'fulfilled') {
+        fill(root, tg.value);
+        const tokenField = root.querySelector('[name="token"]');
+        const tokenState = root.querySelector('#tgTokenState');
+        if (tokenField) {
+          tokenField.placeholder = tg.value.configured
+            ? `Saved ${tg.value.tokenHint || 'token'} — leave blank to keep it`
+            : 'from @BotFather';
+        }
+        if (tokenState) {
+          tokenState.textContent = tg.value.configured
+            ? 'A token is saved. Its secret value is hidden here; leave this field blank to keep it.'
+            : 'No bot token is saved yet.';
+        }
+      } else {
+        const tokenState = root.querySelector('#tgTokenState');
+        if (tokenState) tokenState.textContent = 'Could not read the saved bot settings.';
+      }
       if (ch.status === 'fulfilled') fill(root, ch.value);
       summarise(root, {
         tg: val(tg), ses: val(ses), ab: val(ab), upd: val(upd), cert: val(cert),
@@ -805,6 +822,19 @@ export function settingsView(ctx) {
           });
         }
       } catch (e) { /* the two fixed answers are still there */ }
+
+      /* These are custom menus, not inputs, so the generic form filler cannot
+         select their saved value. Leaving the preview's sample “Automatic” on
+         screen made an operator think the bot was relayed even when its saved
+         mode was Direct (or a specific tunnel). */
+      {
+        const relay = ctlOf('relayMode');
+        const selected = menuChoices.relayMode.find(c => c.value === tg.value?.relayMode);
+        if (relay && selected) {
+          relay.dataset.value = selected.value;
+          if (relay.firstChild) relay.firstChild.textContent = selected.label;
+        }
+      }
 
       root.querySelectorAll('[data-name]').forEach(sel => {
         if (!/^sel/.test(kind(sel))) return;
