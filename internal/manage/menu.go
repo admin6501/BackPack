@@ -117,9 +117,15 @@ func manageOne(t Tunnel) {
 			modes := []string{"both", "download", "upload"}
 			curMode := readTrafficLimitMode(t.Name)
 			defaultMode := 0
-			for i, mode := range modes { if mode == curMode { defaultMode = i } }
+			for i, mode := range modes {
+				if mode == curMode {
+					defaultMode = i
+				}
+			}
 			choice := tui.PromptInt("Count traffic: 1 both, 2 download, 3 upload", defaultMode+1)
-			if choice < 1 || choice > len(modes) { choice = defaultMode+1 }
+			if choice < 1 || choice > len(modes) {
+				choice = defaultMode + 1
+			}
 			if err := SetTrafficQuotaWithMode(t.Name, gb, modes[choice-1]); err != nil {
 				tui.Error("Could not set traffic quota: " + err.Error())
 			} else {
