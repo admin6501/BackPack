@@ -37,7 +37,23 @@ func showShareLink(name string) {
 // printShareLink prints the link and what to do with it, and reports whether
 // there was one to print.
 func printShareLink(name string) bool {
-	link, err := ShareLinkFor(name, "")
+	host := ""
+	if t, ok := Find(name); ok && t.Role == "server" {
+		// A reverse server listens on all interfaces, so its config cannot tell
+		// the kharej side which public address to dial. Use the detected address
+		// as a starting point, and let the operator correct it for NAT, a CDN,
+		// or a multi-homed server before encoding the link.
+		detected := PublicIPv4()
+		if detected == "-" {
+			detected = ""
+		}
+		host = strings.Trim(strings.TrimSpace(tui.PromptDefault("Iran IP Or Domain (What Kharej Dials)", detected)), "[]")
+		if host == "" {
+			tui.Error("A reachable Iran IP or domain is required to build the kharej setup link.")
+			return false
+		}
+	}
+	link, err := ShareLinkFor(name, host)
 	if err != nil {
 		tui.Error("Could not build the link: " + err.Error())
 		return false
@@ -93,6 +109,17 @@ func setupFromLink() {
 	}
 
 	form := MirrorForPeer(link)
+	if needsPeerServerAddress(form) {
+		tui.Warn("This setup link does not contain the Iran server address.")
+		host := strings.Trim(strings.TrimSpace(tui.Prompt("Iran IP Or Domain (What Kharej Dials): ")), "[]")
+		var addressErr error
+		form, addressErr = withPeerServerAddress(form, host)
+		if addressErr != nil {
+			tui.Error(addressErr.Error())
+			tui.PressEnter()
+			return
+		}
+	}
 	fmt.Println()
 	tui.Info("This will build the " + form.Side + " end of a " + form.Kind + " tunnel.")
 	tui.Info("Name       : " + form.Name)
@@ -133,6 +160,27 @@ func setupFromLink() {
 		tui.Warn("Created, but " + service + " is not running yet — check its log.")
 	}
 	tui.PressEnter()
+}
+
+// needsPeerServerAddress reports the one peer form that cannot be built
+// without an address: the kharej side of a reverse tunnel dials Iran.
+func needsPeerServerAddress(f PeerForm) bool {
+	return f.Kind == "reverse" && strings.EqualFold(f.Side, "kharej") && strings.TrimSpace(f.ServerAddr) == ""
+}
+
+// withPeerServerAddress completes legacy or incomplete links before the
+// create step, where the missing value would otherwise surface as a generic
+// validation error after the operator has already confirmed the tunnel.
+func withPeerServerAddress(f PeerForm, host string) (PeerForm, error) {
+	if !needsPeerServerAddress(f) {
+		return f, nil
+	}
+	host = strings.Trim(strings.TrimSpace(host), "[]")
+	if host == "" {
+		return f, fmt.Errorf("the Iran server address is required to set up the kharej end")
+	}
+	f.ServerAddr = host
+	return f, nil
 }
 
 // applyPeerForm creates whichever kind of tunnel the form describes.
