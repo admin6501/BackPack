@@ -36,7 +36,6 @@ jobs:
 
       - name: Verify formatting
         run: |
-          gofmt -d internal/manage/menu.go internal/telegram/relay.go
           unformatted="$(gofmt -l . || true)"
           if [ -n "$unformatted" ]; then
             echo "These files are not gofmt'd:"
