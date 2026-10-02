@@ -63,6 +63,32 @@ func TestALinkProducesTheOppositeSide(t *testing.T) {
 	}
 }
 
+func TestSetupFromLinkCanCompleteAnOlderReverseLinkWithoutAnAddress(t *testing.T) {
+	link := ShareLink{Kind: "reverse", From: "iran", Tr: "tcp", Port: "2433", Tok: "shared-token"}
+	form := MirrorForPeer(link)
+	if !needsPeerServerAddress(form) {
+		t.Fatal("kharej form without Iran address was not detected")
+	}
+
+	form, err := withPeerServerAddress(form, "  203.0.113.9  ")
+	if err != nil {
+		t.Fatalf("complete the old link: %v", err)
+	}
+	if form.ServerAddr != "203.0.113.9" {
+		t.Fatalf("server address = %q, want trimmed Iran address", form.ServerAddr)
+	}
+	if got := form.ToNewTunnel().ServerAddr; got != "203.0.113.9" {
+		t.Fatalf("the create form lost the supplied address: %q", got)
+	}
+}
+
+func TestSetupFromLinkRefusesToCreateKharejWithoutIranAddress(t *testing.T) {
+	form := MirrorForPeer(ShareLink{Kind: "reverse", From: "iran", Tr: "tcp", Port: "2433", Tok: "shared-token"})
+	if _, err := withPeerServerAddress(form, " "); err == nil {
+		t.Fatal("an empty Iran address was accepted")
+	}
+}
+
 // The other direction: a link made on the kharej side builds the Iran end, and
 // that one *does* get the ports, because it is the end that exposes them.
 func TestALinkFromKharejBuildsTheEndThatPublishes(t *testing.T) {
