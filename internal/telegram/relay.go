@@ -1,7 +1,9 @@
 package telegram
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net"
 	"sort"
 	"strings"
 	"sync"
@@ -34,6 +36,7 @@ type relayState struct {
 	mu       sync.Mutex
 	name     string
 	port     int
+	direct   bool
 	chosenAt time.Time
 }
 
@@ -74,12 +77,15 @@ func resolveRelay(c Config) (name string, port int, err error) {
 	if relay.name != "" && time.Since(relay.chosenAt) < relayRecheck {
 		return relay.name, relay.port, nil
 	}
+	if relay.direct && time.Since(relay.chosenAt) < relayRecheck {
+		return "", 0, nil
+	}
 	if relay.name != "" && relayUsable(relay.name) {
 		relay.chosenAt = time.Now()
 		return relay.name, relay.port, nil
 	}
 
-	picked, pickedPort, err := pickRelay()
+	picked, pickedPort, err := chooseAutomaticRelay(pickRelay, telegramDirectReachable)
 	if err != nil {
 		// Leave the previous choice in place: a momentary failure to find a
 		// better one is not a reason to stop using a tunnel that may still work.
@@ -89,8 +95,42 @@ func resolveRelay(c Config) (name string, port int, err error) {
 		return "", 0, err
 	}
 
-	relay.name, relay.port, relay.chosenAt = picked, pickedPort, time.Now()
+	relay.name, relay.port, relay.direct, relay.chosenAt = picked, pickedPort, picked == "", time.Now()
 	return picked, pickedPort, nil
+}
+
+// chooseAutomaticRelay uses a tunnel when one can be prepared, and falls back
+// to a direct Telegram connection when this host can reach Telegram itself.
+// This matters on the kharej side: its working reverse tunnel is a client, and
+// only the Iran-side server can expose the loopback relay port. Treating that
+// client as the absence of all connectivity made the bot fail on a host whose
+// direct internet already works.
+func chooseAutomaticRelay(pick func() (string, int, error), direct func() bool) (string, int, error) {
+	name, port, err := pick()
+	if err == nil {
+		return name, port, nil
+	}
+	if direct() {
+		return "", 0, nil
+	}
+	return "", 0, err
+}
+
+// telegramDirectReachable proves that the configured API host is reachable
+// with a valid TLS certificate before automatic mode falls back to direct.
+// A TCP-only test would accept a port-forward greeting or an interception page
+// and then send the real bot into a failure it could not explain.
+func telegramDirectReachable() bool {
+	dialer := &net.Dialer{Timeout: 4 * time.Second}
+	conn, err := tls.DialWithDialer(dialer, "tcp", manage.TelegramHost, &tls.Config{
+		ServerName: "api.telegram.org",
+		MinVersion: tls.VersionTLS12,
+	})
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
 }
 
 // pickRelay chooses the best tunnel to send through and makes sure it forwards
@@ -176,6 +216,9 @@ func RelayStatus() string {
 		if err != nil {
 			return "automatic — no connected tunnel available right now"
 		}
+		if name == "" {
+			return "automatic — direct (Telegram is reachable without a tunnel)"
+		}
 		return "automatic — currently using " + name
 	default:
 		return "pinned to " + c.ViaTunnel
@@ -211,8 +254,15 @@ func explainSendFailure(c Config, err error) error {
 
 	// Best-effort context; the advice below does not depend on it.
 	name, port := c.ViaTunnel, c.SocksPort
-	if n, p, rerr := resolveRelay(c); rerr == nil && n != "" {
-		name, port = n, p
+	if n, p, rerr := resolveRelay(c); rerr == nil {
+		if c.ViaTunnel == AutoRelay && n == "" {
+			return fmt.Errorf("%w\n\nAutomatic mode found no relay tunnel and tried Telegram directly. " +
+				"If direct Telegram access is blocked here, set the bot relay on the Iran server " +
+				"to Automatic and keep a server-side tunnel to kharej online", err)
+		}
+		if n != "" {
+			name, port = n, p
+		}
 	}
 	if name == AutoRelay {
 		name = "the automatically chosen tunnel"
