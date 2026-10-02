@@ -31,6 +31,10 @@ Two consequences worth memorising:
   have their own order. [Set up both ends](set-up-both-ends.md) can mirror a
   newly built side over SSH.
 
+When copying a reverse **Setup Link** from Manage Tunnels on Iran, confirm the
+reachable Iran IP or domain shown before copying it. Older links without that
+address ask for it on kharej before creating the client tunnel.
+
 In **direct mode**, Iran dials kharej, so the tunnel port must be reachable on
 kharej. See the [direct tunnel walkthrough](direct-layer3.md).
 
@@ -159,6 +163,10 @@ Then check both sides with **Manage → Status**, and if anything is off,
 توکن آن نیاز دارد؛ سمت خارج پورت ورودی تونل لازم ندارد. در ویزارد دایرکت عادی
 نیز از ایران شروع کن و لینک ستاپ را به خارج بده. در دایرکت پورت ورودی تونل
 روی خارج است و حامل‌های آزمایشی Spoof و SNI ترتیب جداگانه دارند.
+
+در لینک Setup تونل reverse که از **Manage Tunnels** ایران می‌گیری، آی‌پی یا
+دامنهٔ قابل دسترس ایران را بررسی کن. لینک‌های قدیمی که آدرس ندارند، پیش از ساخت
+سمت خارج آن را می‌پرسند.
 
 **توکن:** سرور یک توکن ۶۴ کاراکتری پیشنهاد می‌دهد؛ همان را روی کلاینت وارد کن.
 توکن اشتباه = تونلی که وصل نمی‌شود (روی ترنسپورت‌های رمزنگاری‌شده اصلاً جواب داده
