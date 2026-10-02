@@ -34,13 +34,14 @@ type fakeServer struct {
 	user   string
 	pass   string
 
-	mu      sync.Mutex
-	ran     []string
-	prefix  string // printed before the answer, like a login banner
-	failing bool   // the binary is not there
-	old     bool   // the binary is there and predates "node exec"
-	menu    bool   // an older binary ignores arguments and opens its main menu
-	refuse  string // the far side answers, and says no
+	mu          sync.Mutex
+	ran         []string
+	prefix      string // printed before the answer, like a login banner
+	failing     bool   // the binary is not there
+	old         bool   // the binary is there and predates "node exec"
+	menu        bool   // an older binary ignores arguments and opens its main menu
+	refuse      string // the far side answers, and says no
+	protocolErr string // present binary, incompatible node request encoding
 }
 
 // oldNodeUsage is verbatim what Backpack v1.7.6 and earlier print when asked to
@@ -143,7 +144,8 @@ func (s *fakeServer) handle(c net.Conn, cfg *ssh.ServerConfig) {
 
 				s.mu.Lock()
 				s.ran = append(s.ran, payload.Command)
-				failing, isOld, menu, prefix, refuse := s.failing, s.old, s.menu, s.prefix, s.refuse
+				failing, isOld, menu, prefix, refuse, protocolErr :=
+					s.failing, s.old, s.menu, s.prefix, s.refuse, s.protocolErr
 				s.mu.Unlock()
 				if menu {
 					fmt.Fprint(ch, "1) Setup Server  2) Setup Client  3) Manage\nSelect an option: ")
@@ -159,6 +161,11 @@ func (s *fakeServer) handle(c net.Conn, cfg *ssh.ServerConfig) {
 				}
 				if isOld {
 					fmt.Fprint(ch.Stderr(), oldNodeUsage)
+					ch.SendRequest("exit-status", false, ssh.Marshal(struct{ S uint32 }{2}))
+					return
+				}
+				if protocolErr != "" {
+					fmt.Fprintln(ch.Stderr(), protocolErr)
 					ch.SendRequest("exit-status", false, ssh.Marshal(struct{ S uint32 }{2}))
 					return
 				}
@@ -535,6 +542,24 @@ func TestAnOldInteractiveMenuOffersUpgradeWithoutWaitingForTimeout(t *testing.T)
 	defer srv.mu.Unlock()
 	if len(srv.ran) != 1 {
 		t.Fatalf("a legacy menu was retried %d times", len(srv.ran))
+	}
+}
+
+// A build that recognises `node exec` but expects a different request encoding
+// must be classified as incompatible, so join offers to install the current
+// build over SSH.
+func TestIncompatibleNodeRequestEncodingOffersUpgrade(t *testing.T) {
+	isolateStore(t)
+	srv := newFakeServer(t, "root", "hunter2")
+	srv.protocolErr = "the request is not valid base64: illegal base64 data at input byte 0"
+	host, port := srv.addr()
+	Add("kharej", host, port, "root", "hunter2")
+	r := NewSSHRunner(nil)
+	defer r.Close()
+
+	err := r.Call("kharej", OpHello, nil, nil)
+	if !errors.Is(err, ErrNeedsInstall) {
+		t.Fatalf("incompatible request encoding should trigger an upgrade: %v", err)
 	}
 }
 

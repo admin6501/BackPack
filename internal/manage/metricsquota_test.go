@@ -28,3 +28,13 @@ func TestTrafficQuotaStatusTracksRemainingAllowance(t *testing.T) {
 		})
 	}
 }
+
+func TestTrafficQuotaStatusUsesUserDirectionForRole(t *testing.T) {
+	const gib = uint64(1 << 30)
+	if got := trafficQuotaStatusFor(1, "download", "client", gib, 0); !strings.Contains(got, "1.0 GiB remaining") {
+		t.Fatalf("kharej upload was charged as download: %s", got)
+	}
+	if got := trafficQuotaStatusFor(1, "download", "client", 0, gib); !strings.Contains(got, "exhausted") {
+		t.Fatalf("kharej download was not charged: %s", got)
+	}
+}

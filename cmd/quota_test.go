@@ -56,6 +56,58 @@ func TestQuotaRefusesInvalidAndCorruptedHistory(t *testing.T) {
 	}
 }
 
+func TestQuotaCountsSelectedIranUserDirectionOnEitherRole(t *testing.T) {
+	write := func(dir, name, role string, in, out uint64) {
+		t.Helper()
+		c := metrics.NewCollector(dir, name, "tcp", role, func() uint64 { return in }, func() uint64 { return out })
+		if err := c.Write(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		name, role, mode string
+		in, out          uint64
+		want             bool
+	}{
+		{"iran download uses incoming", "server", "download", 1 << 30, 0, true},
+		{"iran upload uses outgoing", "server", "upload", 0, 1 << 30, true},
+		{"kharej download uses outgoing", "client", "download", 0, 1 << 30, true},
+		{"kharej upload uses incoming", "client", "upload", 1 << 30, 0, true},
+		{"unselected side does not exhaust", "client", "download", 1 << 30, 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "edge.toml")
+			write(dir, "edge", tc.role, tc.in, tc.out)
+			paused, err := quotaExhausted(path, &config.Config{TrafficLimitGB: 1, TrafficLimitMode: tc.mode})
+			if err != nil || paused != tc.want {
+				t.Fatalf("paused=%v err=%v want %v", paused, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestQuotaGuardWaitsForSelectedDirection(t *testing.T) {
+	dir := t.TempDir()
+	var in, out atomic.Uint64
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := metrics.NewCollector(dir, "kharej", "tcp", "client", in.Load, out.Load)
+	go (&quotaGuard{limit: 1 << 30, mode: "download", cancel: cancel}).watch(ctx, c)
+	in.Store(1 << 30) // client-side incoming is upload from the Iran user's view
+	select {
+	case <-ctx.Done():
+		t.Fatal("quota stopped on the unselected direction")
+	case <-time.After(350 * time.Millisecond):
+	}
+	out.Store(1 << 30) // client-side outgoing is the user's download
+	select {
+	case <-ctx.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("quota did not stop on the selected direction")
+	}
+}
+
 func TestResetTrafficRenewsTheSameQuota(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "iran.toml")

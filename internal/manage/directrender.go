@@ -22,6 +22,7 @@ import (
 // directSpec is everything the wizard collected for a [direct] tunnel.
 type directSpec struct {
 	TrafficLimitGB   int64
+	TrafficLimitMode string
 	Name             string
 	Side             directSide
 	Transport        string
@@ -68,6 +69,9 @@ func (s directSpec) render() string {
 	}
 	if s.TrafficLimitGB > 0 {
 		fmt.Fprintf(&b, "traffic_limit_gb = %d\n", s.TrafficLimitGB)
+	}
+	if mode := config.NormalizeTrafficLimitMode(s.TrafficLimitMode); mode != "both" {
+		fmt.Fprintf(&b, "traffic_limit_mode = %q\n", mode)
 	}
 	b.WriteString("\n[direct]\n")
 
@@ -150,10 +154,11 @@ func (s directSpec) render() string {
 
 // l3Spec is everything the wizard collected for an [l3] tunnel.
 type l3Spec struct {
-	TrafficLimitGB int64
-	Name           string
-	Side           directSide
-	Carrier        string
+	TrafficLimitGB   int64
+	TrafficLimitMode string
+	Name             string
+	Side             directSide
+	Carrier          string
 	// SNIDomain is the server name the "sni" carrier announces. Ignored by
 	// every other carrier, and empty means the engine's default.
 	SNIDomain      string
@@ -206,6 +211,9 @@ func (s l3Spec) render() string {
 	b.WriteString("# Needs root: it creates a TUN network interface.\n")
 	if s.TrafficLimitGB > 0 {
 		fmt.Fprintf(&b, "traffic_limit_gb = %d\n", s.TrafficLimitGB)
+	}
+	if mode := config.NormalizeTrafficLimitMode(s.TrafficLimitMode); mode != "both" {
+		fmt.Fprintf(&b, "traffic_limit_mode = %q\n", mode)
 	}
 	b.WriteString("\n[l3]\n")
 

@@ -620,9 +620,12 @@ type ClientConfig struct {
 
 // Config represents the complete configuration, including both server and client settings.
 type Config struct {
-	// TrafficLimitGB stops this tunnel when cumulative inbound plus outbound
-	// payload reaches this many GiB. Zero disables the quota.
+	// TrafficLimitGB stops this tunnel when the selected traffic direction
+	// reaches this many GiB. Zero disables the quota.
 	TrafficLimitGB int64 `toml:"traffic_limit_gb"`
+	// TrafficLimitMode selects which user-facing traffic direction is counted:
+	// both (the legacy/default behavior), download, or upload.
+	TrafficLimitMode string `toml:"traffic_limit_mode"`
 	// Server is the reverse tunnel's Iran end: it listens for the client and
 	// exposes the forwarded ports. Present only in a configuration that asks for
 	// one; the three engines are mutually exclusive.

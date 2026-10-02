@@ -46,12 +46,18 @@ release-linux:
 release: version
 	@pub="$$(go run ./tools/signsums --public-key)" && $(MAKE) release-linux RELEASE_PUBLIC_KEY="$$pub"
 	mkdir -p release
-	@for a in $(ARCHES) $(addprefix armv,$(ARMS)); do 	  cp dist/backpack-linux-$$a dist/backpack && 	  tar -czf release/backpack_linux_$$a.tar.gz -C dist backpack && 	  rm dist/backpack || exit 1; 	done
+	@for a in $(ARCHES) $(addprefix armv,$(ARMS)); do \
+	  cp dist/backpack-linux-$$a dist/backpack && \
+	  tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+	    -czf release/backpack_linux_$$a.tar.gz -C dist backpack && \
+	  rm dist/backpack || exit 1; \
+	done
 	@# A checksum file published beside the assets is what lets the installer and
 	@# the updater prove that a mirror handed them the real binary. Users on
 	@# restricted networks fetch these through third-party proxies, so this is
 	@# the only integrity check they get.
 	cd release && (sha256sum backpack_linux_*.tar.gz > SHA256SUMS 2>/dev/null || shasum -a 256 backpack_linux_*.tar.gz > SHA256SUMS)
+	cd release && sha256sum -c SHA256SUMS
 	@# And a signature over that list. The checksum proves the download is
 	@# intact; the signature proves the list is the publisher's, which the
 	@# checksum cannot, because it travels the same channel as the archive it

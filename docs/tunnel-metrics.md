@@ -15,7 +15,9 @@ so the numbers do not reset when a tunnel bounces (and they carry on after a
 
 For each tunnel the CLI and panel show **incoming**, **outgoing**, **total used**,
 **traffic quota** and **remaining** traffic. Total is incoming + outgoing on
-this server. With no quota (`0`) the balance is unlimited; at the cap it reads
+this server; quota usage follows its selected mode (both, download, or upload).
+Download/upload are counted from the Iran user’s perspective, so the direction
+reverses on the kharej end. With no quota (`0`) the balance is unlimited; at the cap it reads
 zero and the panel marks the tunnel paused. Increasing the cap resumes it
 without resetting the used amount. For reverse tunnels, read the Iran entry
 end when accounting for user traffic; do not sum the two machines' counters.
@@ -64,4 +66,4 @@ traffic** یا صفحهٔ Metrics پنل همان تونل استفاده کن. 
 
 ---
 
-*Last verified against Backpack v1.8.15.*
+*Last verified against Backpack v1.8.16.*

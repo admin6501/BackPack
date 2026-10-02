@@ -458,14 +458,15 @@ func (f ConnTune) apply(s *TunnelSpec, defaultPort string) error {
 // TunnelLimits caps what this tunnel as a whole may use. Both are 0 by default,
 // which is no limit — the same answer the CLI's Limits screen starts on.
 type TunnelLimits struct {
-	TrafficLimitGB *int64 `json:"trafficLimitGB,omitempty"`
-	MaxConnections int    `json:"maxConnections"`
-	BandwidthMbps  int    `json:"bandwidthMbps"`
+	TrafficLimitGB   *int64 `json:"trafficLimitGB,omitempty"`
+	TrafficLimitMode string `json:"trafficLimitMode,omitempty"`
+	MaxConnections   int    `json:"maxConnections"`
+	BandwidthMbps    int    `json:"bandwidthMbps"`
 }
 
 func limitsOf(s TunnelSpec) TunnelLimits {
 	quota := s.TrafficLimitGB
-	return TunnelLimits{MaxConnections: s.MaxConnections, BandwidthMbps: s.BandwidthMbps, TrafficLimitGB: &quota}
+	return TunnelLimits{MaxConnections: s.MaxConnections, BandwidthMbps: s.BandwidthMbps, TrafficLimitGB: &quota, TrafficLimitMode: config.NormalizeTrafficLimitMode(s.TrafficLimitMode)}
 }
 
 func (f TunnelLimits) apply(s *TunnelSpec) error {
@@ -479,6 +480,12 @@ func (f TunnelLimits) apply(s *TunnelSpec) error {
 	s.BandwidthMbps = f.BandwidthMbps
 	if f.TrafficLimitGB != nil {
 		s.TrafficLimitGB = *f.TrafficLimitGB
+	}
+	if f.TrafficLimitMode != "" {
+		if f.TrafficLimitMode != "both" && f.TrafficLimitMode != "download" && f.TrafficLimitMode != "upload" {
+			return fmt.Errorf("traffic quota mode must be both, download, or upload")
+		}
+		s.TrafficLimitMode = f.TrafficLimitMode
 	}
 	return nil
 }

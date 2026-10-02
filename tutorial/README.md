@@ -41,8 +41,8 @@ port is blocked one way — use the **direct** wizard: Iran dials kharej.
 - **[Set up both ends over SSH](set-up-both-ends.md)** — create the other end
   from this server, or add a managed server in the web panel. Includes rebuilds
   and changed SSH host keys.
-- **[Traffic quota and reset](traffic-quota-and-reset.md)** — set a cumulative
-  allowance, read remaining traffic, and begin a new usage period safely.
+- **[Traffic quota and reset](traffic-quota-and-reset.md)** — set a
+  download, upload or combined allowance, read remaining traffic, and reset usage.
 - **[Adding UDP to a tunnel](udp-forwarding.md)** — Xray/3x-ui UDP, WireGuard,
   DNS and games need one switch turned on. This is the page for "TCP works, UDP
   does not".

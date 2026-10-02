@@ -111,10 +111,11 @@ sudo backpack   →  2. Setup Kharej
 Then `Manage → Status` to see both ends, and `Manage → Health Check` if anything
 looks wrong — it prints a fix under each problem.
 
-To cap one tunnel's cumulative traffic, use **Manage → Manage Tunnels → choose
-the tunnel → Traffic quota**, or its **Edit** screen in the web panel. Enter a
-whole number of GiB; `0` means unlimited. **Manage → Tunnel Metrics** and the
-panel's **Metrics** screen show incoming, outgoing, total and remaining traffic.
+To cap one tunnel's traffic, use **Manage → Manage Tunnels → choose the tunnel
+→ Traffic quota**, or its **Edit** screen in the web panel. Choose download,
+upload, or both; download/upload are counted from the Iran user's perspective.
+Enter whole GiB; `0` means unlimited. The Metrics screens show incoming,
+outgoing, total, the quota mode and the remaining allowance.
 At the cap the tunnel pauses and closes its forwarded listeners. Raise or
 remove the cap to resume; past usage is kept. Set the cap on the **Iran entry
 end** when you want to restrict traffic arriving from users. Each machine keeps
@@ -174,9 +175,9 @@ Thirteen to choose from, so you match the route instead of fighting it. Not sure
 - **It tells you what is wrong** — Health Check prints a fix under each problem;
   Link Test measures the route and recommends a transport and its timers.
 - **Set up both ends from the CLI** — after creating one end, connect to the other server over SSH and mirror the paired settings. Existing tunnels can be finished from Manage. The CLI can also reveal a forgotten tunnel secret locally; the web panel cannot.
-- **Traffic allowances** — per-tunnel cumulative incoming plus outgoing GiB,
-  remaining balance in CLI and panel Metrics, automatic pause at the cap, and
-  an explicit per-tunnel usage reset to start a new allowance period.
+- **Traffic allowances** — choose download, upload or both per tunnel, see the
+  remaining balance in CLI and panel Metrics, pause at the cap, and reset usage
+  explicitly when a new allowance period begins.
 - **Telegram from Iran** — status and alerts reach Telegram by going out through
   a tunnel peer, choosing the tunnel itself and moving when one dies.
 - **Offline installer** — install or update with **no internet at all**.

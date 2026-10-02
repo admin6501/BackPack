@@ -84,7 +84,7 @@ func manageOne(t Tunnel) {
 			{Title: "Live Log", Desc: "stream the journal — Ctrl+C to return"},
 			{Title: "Setup link", Desc: "one string that builds the other end"},
 			{Title: "Show secret", Desc: "display this tunnel's shared token in this terminal"},
-			{Title: "Traffic quota", Desc: "cumulative incoming + outgoing GiB (0 = unlimited)"},
+			{Title: "Traffic quota", Desc: "choose download, upload, or both; 0 GiB = unlimited"},
 			{Title: "Reset traffic", Desc: "zero this tunnel's recorded usage and renew its quota on this server"},
 			{Title: "Delete", Desc: "remove the tunnel permanently"},
 		})
@@ -114,7 +114,13 @@ func manageOne(t Tunnel) {
 		case 7:
 			current := readTrafficLimit(t.Name)
 			gb := int64(tui.PromptInt("Traffic quota in GiB (0 = unlimited)", int(current)))
-			if err := SetTrafficQuota(t.Name, gb); err != nil {
+			modes := []string{"both", "download", "upload"}
+			curMode := readTrafficLimitMode(t.Name)
+			defaultMode := 0
+			for i, mode := range modes { if mode == curMode { defaultMode = i } }
+			choice := tui.PromptInt("Count traffic: 1 both, 2 download, 3 upload", defaultMode+1)
+			if choice < 1 || choice > len(modes) { choice = defaultMode+1 }
+			if err := SetTrafficQuotaWithMode(t.Name, gb, modes[choice-1]); err != nil {
 				tui.Error("Could not set traffic quota: " + err.Error())
 			} else {
 				tui.Success("Traffic quota saved. Existing usage is retained.")

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/backpack/backpack/config"
 	"github.com/backpack/backpack/internal/app"
 	"github.com/backpack/backpack/internal/metrics"
 	"github.com/backpack/backpack/internal/sysstat"
@@ -62,7 +63,8 @@ func printSnapshot(t Tunnel, s metrics.Snapshot) {
 	tui.Info("  Traffic in    : " + sysstat.HumanBytes(s.BytesIn))
 	tui.Info("  Traffic out   : " + sysstat.HumanBytes(s.BytesOut))
 	tui.Info("  Traffic total : " + sysstat.HumanBytes(s.BytesIn+s.BytesOut))
-	tui.Info("  Traffic quota : " + trafficQuotaStatus(readTrafficLimit(t.Name), s.BytesIn, s.BytesOut))
+	mode := readTrafficLimitMode(t.Name)
+	tui.Info(fmt.Sprintf("  Traffic quota (%s): %s", mode, trafficQuotaStatusFor(readTrafficLimit(t.Name), mode, s.Role, s.BytesIn, s.BytesOut)))
 
 	if s.KCP == nil {
 		fmt.Println()
@@ -102,14 +104,15 @@ func printSnapshot(t Tunnel, s metrics.Snapshot) {
 // trafficQuotaStatus uses the persisted counters that the quota enforcer reads.
 // Raising the limit keeps those counters, so the balance changes without reset.
 func trafficQuotaStatus(gb int64, in, out uint64) string {
+	return trafficQuotaStatusFor(gb, "both", "server", in, out)
+}
+
+func trafficQuotaStatusFor(gb int64, mode, role string, in, out uint64) string {
 	if gb <= 0 {
 		return "unlimited"
 	}
 	limit := uint64(gb) << 30
-	used := in + out
-	if used < in { // saturate rather than wrapping after an extreme counter
-		used = ^uint64(0)
-	}
+	used := config.TrafficQuotaUsage(mode, role, in, out)
 	if used >= limit {
 		return fmt.Sprintf("%s used of %d GiB; 0 B remaining (exhausted)", sysstat.HumanBytes(used), gb)
 	}

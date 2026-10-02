@@ -32,7 +32,7 @@ function values(t) {
   const last = t.rates?.[t.rates.length - 1];
   const pool = t.pool;
   const k = t.kcp;
-  const used = Number(t.totalBytes) || 0;
+  const used = Number(t.quotaUsedBytes) || 0;
   const limit = (Number(t.trafficLimitGB) || 0) * 1024 ** 3;
   return {
     'State': limit && used >= limit ? 'Paused — traffic quota exhausted' : t.state,
@@ -40,7 +40,7 @@ function values(t) {
     'Traffic in': quotaBytes(Number(t.inBytes) || 0),
     'Traffic out': quotaBytes(Number(t.outBytes) || 0),
     'Traffic total': quotaBytes(used),
-    'Traffic quota': limit ? `${t.trafficLimitGB} GiB` : 'Unlimited',
+    'Traffic quota': limit ? `${t.trafficLimitGB} GiB (${t.trafficLimitMode || 'both'})` : 'Unlimited',
     'Traffic remaining': limit
       ? (used >= limit ? '0 B — quota exhausted' : quotaBytes(limit - used))
       : 'Unlimited',

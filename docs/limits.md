@@ -6,14 +6,16 @@ Tunnels → select tunnel → Traffic quota** sets a cumulative data allowance:
 - **Simultaneous connections** — the most forwarded connections it will carry at
   once.
 - **Throughput** — a ceiling on its total bandwidth.
-- **Traffic quota** — total inbound **plus** outbound traffic in GiB. A tunnel
+- **Traffic quota** — download, upload, or both, in GiB. Download and upload
+  are from the Iran user’s perspective, including on the kharej end. The default
+  **both** keeps the historical inbound + outbound accounting. A tunnel
   pauses once the quota is reached, including after a service restart. Increase
   the quota or set it to `0` to resume. The panel's Edit form also accepts it.
 
 Set a whole number of GiB in **Manage → Manage Tunnels → select tunnel → Traffic
 quota**, or in the first tab of the panel's **Edit** screen. In **Manage → Tunnel
 Metrics** or the panel's **Metrics** screen, read incoming, outgoing, total,
-configured quota and remaining allowance separately. Traffic counters are
+configured quota, accounting mode and remaining allowance separately. Traffic counters are
 cumulative across restarts and edits. At the cap the tunnel closes forwarded
 listeners; its service stays active to watch for an increased or removed cap
 and starts the tunnel again after the config changes. There is no timer that
@@ -33,14 +35,15 @@ share one link and you want to stop any one of them from taking it all.
 ## خلاصهٔ فارسی
 
 از `Edit → Limits` می‌شود سقف اتصال هم‌زمان و پهنای باند گذاشت. **سهمیهٔ حجم
-ترافیک** از منوی همان تونل یا پنل وب تنظیم می‌شود و مجموع ورودی و خروجی است
-و با GiB سنجیده می‌شود. از منوی تونل نیز گزینهٔ `Traffic quota` در دسترس است.
+ترافیک** از منوی همان تونل یا پنل وب تنظیم می‌شود و می‌تواند فقط دانلود، فقط
+آپلود یا هر دو باشد. پیش‌فرض «هر دو» است؛ دانلود و آپلود از دید کاربر ایران
+تعریف می‌شوند، حتی اگر سهمیه را روی سرور خارج بگذاری.
 هر سه پیش‌فرض **خاموش** (صفر = بی‌نهایت) هستند. با رسیدن به حجم تعیین‌شده،
 تونل حتی پس از راه‌اندازی دوباره متوقف می‌ماند؛ سقف را بیشتر کنید یا صفر بگذارید.
 
 سقف را در `Manage → Manage Tunnels → نام تونل → Traffic quota` یا تب اول صفحهٔ
 **Edit** پنل وب تنظیم کنید. در **Tunnel Metrics** یا **Metrics** پنل، مقدار
-ورودی، خروجی، مصرف کل، سقف و باقیمانده جداست. در ریورس برای محدودکردن کاربران،
+ورودی، خروجی، مصرف سهمیه، حالت محاسبه، سقف و باقیمانده جداست. در ریورس برای محدودکردن کاربران،
 سقف را روی سرور ورودی ایران بگذارید؛ جمع دو سرور را با هم جمع نزنید. در پایان
 حجم، پورت‌های تونل بسته می‌شوند و سرویس برای دیدن تغییر کانفیگ فعال می‌ماند؛
 بعد از افزایش سقف، با همان مصرف قبلی دوباره شروع می‌کند. تمدید خودکار ماهانه
@@ -59,4 +62,4 @@ share one link and you want to stop any one of them from taking it all.
 
 ---
 
-*Last verified against Backpack v1.8.15.*
+*Last verified against Backpack v1.8.16.*

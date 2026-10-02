@@ -2,9 +2,10 @@
 
 A dashboard and tunnel editor on **port 7777**, matching the CLI's look. It
 shows live CPU / RAM / disk / traffic, each tunnel's state, real ping, and logs.
-Open a tunnel's **Edit** screen to set a cumulative traffic quota in whole GiB
-(`0` = unlimited). Its **Metrics** screen shows inbound, outbound, total, quota
-and remaining traffic, and marks an exhausted tunnel as paused. Backup,
+Open a tunnel's **Edit** screen to set a traffic quota in whole GiB (`0` =
+unlimited) and choose download, upload, or both. Download/upload are counted
+from the Iran user's perspective. Its **Metrics** screen shows inbound,
+outbound, total, quota mode and remaining traffic, and marks an exhausted tunnel as paused. Backup,
 Telegram setup and the panel password live in **Settings**.
 
 Run it on the **Iran** server, where you watch things from. To limit user
@@ -132,4 +133,4 @@ that does the same job — is in
 
 ---
 
-*Last verified against Backpack v1.8.15.*
+*Last verified against Backpack v1.8.16.*

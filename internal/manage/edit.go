@@ -27,6 +27,7 @@ func loadServerSpec(name string) (TunnelSpec, error) {
 	}
 	return TunnelSpec{
 		TrafficLimitGB:     cfg.TrafficLimitGB,
+		TrafficLimitMode:   cfg.TrafficLimitMode,
 		Role:               "server",
 		Name:               name,
 		Transport:          string(sc.Transport),
@@ -92,6 +93,7 @@ func loadClientSpec(name string) (TunnelSpec, error) {
 	}
 	return TunnelSpec{
 		TrafficLimitGB:     cfg.TrafficLimitGB,
+		TrafficLimitMode:   cfg.TrafficLimitMode,
 		Role:               "client",
 		Name:               name,
 		Transport:          string(cc.Transport),

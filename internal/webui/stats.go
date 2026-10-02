@@ -216,13 +216,15 @@ type TunnelInfo struct {
 	Pool *metrics.PoolStats `json:"pool,omitempty"`
 
 	// From the tunnel's own config.
-	Preset         string   `json:"preset,omitempty"`         // display label: Balance / Turbo / Aggressive / Custom
-	MaxConnections int      `json:"maxConnections,omitempty"` // 0 = unlimited
-	BandwidthMbps  int      `json:"bandwidthMbps,omitempty"`  // 0 = unlimited
-	TrafficLimitGB int64    `json:"trafficLimitGB,omitempty"` // cumulative quota, GiB
-	ProxyProtocol  bool     `json:"proxyProtocol,omitempty"`
-	LoadBalance    bool     `json:"loadBalance,omitempty"`
-	FallbackAddrs  []string `json:"fallbackAddrs,omitempty"`
+	Preset           string   `json:"preset,omitempty"`         // display label: Balance / Turbo / Aggressive / Custom
+	MaxConnections   int      `json:"maxConnections,omitempty"` // 0 = unlimited
+	BandwidthMbps    int      `json:"bandwidthMbps,omitempty"`  // 0 = unlimited
+	TrafficLimitGB   int64    `json:"trafficLimitGB,omitempty"` // cumulative quota, GiB
+	TrafficLimitMode string   `json:"trafficLimitMode,omitempty"`
+	QuotaUsedBytes   uint64   `json:"quotaUsedBytes,omitempty"`
+	ProxyProtocol    bool     `json:"proxyProtocol,omitempty"`
+	LoadBalance      bool     `json:"loadBalance,omitempty"`
+	FallbackAddrs    []string `json:"fallbackAddrs,omitempty"`
 	// CertType is "letsencrypt" or "self-signed", only for wss/wssmux servers.
 	CertDomain string `json:"certDomain,omitempty"`
 	CertType   string `json:"certType,omitempty"`
@@ -658,6 +660,9 @@ func gatherTunnels(run node.Runner) []TunnelInfo {
 				info.Uptime = ""
 			}
 			fillConfig(&info, t)
+			if snapErr == nil {
+				info.QuotaUsedBytes = config.TrafficQuotaUsage(info.TrafficLimitMode, snap.Role, snap.BytesIn, snap.BytesOut)
+			}
 			out[i] = info
 		}(i, t)
 	}
@@ -952,11 +957,13 @@ func fillConfig(info *TunnelInfo, t manage.Tunnel) {
 	// empty, and would quietly report a preset and limits it does not have.
 	if manage.IsDirectKind(t) {
 		info.TrafficLimitGB = cfg.TrafficLimitGB
+		info.TrafficLimitMode = config.NormalizeTrafficLimitMode(cfg.TrafficLimitMode)
 		fillDirectConfig(info, cfg)
 		return
 	}
 	if t.Role == "server" {
 		info.TrafficLimitGB = cfg.TrafficLimitGB
+		info.TrafficLimitMode = config.NormalizeTrafficLimitMode(cfg.TrafficLimitMode)
 		sc := cfg.Server
 		// Now that the token is known, split the ports again: one of the relay
 		// shapes derives its port from the token and cannot be spotted without
@@ -983,6 +990,7 @@ func fillConfig(info *TunnelInfo, t manage.Tunnel) {
 		}
 	} else {
 		info.TrafficLimitGB = cfg.TrafficLimitGB
+		info.TrafficLimitMode = config.NormalizeTrafficLimitMode(cfg.TrafficLimitMode)
 		cc := cfg.Client
 		info.Preset = manage.PresetValueLabel(cc.Preset)
 		info.LoadBalance = cc.LoadBalance

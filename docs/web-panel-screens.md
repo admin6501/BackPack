@@ -81,7 +81,7 @@ were on. `fr-relay` below is an example name.
 | History | `#/t/fr-relay/history` | The long view: speed over the last day, per-day totals for the week, both uptime figures, and the configuration changes inside the window. | Manage → Tunnel Metrics |
 | Link test | `#/t/fr-relay/link` | Twelve TCP connects to the tunnel port, then the transport the measurement argues for. Same branch logic as the CLI's recommendation, in the same order. | Manage → Link Test |
 | Speed test | `#/t/fr-relay/speed` | A throughput measurement through the tunnel itself. | Manage → Speed Test |
-| Edit | `#/t/fr-relay/edit` | Edit the traffic quota in whole GiB on the first tab (`0` = unlimited); reverse tunnels also expose their supported connection settings. The quota is saved for direct tunnels too. | Manage → Manage Tunnels → Edit / Traffic quota |
+| Edit | `#/t/fr-relay/edit` | Edit the traffic quota and choose download, upload or both on the first tab (`0` = unlimited); reverse tunnels also expose their supported connection settings. The quota is saved for direct tunnels too. | Manage → Manage Tunnels → Edit / Traffic quota |
 | Undo | `#/t/fr-relay/undo` | The configuration history for this tunnel, and a restore back to any earlier version of it. | Manage → Manage Tunnels → Config history |
 
 ## Installation screens
@@ -151,4 +151,4 @@ IP حل‌شده؛ در سرورِ شنونده، IP مبدأ اتصالی که 
 
 ---
 
-*Last verified against Backpack v1.8.15.*
+*Last verified against Backpack v1.8.16.*

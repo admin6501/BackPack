@@ -261,4 +261,4 @@ IPv4 یا پیشوند IPv6 از نوع `/64` پذیرفته می‌شود. با
 
 ---
 
-*Last verified against Backpack v1.8.15.*
+*Last verified against Backpack v1.8.16.*

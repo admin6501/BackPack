@@ -5,15 +5,17 @@ import (
 	"os"
 	"strings"
 
+	"github.com/backpack/backpack/config"
 	"github.com/backpack/backpack/internal/app"
 )
 
 // TunnelSpec is the full description of a tunnel used to render a TOML config.
 type TunnelSpec struct {
-	TrafficLimitGB int64 // cumulative inbound + outbound GiB; zero = unlimited
-	Name           string
-	Role           string // "server" (Iran/edge that exposes ports) or "client" (kharej/origin)
-	Transport      string // tcp, tcpmux, udp, kcp, ws, wss, wsmux, wssmux
+	TrafficLimitGB   int64 // zero = unlimited
+	TrafficLimitMode string
+	Name             string
+	Role             string // "server" (Iran/edge that exposes ports) or "client" (kharej/origin)
+	Transport        string // tcp, tcpmux, udp, kcp, ws, wss, wsmux, wssmux
 
 	// Preset is the performance profile every tuning field was filled from:
 	// balance, turbo or aggressive. Empty means the values were set by hand or
@@ -248,6 +250,9 @@ func (s TunnelSpec) Render() string {
 	p("# name = \"%s\"\n\n", s.Name)
 	if s.TrafficLimitGB > 0 {
 		p("traffic_limit_gb = %d\n\n", s.TrafficLimitGB)
+	}
+	if mode := config.NormalizeTrafficLimitMode(s.TrafficLimitMode); mode != "both" {
+		p("traffic_limit_mode = %q\n\n", mode)
 	}
 
 	if s.Role == "server" {
