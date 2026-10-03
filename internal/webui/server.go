@@ -222,6 +222,10 @@ func Serve() error {
 	if err != nil {
 		return err
 	}
+	cfg, err = migrateCustomerStatusPaths(cfg)
+	if err != nil {
+		return err
+	}
 	srv := newServer()
 
 	// The SOCKS5 relay, the watchdog, the Telegram bot and the alerts all
@@ -362,10 +366,10 @@ func (srv *server) routes() *http.ServeMux {
 	mux.HandleFunc("/login", srv.handleLogin)
 	mux.HandleFunc("/api/totp", srv.requireAdmin(srv.handleTOTP))
 	mux.HandleFunc("/logout", srv.handleLogout)
-	// Customer status pages use high-entropy bearer IDs and expose only the
-	// configured tunnel's quota and forwarded ports.
-	mux.HandleFunc("/status/", srv.handlePublicStatusPage)
-	mux.HandleFunc("/api/public/status", srv.handlePublicStatusData)
+	// Customer handlers belong only to withPublicStatusRoutes at the root.
+	// Reject their former panel-prefixed addresses without a login redirect.
+	mux.HandleFunc("/status/", http.NotFound)
+	mux.HandleFunc("/api/public/status", http.NotFound)
 	mux.HandleFunc("/api/public/link", srv.requireAdmin(srv.handlePublicLink))
 	mux.HandleFunc("/api/public/settings", srv.requireAdmin(srv.handlePublicSettings))
 	// The panel, and everything it loads. Registered at "/", so it is also

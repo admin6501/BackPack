@@ -29,7 +29,10 @@ Telegram support username in the same section so the exhausted-quota notice
 includes a renewal contact. Anyone holding the URL can view that tunnel's
 status, so treat it like a customer credential. Customer links use `/status/<id>`
 on the panel host and port, independently of the secret administrator path;
-they do not reveal the administrator login URL.
+they do not reveal the administrator login URL. Old panel-prefixed customer
+URLs return 404. Upgrading to v1.8.19 rotates a previously disclosed panel path
+once when customer links are saved; retrieve the new administrator address
+from the CLI **Web Panel** screen. Customer IDs and traffic counters are kept.
 
 For a reverse tunnel, apply the quota on the Iran entry end to limit traffic
 accepted from users. Each end counts its own traffic; the two ends' totals are
@@ -72,4 +75,4 @@ share one link and you want to stop any one of them from taking it all.
 
 ---
 
-*Last verified against Backpack v1.8.18.*
+*Last verified against Backpack v1.8.19.*
