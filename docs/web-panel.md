@@ -23,7 +23,8 @@ once, including when those links are disabled. Find the new panel URL in
 `sudo backpack` → **Web Panel**. Passwords, TOTP and customer IDs stay the same;
 send customers the root `/status/<id>` URL. An explicitly root-mounted panel
 or one that never had customer links keeps its address. Later starts keep the
-new address.
+new address. The custom panel path `status` is reserved for customer pages;
+an existing panel using it also gets a replacement path to keep login reachable.
 
 Run it on the **Iran** server, where you watch things from. To limit user
 traffic on a reverse tunnel, set its quota on this entry server. The service

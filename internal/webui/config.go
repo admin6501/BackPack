@@ -140,14 +140,16 @@ func (c Config) Equal(other Config) bool {
 
 // migrateCustomerStatusPaths runs only as the panel starts, before its router
 // captures BasePath. CLI reads must not move a still-running panel's address.
-// Keep the explicit root-path choice and panels that never had customer links.
+// Keep the explicit root-path choice and panels that never had customer links,
+// unless their old path is "status", now reserved for the public dispatcher.
 // Save the marker and new path atomically; never serve a migration not saved.
 func migrateCustomerStatusPaths(c Config) (Config, error) {
-	if c.CustomerStatusPathsIsolated {
+	reservedPath := c.PathPrefix() == "/status"
+	if c.CustomerStatusPathsIsolated && !reservedPath {
 		return c, nil
 	}
 	next := c
-	if c.PathPrefix() != "" && len(c.PublicTunnelLinks) > 0 {
+	if reservedPath || (!c.CustomerStatusPathsIsolated && c.PathPrefix() != "" && len(c.PublicTunnelLinks) > 0) {
 		next.BasePath = randomPathSegment()
 		if next.BasePath == "" {
 			return c, fmt.Errorf("could not generate a replacement panel path")
@@ -294,6 +296,9 @@ func validBasePath(s string) bool {
 	if s == "" {
 		return true // the root, which is how it is turned off
 	}
+	if s == "status" {
+		return false // reserved for the standalone customer pages
+	}
 	if len(s) > 64 {
 		return false
 	}
@@ -348,7 +353,7 @@ func SetBasePath(path string) (Config, error) {
 	c := Load()
 	if !validBasePath(path) {
 		return c, fmt.Errorf("a path is one segment of letters, digits, - and _ — " +
-			"or / to serve the panel at the root")
+			"or / to serve the panel at the root; status is reserved for customer pages")
 	}
 	trimmed := strings.Trim(strings.TrimSpace(path), "/")
 	if trimmed == "" {

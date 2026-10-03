@@ -134,3 +134,28 @@ func TestCustomerPathMigrationDoesNotCompleteOnSaveFailure(t *testing.T) {
 		t.Fatal("failed persistence was reported as a completed migration")
 	}
 }
+
+func TestReservedCustomerPathCannotLockOutAdministrator(t *testing.T) {
+	for _, migrated := range []bool{false, true} {
+		useConfigFile(t, Config{Password: "12345678", BasePath: "status", CustomerStatusPathsIsolated: migrated})
+		cfg, err := migrateCustomerStatusPaths(Load())
+		if err != nil || cfg.BasePath == "status" || !validBasePath(cfg.BasePath) {
+			t.Fatalf("reserved path was not migrated (marker=%v): %v", migrated, err)
+		}
+		s := loginServer()
+		h := s.withPublicStatusRoutes(withBasePath(cfg.PathPrefix(), withPanelSecurity(s.routes())))
+		for path, want := range map[string]int{
+			cfg.PathPrefix() + "/login": http.StatusOK,
+			"/status/login":             http.StatusNotFound,
+		} {
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+			if w.Code != want {
+				t.Errorf("GET %s = %d, want %d", path, w.Code, want)
+			}
+		}
+		if _, err := SetBasePath("/status/"); err == nil || !Load().Equal(cfg) {
+			t.Fatal("operator could reintroduce the reserved panel path")
+		}
+	}
+}
