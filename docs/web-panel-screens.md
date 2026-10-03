@@ -77,7 +77,7 @@ were on. `fr-relay` below is an example name.
 | Screen | Address | What it is | CLI |
 | --- | --- | --- | --- |
 | Live log | `#/t/fr-relay/logs` | The tunnel's journald output as it happens, coloured by level. The level is read from the line, because journald hands the panel free text. | Manage → Manage Tunnels → Live Log |
-| Metrics | `#/t/fr-relay/metrics` | Incoming, outgoing, total, quota and remaining traffic, plus peer, limits and KCP quality. A tunnel at its traffic cap is marked paused. | Manage → Tunnel Metrics |
+| Metrics | `#/t/fr-relay/metrics` | Incoming, outgoing, total, quota and remaining traffic, plus peer, limits and KCP quality. Administrators can create, disable or rotate the customer status link and set the Telegram support username here. | Manage → Tunnel Metrics |
 | History | `#/t/fr-relay/history` | The long view: speed over the last day, per-day totals for the week, both uptime figures, and the configuration changes inside the window. | Manage → Tunnel Metrics |
 | Link test | `#/t/fr-relay/link` | Twelve TCP connects to the tunnel port, then the transport the measurement argues for. Same branch logic as the CLI's recommendation, in the same order. | Manage → Link Test |
 | Speed test | `#/t/fr-relay/speed` | A throughput measurement through the tunnel itself. | Manage → Speed Test |
@@ -151,4 +151,4 @@ IP حل‌شده؛ در سرورِ شنونده، IP مبدأ اتصالی که 
 
 ---
 
-*Last verified against Backpack v1.8.16.*
+*Last verified against Backpack v1.8.17.*

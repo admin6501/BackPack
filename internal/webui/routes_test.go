@@ -30,6 +30,10 @@ var adminRoutes = []struct{ method, path string }{
 	{"POST", "/api/telegram"},
 	{"POST", "/api/panelport"},
 	{"POST", "/api/panelcert"},
+	{"GET", "/api/public/link"},
+	{"POST", "/api/public/link"},
+	{"GET", "/api/public/settings"},
+	{"POST", "/api/public/settings"},
 }
 
 func isolateAlerts(t *testing.T) {
@@ -81,6 +85,11 @@ func TestNoAPIRouteAnswersWithoutACredential(t *testing.T) {
 	isolateAlerts(t)
 	mux := newServer().routes()
 	for _, path := range registeredAPIPaths(t) {
+		// The one deliberately public API is protected by the unguessable,
+		// revocable status-link ID rather than a panel credential.
+		if path == "/api/public/status" {
+			continue
+		}
 		for _, method := range []string{"GET", "POST"} {
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, req(method, path, ""))

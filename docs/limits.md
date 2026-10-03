@@ -21,6 +21,14 @@ listeners; its service stays active to watch for an increased or removed cap
 and starts the tunnel again after the config changes. There is no timer that
 resets the monthly allowance automatically.
 
+To let a customer check their own allowance, open that tunnel's **Metrics**
+screen and create its **Customer status page** link. The customer page reports
+the same quota counter and mode, remaining allowance, tunnel state and exposed
+forward ports. Its link can be disabled or rotated there. Configure the
+Telegram support username in the same section so the exhausted-quota notice
+includes a renewal contact. Anyone holding the URL can view that tunnel's
+status, so treat it like a customer credential.
+
 For a reverse tunnel, apply the quota on the Iran entry end to limit traffic
 accepted from users. Each end counts its own traffic; the two ends' totals are
 different observations of the same flow and must not be added together.
@@ -62,4 +70,4 @@ share one link and you want to stop any one of them from taking it all.
 
 ---
 
-*Last verified against Backpack v1.8.16.*
+*Last verified against Backpack v1.8.17.*

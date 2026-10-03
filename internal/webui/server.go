@@ -363,6 +363,12 @@ func (srv *server) routes() *http.ServeMux {
 	mux.HandleFunc("/login", srv.handleLogin)
 	mux.HandleFunc("/api/totp", srv.requireAdmin(srv.handleTOTP))
 	mux.HandleFunc("/logout", srv.handleLogout)
+	// Customer status pages use high-entropy bearer IDs and expose only the
+	// configured tunnel's quota and forwarded ports.
+	mux.HandleFunc("/status/", srv.handlePublicStatusPage)
+	mux.HandleFunc("/api/public/status", srv.handlePublicStatusData)
+	mux.HandleFunc("/api/public/link", srv.requireAdmin(srv.handlePublicLink))
+	mux.HandleFunc("/api/public/settings", srv.requireAdmin(srv.handlePublicSettings))
 	// The panel, and everything it loads. Registered at "/", so it is also
 	// the catch-all for anything no other route claims. See panel.go.
 	mux.HandleFunc("/", srv.requireAuth(srv.handlePanel))

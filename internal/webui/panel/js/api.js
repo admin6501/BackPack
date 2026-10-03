@@ -59,6 +59,10 @@ async function post(path, body) {
 /* ---- CLI: Manage → Status ------------------------------------------------ */
 export const stats   = () => get('/api/stats');
 export const tunnels = () => get('/api/tunnels');
+export const publicLink = name => get('/api/public/link?name=' + encodeURIComponent(name));
+export const setPublicLink = body => post('/api/public/link', body);
+export const publicSettings = () => get('/api/public/settings');
+export const savePublicSettings = body => post('/api/public/settings', body);
 
 /* ---- CLI: Manage → Manage Tunnels ---------------------------------------- */
 export const tunnelAction = (name, action, extra = {}) =>

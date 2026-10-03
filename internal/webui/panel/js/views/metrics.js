@@ -332,6 +332,65 @@ export async function metricsView(ctx) {
       topBlock(root, store.tunnel(name) || {});
       paint();
 
+      /* A customer-facing, revocable link is managed beside the figures it
+         shares. Its bearer ID is shown only to the signed-in operator. */
+      const shareAnchor = [...root.querySelectorAll('.sec2 h4')]
+        .find(h => h.textContent.trim() === 'Last 24 hours')?.closest('.sec2');
+      if (shareAnchor) {
+        const section = document.createElement('div');
+        section.innerHTML = `<div class="sec2"><h4>Customer status page</h4><div class="ln"></div></div>
+          <div class="dl" id="customer-link"><div class="dr2 wide"><span class="k2">Share link</span><span class="v2">Loading…</span></div></div>
+          <div class="dl"><div class="dr2 wide"><span class="k2">Support Telegram</span><span class="v2" style="display:flex;gap:8px;flex-wrap:wrap"><input id="customer-support" type="text" placeholder="@support_username" style="max-width:260px"><button class="mini2" id="customer-support-save">Save</button></span></div></div>`;
+        shareAnchor.before(section);
+        const linkBox = section.querySelector('#customer-link');
+        const drawLink = data => {
+          const url = data.url || '';
+          linkBox.innerHTML = `<div class="dr2 wide"><span class="k2">Share link</span><span class="v2">${url ? `<input readonly value="${esc(url)}" style="width:min(100%,520px)">` : 'No link created'}</span></div>
+            <div class="dr2 wide"><span class="k2">Link controls</span><span class="v2" style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="mini2" data-public-action="enable">${data.enabled ? 'Enabled' : (url ? 'Enable link' : 'Create link')}</button>
+              ${data.enabled ? '<button class="mini2" data-public-action="disable">Disable</button>' : ''}
+              ${url ? '<button class="mini2" data-public-action="rotate">Change link</button><button class="mini2" data-public-action="copy">Copy</button>' : ''}
+            </span></div>`;
+        };
+        try {
+          drawLink(await api.publicLink(name));
+          const settings = await api.publicSettings();
+          section.querySelector('#customer-support').value = settings.supportTelegram || '';
+        } catch (e) {
+          linkBox.innerHTML = '<div class="dr2 wide"><span class="v2">Could not load public link settings.</span></div>';
+        }
+        section.addEventListener('click', async ev => {
+          const action = ev.target.closest('[data-public-action]')?.dataset.publicAction;
+          if (action) {
+            try {
+              if (action === 'copy') {
+                const value = linkBox.querySelector('input')?.value || '';
+                try { await navigator.clipboard.writeText(value); }
+                catch {
+                  const input = linkBox.querySelector('input');
+                  input?.select();
+                  if (!input || !document.execCommand('copy')) throw new Error('Clipboard access is unavailable.');
+                }
+                toast('Customer link copied.');
+                return;
+              }
+              const data = await api.setPublicLink({ name, enabled: action === 'disable' ? false : true, rotate: action === 'rotate' });
+              drawLink(data);
+              toast(action === 'disable' ? 'Customer link disabled.' : action === 'rotate' ? 'Customer link changed.' : 'Customer link enabled.');
+            } catch (e) { oops(e); }
+            return;
+          }
+          if (ev.target.closest('#customer-support-save')) {
+            const input = section.querySelector('#customer-support');
+            try {
+              const saved = await api.savePublicSettings({ supportTelegram: input.value.trim() });
+              input.value = saved.supportTelegram || '';
+              toast('Support contact saved.');
+            } catch (e) { oops(e); }
+          }
+        });
+      }
+
       /* The long view. These four sections shipped drawing the preview's
          example charts — a picture of a tunnel nobody has, which reads as
          "this tunnel carried 142 GB on Sunday" and is a lie. They were then

@@ -8,6 +8,13 @@ from the Iran user's perspective. Its **Metrics** screen shows inbound,
 outbound, total, quota mode and remaining traffic, and marks an exhausted tunnel as paused. Backup,
 Telegram setup and the panel password live in **Settings**.
 
+From a tunnel's **Metrics** screen, an administrator can create a customer
+status link, disable it, or rotate it to revoke the previous URL. The page shows
+quota usage and forwarded port mappings, refreshes every 30 seconds, and offers
+English/Persian plus light, dark, and system themes. Set the Telegram support
+username there as well; exhausted quotas display a renewal message with that
+contact. The link is a bearer URL, so share it only with that tunnel's customer.
+
 Run it on the **Iran** server, where you watch things from. To limit user
 traffic on a reverse tunnel, set its quota on this entry server. The service
 keeps watching its configuration after the tunnel pauses at the cap, so raising
@@ -106,6 +113,13 @@ the same Security pane if that matters.
 ببینی. وقتی حجم تمام شود، تونل متوقف می‌شود؛ افزایش سقف آن را با حفظ مصرف قبلی
 راه می‌اندازد.
 
+در صفحهٔ **Metrics** هر تونل، مدیر می‌تواند لینک وضعیت مشتری را بسازد، غیرفعال
+کند یا با عوض‌کردنش لینک قبلی را باطل کند. صفحهٔ مشتری مصرف و باقیماندهٔ حجم،
+و پورت‌های فورواردشده را نشان می‌دهد و فارسی/انگلیسی و تم روشن/تیره/سیستم دارد.
+نام کاربری پشتیبانی تلگرام را هم همان‌جا تنظیم کن؛ وقتی حجم تمام شود پیام تمدید
+همراه لینک پشتیبانی نمایش داده می‌شود. این لینک مثل رمز دسترسی است؛ فقط برای همان
+مشتری بفرست.
+
 **ورود دو مرحله‌ای:** پنل روی این سرور root است و به‌صورت پیش‌فرض فقط یک رمز
 جلوی آن است. از `Settings → Security → Two-factor sign-in` می‌توانی کد یک‌بارمصرف
 اپلیکیشن authenticator را روشن کنی؛ تا وقتی شش رقمی که اپ نشان می‌دهد را برنگردانی
@@ -133,4 +147,4 @@ that does the same job — is in
 
 ---
 
-*Last verified against Backpack v1.8.16.*
+*Last verified against Backpack v1.8.17.*
