@@ -27,7 +27,9 @@ the same quota counter and mode, remaining allowance, tunnel state and exposed
 forward ports. Its link can be disabled or rotated there. Configure the
 Telegram support username in the same section so the exhausted-quota notice
 includes a renewal contact. Anyone holding the URL can view that tunnel's
-status, so treat it like a customer credential.
+status, so treat it like a customer credential. Customer links use `/status/<id>`
+on the panel host and port, independently of the secret administrator path;
+they do not reveal the administrator login URL.
 
 For a reverse tunnel, apply the quota on the Iran entry end to limit traffic
 accepted from users. Each end counts its own traffic; the two ends' totals are
@@ -70,4 +72,4 @@ share one link and you want to stop any one of them from taking it all.
 
 ---
 
-*Last verified against Backpack v1.8.17.*
+*Last verified against Backpack v1.8.18.*

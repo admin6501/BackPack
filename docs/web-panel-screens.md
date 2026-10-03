@@ -151,4 +151,4 @@ IP حل‌شده؛ در سرورِ شنونده، IP مبدأ اتصالی که 
 
 ---
 
-*Last verified against Backpack v1.8.17.*
+*Last verified against Backpack v1.8.18.*

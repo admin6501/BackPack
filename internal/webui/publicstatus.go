@@ -29,6 +29,22 @@ type publicTunnelStatus struct {
 	UpdatedAtUnix int64    `json:"updatedAt"`
 }
 
+// withPublicStatusRoutes exposes only the read-only customer handlers outside
+// the secret panel path. Every other request stays behind the panel router.
+func (s *server) withPublicStatusRoutes(panel http.Handler) http.Handler {
+	public := http.NewServeMux()
+	public.HandleFunc("/status/", s.handlePublicStatusPage)
+	public.HandleFunc("/api/public/status", s.handlePublicStatusData)
+	secured := withPanelSecurity(public)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/status/") || r.URL.Path == "/api/public/status" {
+			secured.ServeHTTP(w, r)
+			return
+		}
+		panel.ServeHTTP(w, r)
+	})
+}
+
 // handlePublicStatusPage serves the standalone customer view. The ID is a
 // bearer credential, so it is never copied into a referrer or cached response.
 func (s *server) handlePublicStatusPage(w http.ResponseWriter, r *http.Request) {
@@ -205,7 +221,7 @@ func publicURL(r *http.Request, id string) string {
 	if secureRequest(r) {
 		scheme = "https"
 	}
-	return scheme + "://" + r.Host + basePrefix() + "/status/" + url.PathEscape(id)
+	return scheme + "://" + r.Host + "/status/" + url.PathEscape(id)
 }
 
 type publicSettingsRequest struct {

@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -64,5 +65,42 @@ func TestPublicStatusDataDoesNotAcceptAnUnknownID(t *testing.T) {
 	(&server{}).handlePublicStatusData(w, r)
 	if w.Code != 404 {
 		t.Fatalf("unknown public ID returned %d, want 404", w.Code)
+	}
+}
+
+func TestCustomerRoutesDoNotExposePanelPath(t *testing.T) {
+	id := strings.Repeat("a", 48)
+	useConfigFile(t, Config{BasePath: "private-admin", PublicTunnelLinks: map[string]PublicTunnelLink{"one": {ID: id, Enabled: true}}})
+	panel := withBasePath("/private-admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusUnauthorized) }))
+	handler := (&server{}).withPublicStatusRoutes(panel)
+	for _, tc := range []struct {
+		path string
+		want int
+	}{
+		{"/status/" + id, 200},
+		{"/status/" + id + "/", 404},
+		{"/api/public/status?id=unknown", 404},
+		{"/api/public/status/", 404},
+		{"/api/tunnel/list", 404},
+		{"/login", 404},
+		{"/", 404},
+		{"/private-admin/login", 401},
+	} {
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, httptest.NewRequest("GET", tc.path, nil))
+		if w.Code != tc.want {
+			t.Errorf("%s returned %d, want %d", tc.path, w.Code, tc.want)
+		}
+		if tc.want == 200 {
+			if strings.Contains(w.Body.String(), "private-admin") {
+				t.Error("customer page leaks administrator path")
+			}
+			if w.Header().Get("Content-Security-Policy") == "" {
+				t.Error("customer route lost security headers")
+			}
+		}
+	}
+	if got := publicURL(httptest.NewRequest("GET", "http://example.com/private-admin/api/tunnel/public-link", nil), id); got != "http://example.com/status/"+id {
+		t.Fatalf("publicURL leaked panel prefix: %s", got)
 	}
 }

@@ -272,9 +272,8 @@ func Serve() error {
 	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Port)
 	httpServer := &http.Server{
 		Addr: addr,
-		// The base path is outermost: a request that is not under it is a 404
-		// before anything else looks at it.
-		Handler:      withBasePath(cfg.PathPrefix(), withPanelSecurity(mux)),
+		// Only customer status routes bypass the secret panel path.
+		Handler:      srv.withPublicStatusRoutes(withBasePath(cfg.PathPrefix(), withPanelSecurity(mux))),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
