@@ -33,6 +33,11 @@ type RemoteRestore struct {
 
 const maxTransferBackup = 512 << 20
 
+// The installer itself is trusted code: never execute mutable branch contents
+// as root. This audited commit and digest are updated deliberately together.
+const restoreInstallerCommit = "afe905b9f0d2394507e45232cb4362612c070e98"
+const restoreInstallerSHA256 = "1c135ed17ed714bca443c9454ecb50e131d5aff4e26e675f1dae25e88205c089"
+
 func PrepareRemoteRestore(ctx context.Context, target SSHTarget, path string) (_ *RemoteRestore, err error) {
 	if strings.TrimSpace(target.Host) == "" || target.Port < 0 || target.Port > 65535 || target.User == "" {
 		return nil, fmt.Errorf("a destination host, valid SSH port and username are required")
@@ -122,8 +127,8 @@ func (r *RemoteRestore) Restore(ctx context.Context, progress func(string)) (man
 		if progress != nil {
 			progress("Installing/updating Backpack on the destination...")
 		}
-		url := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/main/install.sh", app.RepoOwner, app.RepoName)
-		if _, err := restoreSSHCommand(ctx, r.client, r.command(installerCommand(url)), nil, sshInstallTimeout); err != nil {
+		url := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/install.sh", app.RepoOwner, app.RepoName, restoreInstallerCommit)
+		if _, err := restoreSSHCommand(ctx, r.client, r.command(installerCommand(url, restoreInstallerSHA256)), nil, sshInstallTimeout); err != nil {
 			return result, fmt.Errorf("destination installation failed: %w", err)
 		}
 		out, err := restoreSSHCommand(ctx, r.client, r.command(app.BinPath+" backup capabilities --json"), nil, sshOpTimeout)

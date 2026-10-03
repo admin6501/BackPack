@@ -150,7 +150,8 @@ stored in the managed-server list or placed in command arguments.
 
 After confirmation it keeps an installed Backpack that supports automatic
 restore. If Backpack is absent, or its version predates the automatic restore
-command, it runs the official installer to install/update it first. It transfers
+command, it runs the official installer to install/update it first. The installer
+is pinned to an audited commit and its SHA-256 is checked before execution. It transfers
 the archive over the same encrypted SSH connection to a private temporary file,
 checks SHA-256, and runs the existing restore operation. Uploaded and local
 temporary archives are removed on completion or failure. If the connection is
