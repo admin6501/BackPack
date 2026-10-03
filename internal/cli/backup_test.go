@@ -29,7 +29,11 @@ func TestBackupRestoreCommandReadsArchiveAndReportsFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := manage.RestoreForServerIP
+	oldMonitor := manage.EnsureMonitorService
 	t.Cleanup(func() { manage.RestoreForServerIP = old })
+	t.Cleanup(func() { manage.EnsureMonitorService = oldMonitor })
+	monitorStarts := 0
+	manage.EnsureMonitorService = func() error { monitorStarts++; return nil }
 	manage.RestoreForServerIP = func(r io.Reader, ip string) (manage.RestoreResult, error) {
 		if ip != "203.0.113.20" {
 			t.Error("destination IP did not reach the restore operation")
@@ -56,6 +60,13 @@ func TestBackupRestoreCommandReadsArchiveAndReportsFailure(t *testing.T) {
 		} else if !strings.Contains(r.Out, "fleet key needed") {
 			t.Fatal("restore warning lost")
 		}
+	}
+	if monitorStarts != 2 {
+		t.Fatal("fresh destination monitor was not started after restore")
+	}
+	manage.EnsureMonitorService = func() error { return errors.New("monitor failed") }
+	if r := restoreBackupFile(path, true, "203.0.113.20"); r.Code != CodeUnhealthy {
+		t.Fatal("monitor startup failure reported as success")
 	}
 	manage.RestoreForServerIP = func(io.Reader, string) (manage.RestoreResult, error) {
 		return manage.RestoreResult{}, errors.New("bad archive")

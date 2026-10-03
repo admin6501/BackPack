@@ -58,6 +58,13 @@ func restoreBackupFile(path string, asJSON bool, serverIP string) Result {
 	if err != nil {
 		return fail(CodeFailed, "Restore failed: %v\n", err)
 	}
+	// A fresh destination has never opened the menu, so it has no monitor
+	// unit yet. Install/start it here so history, quotas and backups continue
+	// automatically after recovery without a second login on that machine.
+	if err := manage.EnsureMonitorService(); err != nil {
+		r.ServicesFailed = append(r.ServicesFailed, app.MonitorService)
+		r.Warnings = append(r.Warnings, "Monitor could not start: "+err.Error())
+	}
 	var panelErr error
 	if r.WebUIConfig {
 		_, panelErr = webui.EnsureRunning()
