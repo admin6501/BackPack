@@ -77,7 +77,7 @@ from where the backup left off rather than resetting to zero.
 
 ## Getting a backup off the machine
 
-Backups are written to `/var/backups/backpack` — on the server they describe.
+Backups are written to `/root/BackPack/backups` — on the server they describe.
 The case they exist for is the case where that server is gone, so a copy
 somewhere else is the only one that will be there.
 
@@ -134,6 +134,62 @@ silent otherwise:
 
 Run it after any change to what the machine holds, and once before you need it.
 
+## Restoring onto another server over SSH
+
+**Backup & Restore → Restore on another server over SSH** (option 5) picks an
+existing backup or a custom archive path, then asks for the destination IP,
+SSH port (default 22), username (default root), and a hidden password. The
+destination must run Linux with coreutils and allow root login or passwordless
+`sudo` for the selected user.
+
+Before changing the destination, Backpack validates a private snapshot of the
+archive, checks SSH and privileges, and displays the destination, SSH host-key
+fingerprint and backup contents for confirmation. Cancel leaves destination
+settings untouched. The password is used only for this connection, never
+stored in the managed-server list or placed in command arguments.
+
+After confirmation it keeps an installed Backpack that supports automatic
+restore. If Backpack is absent, or its version predates the automatic restore
+command, it runs the official installer to install/update it first. It transfers
+the archive over the same encrypted SSH connection to a private temporary file,
+checks SHA-256, and runs the existing restore operation. Uploaded and local
+temporary archives are removed on completion or failure. If the connection is
+lost during restore, inspect the destination before retrying: it may already
+have applied the settings.
+
+Matching configurations are overwritten and tunnels restarted; destination
+configurations not named in the backup remain. A failed tunnel restart or web
+panel restart is reported as a partial restore, never as full success. Tunnel
+peer IPs and port mappings remain as saved; adjust them when the new server has
+a different address. Sealed fleet passwords still need the separately kept
+fleet key; this option does not transfer that key.
+
+For automation on the destination:
+
+```sh
+backpack backup capabilities --json
+backpack backup check /path/to/backup.tar.gz --json
+sudo backpack backup restore /path/to/backup.tar.gz --yes --json
+```
+
+`capabilities` advertises `restore_protocol: 1`. `check` validates without
+changing settings. `restore` requires root and `--yes`; exit code 4 means the
+settings were applied but a restored service failed to start.
+
+<div dir="rtl">
+
+از **Backup & Restore → گزینهٔ ۵، Restore on another server over SSH** بکاپ
+را انتخاب کنید و آی‌پی، پورت SSH، نام کاربری و رمز سرور مقصد را وارد کنید.
+رمز مخفی وارد می‌شود و ذخیره نمی‌شود. بعد از بررسی اتصال و نمایش مشخصات
+مقصد، ریستور را تأیید کنید. اگر بک‌پک نصب نباشد نصب می‌شود؛ نسخه‌های قدیمی
+که فرمان ریستور خودکار ندارند، ابتدا به‌روزرسانی می‌شوند. فایل به‌صورت امن
+منتقل و صحت آن بررسی می‌شود، سپس تنظیمات ریستور و تونل‌ها ری‌استارت می‌شوند.
+نام کاربری باید root باشد یا دسترسی sudo بدون رمز داشته باشد. آی‌پی‌های
+داخل تنظیمات تونل خودکار تغییر نمی‌کنند؛ در انتقال به آی‌پی جدید بررسی‌شان
+کنید. کلید fleet جداگانه باید نگهداری و در صورت نیاز روی مقصد وارد شود.
+
+</div>
+
 ---
 
-*Last verified against Backpack v1.8.19.*
+*Last verified against Backpack v1.8.20.*
