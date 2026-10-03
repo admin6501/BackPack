@@ -44,4 +44,4 @@ is not running.
 
 ---
 
-*Last verified against Backpack v1.8.16.*
+*Last verified against Backpack v1.8.17.*

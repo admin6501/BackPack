@@ -363,6 +363,12 @@ func (srv *server) routes() *http.ServeMux {
 	mux.HandleFunc("/login", srv.handleLogin)
 	mux.HandleFunc("/api/totp", srv.requireAdmin(srv.handleTOTP))
 	mux.HandleFunc("/logout", srv.handleLogout)
+	// Customer status pages use high-entropy bearer IDs and expose only the
+	// configured tunnel's quota and forwarded ports.
+	mux.HandleFunc("/status/", srv.handlePublicStatusPage)
+	mux.HandleFunc("/api/public/status", srv.handlePublicStatusData)
+	mux.HandleFunc("/api/public/link", srv.requireAdmin(srv.handlePublicLink))
+	mux.HandleFunc("/api/public/settings", srv.requireAdmin(srv.handlePublicSettings))
 	// The panel, and everything it loads. Registered at "/", so it is also
 	// the catch-all for anything no other route claims. See panel.go.
 	mux.HandleFunc("/", srv.requireAuth(srv.handlePanel))
@@ -887,7 +893,12 @@ func writeJSON(w http.ResponseWriter, v any) {
 
 func randomHex(n int) string {
 	b := make([]byte, n)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// A zero-filled token would make sessions, TOTP challenges, or public
+		// status links predictable if the system entropy source is unavailable.
+		// Fail closed instead of issuing a credential with weaker randomness.
+		panic(err)
+	}
 	return hex.EncodeToString(b)
 }
 

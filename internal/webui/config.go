@@ -86,6 +86,17 @@ type Config struct {
 	// which did not name this server's addresses.)
 	TLSCertFile string `json:"tls_cert,omitempty"`
 	TLSKeyFile  string `json:"tls_key,omitempty"`
+
+	// Public tunnel status links are bearer URLs. Each random ID grants access
+	// to exactly one tunnel's quota and forwarded-port summary.
+	PublicTunnelLinks map[string]PublicTunnelLink `json:"public_tunnel_links,omitempty"`
+	SupportTelegram   string                      `json:"support_telegram,omitempty"`
+}
+
+// PublicTunnelLink stores the revocable bearer ID for one customer status page.
+type PublicTunnelLink struct {
+	ID      string `json:"id"`
+	Enabled bool   `json:"enabled"`
 }
 
 // OwnCert reports whether the panel serves a certificate the operator brought.
@@ -117,7 +128,21 @@ func (c Config) Equal(other Config) bool {
 		c.TLSSelfHost == other.TLSSelfHost &&
 		c.TLSCertFile == other.TLSCertFile &&
 		c.TLSKeyFile == other.TLSKeyFile &&
-		c.TOTPSecret == other.TOTPSecret
+		c.TOTPSecret == other.TOTPSecret &&
+		c.SupportTelegram == other.SupportTelegram &&
+		publicLinksEqual(c.PublicTunnelLinks, other.PublicTunnelLinks)
+}
+
+func publicLinksEqual(a, b map[string]PublicTunnelLink) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // Scheme is the URL scheme the panel answers on.

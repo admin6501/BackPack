@@ -178,6 +178,9 @@ Thirteen to choose from, so you match the route instead of fighting it. Not sure
 - **Traffic allowances** — choose download, upload or both per tunnel, see the
   remaining balance in CLI and panel Metrics, pause at the cap, and reset usage
   explicitly when a new allowance period begins.
+- **Customer status links** — share a revocable per-tunnel page with quota,
+  forwarded ports and a support contact, in Persian or English and with light,
+  dark or system themes.
 - **Telegram from Iran** — status and alerts reach Telegram by going out through
   a tunnel peer, choosing the tunnel itself and moving when one dies.
 - **Offline installer** — install or update with **no internet at all**.
