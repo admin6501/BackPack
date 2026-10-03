@@ -58,3 +58,32 @@ func TestRestorePrunesOnlyOrphanAccounting(t *testing.T) {
 		t.Fatal("incorrect archive filtering")
 	}
 }
+
+func TestBackupExcludesDeletedTunnelFilesAndRestoreKeepsTotals(t *testing.T) {
+	root, stage := t.TempDir(), t.TempDir()
+	usage := `{"name":"live","bytes_in":123456789,"bytes_out":987654321}`
+	for name, data := range map[string]string{"live.toml": "[server]\nbind_addr = \"0.0.0.0:443\"\n", "live.metrics.json": usage, "gone.metrics.json": "orphan", "history/gone.json": "orphan"} {
+		path := filepath.Join(root, name)
+		os.MkdirAll(filepath.Dir(path), 0755)
+		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var archive bytes.Buffer
+	if err := writeBackupTree(&archive, root); err != nil {
+		t.Fatal(err)
+	}
+	empty := t.TempDir()
+	if _, err := stageRestore(bytes.NewReader(archive.Bytes()), empty, stage); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"gone.metrics.json", "history/gone.json"} {
+		if _, err := os.Stat(filepath.Join(stage, name)); !os.IsNotExist(err) {
+			t.Fatal("orphan entered archive", name)
+		}
+	}
+	b, _ := os.ReadFile(filepath.Join(stage, "live.metrics.json"))
+	if string(b) != usage {
+		t.Fatal("saved totals changed")
+	}
+}
