@@ -35,7 +35,12 @@ func runBackup(args []string) Result {
 	if os.Geteuid() != 0 {
 		return fail(CodeFailed, "Backup restore requires root.\n")
 	}
-	f, err := os.Open(args[1])
+	return restoreBackupFile(args[1], asJSON)
+}
+
+// Called only after the public command has checked root and --yes.
+func restoreBackupFile(path string, asJSON bool) Result {
+	f, err := os.Open(path)
 	if err != nil {
 		return fail(CodeFailed, "Cannot open backup: %v\n", err)
 	}
@@ -51,6 +56,10 @@ func runBackup(args []string) Result {
 			panelErr = manage.RestartService(app.WebUIService)
 		}
 	}
+	return backupRestoreResult(r, panelErr, asJSON)
+}
+
+func backupRestoreResult(r manage.RestoreResult, panelErr error, asJSON bool) Result {
 	code := CodeOK
 	if r.Failed > 0 || panelErr != nil {
 		code = CodeUnhealthy
