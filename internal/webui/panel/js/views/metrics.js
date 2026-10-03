@@ -374,7 +374,9 @@ export async function metricsView(ctx) {
                 toast('Customer link copied.');
                 return;
               }
-              const data = await api.setPublicLink({ name, enabled: action === 'disable' ? false : true, rotate: action === 'rotate' });
+              const request = { name, rotate: action === 'rotate' };
+              if (action !== 'rotate') request.enabled = action !== 'disable';
+              const data = await api.setPublicLink(request);
               drawLink(data);
               toast(action === 'disable' ? 'Customer link disabled.' : action === 'rotate' ? 'Customer link changed.' : 'Customer link enabled.');
             } catch (e) { oops(e); }

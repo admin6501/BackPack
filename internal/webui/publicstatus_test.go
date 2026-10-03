@@ -41,6 +41,7 @@ func TestPublicStatusPageRequiresEnabledBearerID(t *testing.T) {
 		want int
 	}{
 		{"/status/" + id, 200},
+		{"/status/" + id + "/", 404},
 		{"/status/" + strings.Repeat("b", 48), 404},
 		{"/status/not-a-token", 404},
 	} {

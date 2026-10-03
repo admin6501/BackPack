@@ -2,9 +2,11 @@ package webui
 
 import (
 	_ "embed"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/backpack/backpack/config"
@@ -33,7 +35,7 @@ func (s *server) handlePublicStatusPage(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/status/"), "/")
+	id := strings.TrimPrefix(r.URL.Path, "/status/")
 	if r.Method != http.MethodGet || !publicIDExists(id) {
 		http.NotFound(w, r)
 		return
@@ -85,7 +87,11 @@ func (s *server) handlePublicStatusData(w http.ResponseWriter, r *http.Request) 
 		http.NotFound(w, r)
 		return
 	}
-	snap, _ := metrics.Read(app.ConfigDir, name)
+	snap, err := metrics.Read(app.ConfigDir, name)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		http.Error(w, "status usage data is temporarily unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	mode := config.NormalizeTrafficLimitMode(cfg.TrafficLimitMode)
 	used := config.TrafficQuotaUsage(mode, snap.Role, snap.BytesIn, snap.BytesOut)
 	var limit uint64
