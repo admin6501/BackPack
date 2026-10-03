@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -22,13 +23,14 @@ import (
 // the archive. Credentials are never enrolled in the fleet or written to disk.
 // The same SSH connection is used before and after the operator's confirmation.
 type RemoteRestore struct {
-	client       *ssh.Client
-	file         *os.File
-	checksum     string
-	sudo         bool
-	Fingerprint  string
-	NeedsInstall bool
-	Report       manage.RestoreReport
+	client        *ssh.Client
+	file          *os.File
+	checksum      string
+	sudo          bool
+	destinationIP string
+	Fingerprint   string
+	NeedsInstall  bool
+	Report        manage.RestoreReport
 }
 
 const maxTransferBackup = 512 << 20
@@ -39,10 +41,10 @@ const restoreInstallerCommit = "afe905b9f0d2394507e45232cb4362612c070e98"
 const restoreInstallerSHA256 = "1c135ed17ed714bca443c9454ecb50e131d5aff4e26e675f1dae25e88205c089"
 
 func PrepareRemoteRestore(ctx context.Context, target SSHTarget, path string) (_ *RemoteRestore, err error) {
-	if strings.TrimSpace(target.Host) == "" || target.Port < 0 || target.Port > 65535 || target.User == "" {
+	if net.ParseIP(target.Host) == nil || target.Port < 0 || target.Port > 65535 || target.User == "" {
 		return nil, fmt.Errorf("a destination host, valid SSH port and username are required")
 	}
-	r := &RemoteRestore{}
+	r := &RemoteRestore{destinationIP: target.Host}
 	defer func() {
 		if err != nil {
 			r.Close()
@@ -106,7 +108,7 @@ func supportsRestore(out string) bool {
 	var c struct {
 		Protocol int `json:"restore_protocol"`
 	}
-	return len(lines) > 0 && json.Unmarshal([]byte(lines[len(lines)-1]), &c) == nil && c.Protocol == 1
+	return len(lines) > 0 && json.Unmarshal([]byte(lines[len(lines)-1]), &c) == nil && c.Protocol == 2
 }
 
 func (r *RemoteRestore) command(script string) string {
@@ -142,7 +144,7 @@ func (r *RemoteRestore) Restore(ctx context.Context, progress func(string)) (man
 	if progress != nil {
 		progress("Transferring, verifying SHA-256 and restoring the backup...")
 	}
-	out, err := restoreSSHCommand(ctx, r.client, r.command(remoteRestoreScript(r.checksum)), r.file, sshInstallTimeout)
+	out, err := restoreSSHCommand(ctx, r.client, r.command(remoteRestoreScript(r.checksum, r.destinationIP)), r.file, sshInstallTimeout)
 	// Even a partial restore returns its result alongside a nonzero exit status.
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	var response struct {
@@ -150,9 +152,9 @@ func (r *RemoteRestore) Restore(ctx context.Context, progress func(string)) (man
 		Protocol   int    `json:"restore_protocol"`
 		PanelError string `json:"panel_error"`
 	}
-	if len(lines) > 0 && json.Unmarshal([]byte(lines[len(lines)-1]), &response) == nil && response.Protocol == 1 {
+	if len(lines) > 0 && json.Unmarshal([]byte(lines[len(lines)-1]), &response) == nil && response.Protocol == 2 {
 		result = response.RestoreResult
-		if err == nil && response.PanelError == "" && result.Failed == 0 {
+		if err == nil && response.PanelError == "" && result.Failed == 0 && len(result.ServicesFailed) == 0 {
 			return result, nil
 		}
 		if response.PanelError != "" {
@@ -161,6 +163,9 @@ func (r *RemoteRestore) Restore(ctx context.Context, progress func(string)) (man
 		if result.Failed > 0 {
 			return result, fmt.Errorf("settings restored, but %d tunnel(s) failed to start", result.Failed)
 		}
+		if len(result.ServicesFailed) > 0 {
+			return result, fmt.Errorf("settings restored, but services could not resume: %s", strings.Join(result.ServicesFailed, ", "))
+		}
 	}
 	if err != nil {
 		return result, fmt.Errorf("remote restore failed (verify destination before retrying): %w", err)
@@ -168,12 +173,12 @@ func (r *RemoteRestore) Restore(ctx context.Context, progress func(string)) (man
 	return result, fmt.Errorf("destination did not return a valid restore result; verify it before retrying")
 }
 
-func remoteRestoreScript(checksum string) string {
+func remoteRestoreScript(checksum, destinationIP string) string {
 	return "set -eu; umask 077; dir=$(mktemp -d /tmp/backpack-restore.XXXXXXXXXX); " +
 		"trap 'rm -rf -- \"$dir\"' EXIT; trap 'exit 1' HUP INT TERM; " +
 		"cat > \"$dir/backup.tar.gz\"; " +
 		"printf '%s  %s\\n' " + quote(checksum) + " \"$dir/backup.tar.gz\" | sha256sum -c - >&2; " +
-		app.BinPath + " backup restore \"$dir/backup.tar.gz\" --yes --json < /dev/null"
+		app.BinPath + " backup restore \"$dir/backup.tar.gz\" --yes --server-ip " + quote(destinationIP) + " --json < /dev/null"
 }
 
 func (r *RemoteRestore) Close() {

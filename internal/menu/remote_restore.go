@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/backpack/backpack/internal/node"
@@ -56,7 +57,8 @@ func restoreRemoteBackup() {
 		tui.Warn("Backpack is missing or too old for automatic restore; it will be installed/updated.")
 	}
 	tui.Warn("This overwrites matching tunnels/settings on the DESTINATION and restarts its tunnels.")
-	tui.Warn("Peer addresses and ports are kept as saved; check them when moving to a new IP.")
+	tui.Info("Server/listener IP bindings will use " + host + "; client settings and forged spoof IPs stay as saved.")
+	tui.Info("Recorded usage, limits, users and history are restored from the backup without resetting counters.")
 	if r.Report.FleetSealed {
 		tui.Warn("Managed-server passwords need the separate fleet key. It is not transferred here.")
 	}
@@ -71,6 +73,9 @@ func restoreRemoteBackup() {
 	}
 	if res.Files > 0 {
 		tui.Info(fmt.Sprintf("%d files restored; %d tunnels started, %d failed.", res.Files, res.Started, res.Failed))
+	}
+	if len(res.Migrated) > 0 {
+		tui.Info("Server IP updated: " + strings.Join(res.Migrated, ", "))
 	}
 	for _, warning := range res.Warnings {
 		tui.Warn(warning)

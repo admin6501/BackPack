@@ -76,7 +76,7 @@ const usage = `backpack — non-interactive commands
   backpack version [--json]
   backpack backup capabilities [--json]
   backpack backup check <file> [--json]
-  backpack backup restore <file> --yes [--json]
+  backpack backup restore <file> --yes [--server-ip <IP>] [--json]
 
 Run backpack with no arguments for the interactive menu.
 Exit codes: 0 ok, 1 failed, 2 usage, 3 not found, 4 unhealthy.

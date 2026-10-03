@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/backpack/backpack/internal/app"
@@ -14,9 +15,9 @@ func runBackup(args []string) Result {
 	asJSON, args := takeJSONFlag(args)
 	if len(args) == 1 && args[0] == "capabilities" {
 		if asJSON {
-			return ok("{\"restore_protocol\":1}\n")
+			return ok("{\"restore_protocol\":2}\n")
 		}
-		return ok("Backup restore protocol: 1\n")
+		return ok("Backup restore protocol: 2\n")
 	}
 	if len(args) == 2 && args[0] == "check" {
 		r, err := manage.TestRestore(args[1])
@@ -29,23 +30,31 @@ func runBackup(args []string) Result {
 		}
 		return ok(r.Summary())
 	}
+	serverIP := ""
+	if len(args) == 5 && args[3] == "--server-ip" {
+		serverIP = args[4]
+		if ip := net.ParseIP(serverIP); ip == nil || ip.IsUnspecified() || ip.IsMulticast() {
+			return fail(CodeUsage, "--server-ip needs a valid destination IP.\n")
+		}
+		args = args[:3]
+	}
 	if len(args) != 3 || args[0] != "restore" || args[2] != "--yes" {
-		return fail(CodeUsage, "Use backup capabilities, backup check <file>, or backup restore <file> --yes [--json].\n")
+		return fail(CodeUsage, "Use backup capabilities, backup check <file>, or backup restore <file> --yes [--server-ip <IP>] [--json].\n")
 	}
 	if os.Geteuid() != 0 {
 		return fail(CodeFailed, "Backup restore requires root.\n")
 	}
-	return restoreBackupFile(args[1], asJSON)
+	return restoreBackupFile(args[1], asJSON, serverIP)
 }
 
 // Called only after the public command has checked root and --yes.
-func restoreBackupFile(path string, asJSON bool) Result {
+func restoreBackupFile(path string, asJSON bool, serverIP string) Result {
 	f, err := os.Open(path)
 	if err != nil {
 		return fail(CodeFailed, "Cannot open backup: %v\n", err)
 	}
 	defer f.Close()
-	r, err := manage.Restore(f)
+	r, err := manage.RestoreForServerIP(f, serverIP)
 	if err != nil {
 		return fail(CodeFailed, "Restore failed: %v\n", err)
 	}
@@ -61,7 +70,7 @@ func restoreBackupFile(path string, asJSON bool) Result {
 
 func backupRestoreResult(r manage.RestoreResult, panelErr error, asJSON bool) Result {
 	code := CodeOK
-	if r.Failed > 0 || panelErr != nil {
+	if r.Failed > 0 || len(r.ServicesFailed) > 0 || panelErr != nil {
 		code = CodeUnhealthy
 	}
 	var out string
@@ -70,7 +79,7 @@ func backupRestoreResult(r manage.RestoreResult, panelErr error, asJSON bool) Re
 			manage.RestoreResult
 			Protocol   int    `json:"restore_protocol"`
 			PanelError string `json:"panel_error,omitempty"`
-		}{r, 1, errorText(panelErr)})
+		}{r, 2, errorText(panelErr)})
 		out = string(b) + "\n"
 	} else {
 		out = fmt.Sprintf("Restored %d files; tunnels started: %d, failed: %d.\n", r.Files, r.Started, r.Failed)

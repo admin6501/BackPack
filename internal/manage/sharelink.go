@@ -104,6 +104,7 @@ type ShareLink struct {
 	Uplink    string `json:"su,omitempty"`
 	Downlink  string `json:"sd,omitempty"`
 	SrcIPs    string `json:"ss,omitempty"`
+	PeerSrcIP string `json:"ps,omitempty"` // forged source the producer expects; becomes the peer's own source
 	Stealth   bool   `json:"sl,omitempty"`
 	ICMPReply bool   `json:"si,omitempty"`
 
@@ -389,14 +390,18 @@ func MirrorForPeer(l ShareLink) PeerForm {
 	// of this across — including the producer's real address, which the
 	// listening side cannot work out for itself and refuses to start without.
 	// So a spoof tunnel built from the panel could never have its far end made.
-	if l.Tr == "spoof" || l.Profile != "" || l.Uplink != "" || l.Downlink != "" || l.SrcIPs != "" {
+	if l.Tr == "spoof" || l.Profile != "" || l.Uplink != "" || l.Downlink != "" || l.SrcIPs != "" || l.PeerSrcIP != "" {
 		sp := &SpoofTune{
 			Profile:   l.Profile,
 			Uplink:    l.Uplink,
 			Downlink:  l.Downlink,
 			ICMPReply: l.ICMPReply,
+			SrcIPs:    l.PeerSrcIP,
 		}
 		paired = append(paired, "spoof.profile")
+		if l.PeerSrcIP != "" {
+			paired = append(paired, "spoof.srcIPs")
+		}
 		if l.Uplink != "" || l.Downlink != "" {
 			paired = append(paired, "spoof.uplink", "spoof.downlink")
 		}
@@ -506,6 +511,7 @@ func shareLinkOf(name, host string, cfg config.Config) (string, error) {
 		sc := cfg.L3.SpoofConfig
 		l.Profile, l.Uplink, l.Downlink = sc.SpoofProfile, sc.SpoofUplink, sc.SpoofDownlink
 		l.SrcIPs = strings.Join(nonEmpty(append([]string{sc.SpoofSrcIP}, sc.SpoofSrcPool...)), ", ")
+		l.PeerSrcIP = sc.SpoofPeerSrcIP
 		l.Stealth = spoofStealthOn(sc)
 		l.ICMPReply = sc.SpoofICMPReply
 

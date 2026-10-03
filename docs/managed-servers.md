@@ -314,4 +314,30 @@ log, sink a speed test — and refuses anything else. It is not meant to be type
 
 ---
 
+### Peer setup from either end
+
+The CLI's **Set up the other server** uses the same mirrored setup-link fields
+for reverse and direct tunnels, from either Iran or kharej. A listening end
+supplies a reachable real address; the peer receives the token, carrier,
+control port and paired settings in its own fields. When starting from kharej,
+the CLI asks there for the ports to expose on Iran and validates them before
+connecting to the destination. Those ports are required, including direct
+tunnels; they cannot be inferred from the kharej configuration.
+
+For IP Spoofing, real and forged addresses have different jobs. The producer's
+own forged source becomes the peer's **expected forged source**. The forged
+source the producer expects becomes the peer's **own forged source**. A rotated
+source pool is not pinned to just one member. The producer's real reachable IP
+goes into the real-peer field, never either forged-source field.
+
+<div dir="rtl">
+
+نصب خودکار سمت مقابل از ایران یا خارج، تنظیمات موردنیاز همان سمت را از لینک
+ستاپ می‌گیرد. اگر شروع از خارج باشد، پورت‌هایی که باید روی ایران باز شوند از
+کاربر پرسیده می‌شوند. در اسپوف، آی‌پی جعلیِ فرستنده به فیلد «آی‌پی جعلی مورد
+انتظار از طرف مقابل» می‌رود و آی‌پی جعلی‌ای که فرستنده انتظار دارد، در فیلد
+«آی‌پی جعلی خودِ طرف مقابل» قرار می‌گیرد. آی‌پی واقعی سرور جدا منتقل می‌شود.
+
+</div>
+
 *Last verified against Backpack v1.8.20.*

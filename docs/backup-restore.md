@@ -160,9 +160,20 @@ have applied the settings.
 
 Matching configurations are overwritten and tunnels restarted; destination
 configurations not named in the backup remain. A failed tunnel restart or web
-panel restart is reported as a partial restore, never as full success. Tunnel
-peer IPs and port mappings remain as saved; adjust them when the new server has
-a different address. Sealed fleet passwords still need the separately kept
+panel restart is reported as a partial restore, never as full success.
+For **server/listener** configurations only, explicit local IP bindings are
+replaced with the destination IP, including the local side of reverse-server
+port mappings. Ports, backend targets, wildcard/loopback bindings, client/dial
+configurations, real peer addresses, private tunnel addresses and forged spoof
+sources are kept as saved. Only tunnels contained in the archive are migrated.
+
+Traffic totals, quota limits, customer links/settings, country labels and
+history are restored as recorded **when the backup was created**. The CLI
+stops active tunnel, panel and monitor writers before applying the staged
+configuration, preventing their final flushes from overwriting archived usage.
+Unarchived destination data keeps its final counters. Previously active
+services are resumed; inability to stop a writer aborts before the commit, and
+failure to resume a service is reported as partial recovery. Sealed fleet passwords still need the separately kept
 fleet key; this option does not transfer that key.
 
 For automation on the destination:
@@ -170,10 +181,10 @@ For automation on the destination:
 ```sh
 backpack backup capabilities --json
 backpack backup check /path/to/backup.tar.gz --json
-sudo backpack backup restore /path/to/backup.tar.gz --yes --json
+sudo backpack backup restore /path/to/backup.tar.gz --yes --server-ip 203.0.113.20 --json
 ```
 
-`capabilities` advertises `restore_protocol: 1`. `check` validates without
+`capabilities` advertises `restore_protocol: 2`. `check` validates without
 changing settings. `restore` requires root and `--yes`; exit code 4 means the
 settings were applied but a restored service failed to start.
 
@@ -185,9 +196,13 @@ settings were applied but a restored service failed to start.
 مقصد، ریستور را تأیید کنید. اگر بک‌پک نصب نباشد نصب می‌شود؛ نسخه‌های قدیمی
 که فرمان ریستور خودکار ندارند، ابتدا به‌روزرسانی می‌شوند. فایل به‌صورت امن
 منتقل و صحت آن بررسی می‌شود، سپس تنظیمات ریستور و تونل‌ها ری‌استارت می‌شوند.
-نام کاربری باید root باشد یا دسترسی sudo بدون رمز داشته باشد. آی‌پی‌های
-داخل تنظیمات تونل خودکار تغییر نمی‌کنند؛ در انتقال به آی‌پی جدید بررسی‌شان
-کنید. کلید fleet جداگانه باید نگهداری و در صورت نیاز روی مقصد وارد شود.
+نام کاربری باید root باشد یا دسترسی sudo بدون رمز داشته باشد. فقط آی‌پی‌های
+واقعیِ محل گوش‌دادن در تونل‌های سرور با آی‌پی مقصد جایگزین می‌شوند؛ تنظیمات
+کلاینت، آی‌پی جعلی اسپوف، آی‌پی خصوصی تونل، پورت‌ها و مقصد بک‌اند تغییر نمی‌کنند.
+مصرف و تاریخچه تا زمان ساخت بکاپ، سقف ترافیک و اطلاعات کاربران حفظ می‌شوند.
+سرویس‌های نویسندهٔ مصرف پیش از اعمال بکاپ متوقف و سپس دوباره فعال می‌شوند تا
+شمارنده‌های قدیمی مقصد، مصرف ریستورشده را بازنویسی نکنند. کلید fleet جداگانه
+باید نگهداری و در صورت نیاز روی مقصد وارد شود.
 
 </div>
 

@@ -28,9 +28,12 @@ func TestBackupRestoreCommandReadsArchiveAndReportsFailure(t *testing.T) {
 	if err := os.WriteFile(path, []byte("the selected archive"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	old := manage.Restore
-	t.Cleanup(func() { manage.Restore = old })
-	manage.Restore = func(r io.Reader) (manage.RestoreResult, error) {
+	old := manage.RestoreForServerIP
+	t.Cleanup(func() { manage.RestoreForServerIP = old })
+	manage.RestoreForServerIP = func(r io.Reader, ip string) (manage.RestoreResult, error) {
+		if ip != "203.0.113.20" {
+			t.Error("destination IP did not reach the restore operation")
+		}
 		b, err := io.ReadAll(r)
 		if err != nil || string(b) != "the selected archive" {
 			t.Error("wrong archive passed to restore")
@@ -38,7 +41,7 @@ func TestBackupRestoreCommandReadsArchiveAndReportsFailure(t *testing.T) {
 		return manage.RestoreResult{Files: 3, Started: 1, Warnings: []string{"fleet key needed"}}, nil
 	}
 	for _, asJSON := range []bool{false, true} {
-		r := restoreBackupFile(path, asJSON)
+		r := restoreBackupFile(path, asJSON, "203.0.113.20")
 		if r.Code != CodeOK {
 			t.Fatalf("restore: %+v", r)
 		}
@@ -47,20 +50,20 @@ func TestBackupRestoreCommandReadsArchiveAndReportsFailure(t *testing.T) {
 				manage.RestoreResult
 				Protocol int `json:"restore_protocol"`
 			}
-			if json.Unmarshal([]byte(r.Out), &result) != nil || result.Protocol != 1 || result.Files != 3 {
+			if json.Unmarshal([]byte(r.Out), &result) != nil || result.Protocol != 2 || result.Files != 3 {
 				t.Fatalf("result: %+v", r)
 			}
 		} else if !strings.Contains(r.Out, "fleet key needed") {
 			t.Fatal("restore warning lost")
 		}
 	}
-	manage.Restore = func(io.Reader) (manage.RestoreResult, error) {
+	manage.RestoreForServerIP = func(io.Reader, string) (manage.RestoreResult, error) {
 		return manage.RestoreResult{}, errors.New("bad archive")
 	}
-	if r := restoreBackupFile(path, true); r.Code != CodeFailed || !strings.Contains(r.Err, "bad archive") {
+	if r := restoreBackupFile(path, true, ""); r.Code != CodeFailed || !strings.Contains(r.Err, "bad archive") {
 		t.Fatalf("restore failure: %+v", r)
 	}
-	if r := restoreBackupFile(path+".missing", false); r.Code != CodeFailed {
+	if r := restoreBackupFile(path+".missing", false, ""); r.Code != CodeFailed {
 		t.Fatal("missing archive accepted")
 	}
 }
@@ -73,6 +76,9 @@ func TestBackupRestoreResultsReportPartialServices(t *testing.T) {
 		if r := backupRestoreResult(manage.RestoreResult{Files: 2}, errors.New("panel failed"), asJSON); r.Code != CodeUnhealthy || r.Err != "panel failed" {
 			t.Fatalf("failed panel: %+v", r)
 		}
+		if r := backupRestoreResult(manage.RestoreResult{Files: 2, ServicesFailed: []string{"monitor"}}, nil, asJSON); r.Code != CodeUnhealthy {
+			t.Fatal("monitor resume failure reported as success")
+		}
 	}
 }
 
@@ -81,7 +87,7 @@ func TestBackupCapabilitiesAndValidationNeverRestore(t *testing.T) {
 	var c struct {
 		Protocol int `json:"restore_protocol"`
 	}
-	if r.Code != 0 || json.Unmarshal([]byte(r.Out), &c) != nil || c.Protocol != 1 {
+	if r.Code != 0 || json.Unmarshal([]byte(r.Out), &c) != nil || c.Protocol != 2 {
 		t.Fatalf("capabilities: %+v", r)
 	}
 	path := filepath.Join(t.TempDir(), "bad.tar.gz")

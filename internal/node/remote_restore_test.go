@@ -57,7 +57,7 @@ func TestRemoteRestoreStreamsPrivateSnapshotAndSkipsInstalledBinary(t *testing.T
 			binary := filepath.Join(dir, "backpack")
 			captured := filepath.Join(dir, "received.tar.gz")
 			// The actual remote shell runs; only Backpack/systemd are replaced.
-			body := "#!/bin/sh\ncp \"$3\" " + quote(captured) + "\nstat -c '%a' \"$3\" > " + quote(filepath.Join(dir, "mode")) + "\nprintf '%s\\n' '{\"restore_protocol\":1,\"Files\":1,\"Started\":1,\"Failed\":0}'\n"
+			body := "#!/bin/sh\n[ \"$5\" = --server-ip ] && [ \"$6\" = 127.0.0.1 ] || exit 2\ncp \"$3\" " + quote(captured) + "\nstat -c '%a' \"$3\" > " + quote(filepath.Join(dir, "mode")) + "\nprintf '%s\\n' '{\"restore_protocol\":2,\"Files\":1,\"Started\":1,\"Failed\":0}'\n"
 			if err := os.WriteFile(binary, []byte(body), 0700); err != nil {
 				t.Fatal(err)
 			}
@@ -76,7 +76,7 @@ func TestRemoteRestoreStreamsPrivateSnapshotAndSkipsInstalledBinary(t *testing.T
 						fmt.Fprintln(ch.Stderr(), "old binary")
 						return 2
 					}
-					fmt.Fprintln(ch, "SSH banner\n{\"restore_protocol\":1}")
+					fmt.Fprintln(ch, "SSH banner\n{\"restore_protocol\":2}")
 					return 0
 				case strings.Contains(cmd, "install_script=$(mktemp)"):
 					installs.Add(1)
@@ -153,7 +153,7 @@ func TestRemoteRestoreRejectsCorruptionBeforeRunningRestoreAndCleansUpload(t *te
 		t.Fatal(err)
 	}
 	checksum := fmt.Sprintf("%x", sha256.Sum256([]byte("expected archive")))
-	script := strings.ReplaceAll(remoteRestoreScript(checksum), "/usr/local/bin/backpack", binary)
+	script := strings.ReplaceAll(remoteRestoreScript(checksum, "203.0.113.20"), "/usr/local/bin/backpack", binary)
 	script = strings.ReplaceAll(script, "/tmp/backpack-restore.", dir+"/backpack-restore.")
 	cmd := exec.Command("sh", "-c", script)
 	cmd.Stdin = strings.NewReader("corrupted archive")
@@ -252,7 +252,7 @@ func TestRemoteRestoreReportsPartialFailureAndCancellation(t *testing.T) {
 					return 0
 				}
 				if strings.Contains(cmd, "backup capabilities") {
-					fmt.Fprintln(ch, "{\"restore_protocol\":1}")
+					fmt.Fprintln(ch, "{\"restore_protocol\":2}")
 					return 0
 				}
 				io.Copy(io.Discard, ch)
@@ -261,10 +261,10 @@ func TestRemoteRestoreReportsPartialFailureAndCancellation(t *testing.T) {
 					time.Sleep(100 * time.Millisecond)
 					return 0
 				case "failed-tunnel":
-					fmt.Fprintln(ch, "{\"restore_protocol\":1,\"Files\":1,\"Failed\":2}")
+					fmt.Fprintln(ch, "{\"restore_protocol\":2,\"Files\":1,\"Failed\":2}")
 					return 4
 				case "failed-panel":
-					fmt.Fprintln(ch, "{\"restore_protocol\":1,\"Files\":1,\"panel_error\":\"port in use\"}")
+					fmt.Fprintln(ch, "{\"restore_protocol\":2,\"Files\":1,\"panel_error\":\"port in use\"}")
 					return 4
 				default:
 					fmt.Fprintln(ch, "{}")
