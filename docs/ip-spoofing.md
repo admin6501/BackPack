@@ -348,4 +348,4 @@ If you set it, nothing changes: it was never doing anything.
 
 ---
 
-*Last verified against Backpack v1.8.18.*
+*Last verified against Backpack v1.8.19.*

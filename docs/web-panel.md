@@ -15,6 +15,17 @@ English/Persian plus light, dark, and system themes. Set the Telegram support
 username there as well; exhausted quotas display a renewal message with that
 contact. The link is a bearer URL, so share it only with that tunnel's customer.
 
+Customer pages are served only at `/status/<id>`, and the read-only API only
+at `/api/public/status`. Their old URLs under the administrator path return
+404 without redirecting to login. On the first panel start after upgrading to
+v1.8.19, a panel with saved customer links gets a new secret administrator path
+once, including when those links are disabled. Find the new panel URL in
+`sudo backpack` → **Web Panel**. Passwords, TOTP and customer IDs stay the same;
+send customers the root `/status/<id>` URL. An explicitly root-mounted panel
+or one that never had customer links keeps its address. Later starts keep the
+new address. The custom panel path `status` is reserved for customer pages;
+an existing panel using it also gets a replacement path to keep login reachable.
+
 Run it on the **Iran** server, where you watch things from. To limit user
 traffic on a reverse tunnel, set its quota on this entry server. The service
 keeps watching its configuration after the tunnel pauses at the cap, so raising
@@ -147,4 +158,4 @@ that does the same job — is in
 
 ---
 
-*Last verified against Backpack v1.8.18.*
+*Last verified against Backpack v1.8.19.*
