@@ -61,4 +61,4 @@ release-based.
 
 ---
 
-*Last verified against Backpack v1.8.19.*
+*Last verified against Backpack v1.8.20.*

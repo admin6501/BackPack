@@ -75,8 +75,10 @@ var (
 // from the menu, the panel and the node RPC, and a split that moved the names
 // would be a split that touched every caller.
 type (
-	Snapshot     = backup.Snapshot
-	SnapshotMeta = backup.SnapshotMeta
+	RestoreResult = backup.RestoreResult
+	RestoreReport = backup.RestoreReport
+	Snapshot      = backup.Snapshot
+	SnapshotMeta  = backup.SnapshotMeta
 )
 
 var (
@@ -85,14 +87,15 @@ var (
 	ListSnapshots   = backup.ListSnapshots
 	SnapshotRoot    = backup.Root
 
-	WriteBackup       = backup.WriteBackup
-	BackupToFile      = backup.BackupToFile
-	Restore           = backup.Restore
-	OffsiteCommand    = backup.OffsiteCommand
-	SetOffsiteCommand = backup.SetOffsiteCommand
-	SendOffsite       = backup.SendOffsite
-	NewestBackup      = backup.NewestBackup
-	TestRestore       = backup.TestRestore
+	WriteBackup        = backup.WriteBackup
+	BackupToFile       = backup.BackupToFile
+	Restore            = backup.Restore
+	RestoreForServerIP = backup.RestoreForServerIP
+	OffsiteCommand     = backup.OffsiteCommand
+	SetOffsiteCommand  = backup.SetOffsiteCommand
+	SendOffsite        = backup.SendOffsite
+	NewestBackup       = backup.NewestBackup
+	TestRestore        = backup.TestRestore
 
 	AutoBackupEnabled = backup.AutoBackupEnabled
 	SetAutoBackup     = backup.SetAutoBackup

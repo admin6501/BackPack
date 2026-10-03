@@ -201,6 +201,9 @@ certificates and the auto-refresh schedule** into one portable `.tar.gz` under
 |---|---|
 | **Create a backup file** | Choose the directory; the file is timestamped. **Keep it private — it contains tokens and the panel password.** |
 | **Restore from a backup file** | Pick one from the folder or enter a path. **Overwrites** existing tunnels and settings, after a confirm. The panel is restarted so a restored password takes effect. |
+| **Copy backups off this machine** | Configure the command used to copy automatic backups elsewhere. |
+| **Test a restore** | Validate an archive and report its contents without changing settings. |
+| **Restore on another server over SSH** | Option 5: choose a backup, enter the destination IP, SSH port, username and hidden password. Confirm the destination, then install/update Backpack if needed, transfer, verify and restore the archive. Requires root or passwordless sudo. |
 
 [More](backup-restore.md)
 
@@ -421,4 +424,4 @@ FEC؛ و zero-copy (فقط روی tcp ساده).
 
 ---
 
-*Last verified against Backpack v1.8.19.*
+*Last verified against Backpack v1.8.20.*

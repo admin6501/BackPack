@@ -77,7 +77,7 @@ from where the backup left off rather than resetting to zero.
 
 ## Getting a backup off the machine
 
-Backups are written to `/var/backups/backpack` — on the server they describe.
+Backups are written to `/root/BackPack/backups` — on the server they describe.
 The case they exist for is the case where that server is gone, so a copy
 somewhere else is the only one that will be there.
 
@@ -134,6 +134,78 @@ silent otherwise:
 
 Run it after any change to what the machine holds, and once before you need it.
 
+## Restoring onto another server over SSH
+
+**Backup & Restore → Restore on another server over SSH** (option 5) picks an
+existing backup or a custom archive path, then asks for the destination IP,
+SSH port (default 22), username (default root), and a hidden password. The
+destination must run Linux with coreutils and allow root login or passwordless
+`sudo` for the selected user.
+
+Before changing the destination, Backpack validates a private snapshot of the
+archive, checks SSH and privileges, and displays the destination, SSH host-key
+fingerprint and backup contents for confirmation. Cancel leaves destination
+settings untouched. The password is used only for this connection, never
+stored in the managed-server list or placed in command arguments.
+
+After confirmation it keeps an installed Backpack that supports automatic
+restore. If Backpack is absent, or its version predates the automatic restore
+command, it runs the official installer to install/update it first. The installer
+is pinned to an audited commit and its SHA-256 is checked before execution. It transfers
+the archive over the same encrypted SSH connection to a private temporary file,
+checks SHA-256, and runs the existing restore operation. Uploaded and local
+temporary archives are removed on completion or failure. If the connection is
+lost during restore, inspect the destination before retrying: it may already
+have applied the settings.
+
+Matching configurations are overwritten and tunnels restarted; destination
+configurations not named in the backup remain. A failed tunnel restart or web
+panel restart is reported as a partial restore, never as full success.
+For **server/listener** configurations only, explicit local IP bindings are
+replaced with the destination IP, including the local side of reverse-server
+port mappings. Ports, backend targets, wildcard/loopback bindings, client/dial
+configurations, real peer addresses, private tunnel addresses and forged spoof
+sources are kept as saved. Only tunnels contained in the archive are migrated.
+
+Traffic totals, quota limits, customer links/settings, country labels and
+history are restored as recorded **when the backup was created**. The CLI
+stops active tunnel, panel and monitor writers before applying the staged
+configuration, preventing their final flushes from overwriting archived usage.
+Unarchived destination data keeps its final counters. Previously active
+services are resumed; inability to stop a writer aborts before the commit, and
+failure to resume a service is reported as partial recovery. Sealed fleet passwords still need the separately kept
+fleet key; this option does not transfer that key.
+
+For automation on the destination:
+
+```sh
+backpack backup capabilities --json
+backpack backup check /path/to/backup.tar.gz --json
+sudo backpack backup restore /path/to/backup.tar.gz --yes --server-ip 203.0.113.20 --json
+```
+
+`capabilities` advertises `restore_protocol: 2`. `check` validates without
+changing settings. `restore` requires root and `--yes`; exit code 4 means the
+settings were applied but a restored service failed to start.
+
+<div dir="rtl">
+
+از **Backup & Restore → گزینهٔ ۵، Restore on another server over SSH** بکاپ
+را انتخاب کنید و آی‌پی، پورت SSH، نام کاربری و رمز سرور مقصد را وارد کنید.
+رمز مخفی وارد می‌شود و ذخیره نمی‌شود. بعد از بررسی اتصال و نمایش مشخصات
+مقصد، ریستور را تأیید کنید. اگر بک‌پک نصب نباشد نصب می‌شود؛ نسخه‌های قدیمی
+که فرمان ریستور خودکار ندارند، ابتدا به‌روزرسانی می‌شوند. فایل به‌صورت امن
+منتقل و صحت آن بررسی می‌شود، سپس تنظیمات ریستور و تونل‌ها ری‌استارت می‌شوند.
+نام کاربری باید root باشد یا دسترسی sudo بدون رمز داشته باشد. فقط آی‌پی‌های
+واقعیِ محل گوش‌دادن در تونل‌های سرور با آی‌پی مقصد جایگزین می‌شوند؛ تنظیمات
+کلاینت، آی‌پی جعلی اسپوف، آی‌پی خصوصی تونل، پورت‌ها و مقصد بک‌اند تغییر نمی‌کنند.
+مصرف و تاریخچه تا زمان ساخت بکاپ، سقف ترافیک و اطلاعات کاربران حفظ می‌شوند.
+سرویس‌های نویسندهٔ مصرف پیش از اعمال بکاپ متوقف و سپس دوباره فعال می‌شوند تا
+شمارنده‌های قدیمی مقصد، مصرف ریستورشده را بازنویسی نکنند. کلید fleet جداگانه
+باید نگهداری و در صورت نیاز روی مقصد وارد شود.
+
+</div>
+
 ---
 
-*Last verified against Backpack v1.8.19.*
+*Last verified against Backpack v1.8.20.*

@@ -49,6 +49,8 @@ type restoreContents struct {
 	WebUIConfig      bool
 	TelegramConfig   bool
 	SawTunnelConfig  bool
+	TunnelFiles      []string
+	ArchiveFiles     map[string]bool
 	AutoRefreshHours int
 
 	// Warnings are things the restore carried on past and the operator should
@@ -178,6 +180,7 @@ func stageRestore(r io.Reader, configDir, stage string) (restoreContents, error)
 		return contents, fmt.Errorf("the archive is corrupt or truncated: %w", err)
 	}
 
+	contents.ArchiveFiles = seen
 	return contents, nil
 }
 
@@ -256,6 +259,7 @@ func noteRestoredFile(contents *restoreContents, name string) {
 		contents.TelegramConfig = true
 	case strings.HasSuffix(base, ".toml"):
 		contents.SawTunnelConfig = true
+		contents.TunnelFiles = append(contents.TunnelFiles, name)
 	}
 }
 
@@ -293,6 +297,10 @@ func safeRestoreName(name string) (string, error) {
 // seedStage copies configDir into stage so the staging tree starts out as the
 // installation that is there now.
 func seedStage(configDir, stage string) error {
+	return seedStageExcept(configDir, stage, nil)
+}
+
+func seedStageExcept(configDir, stage string, archived map[string]bool) error {
 	return filepath.Walk(configDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -310,6 +318,9 @@ func seedStage(configDir, stage string) error {
 		case info.IsDir():
 			return os.MkdirAll(target, info.Mode().Perm())
 		case info.Mode().IsRegular():
+			if archived[filepath.ToSlash(rel)] {
+				return nil
+			}
 			return copyFileTo(path, target, info.Mode().Perm())
 		default:
 			// The commit replaces the directory, so anything not copied here

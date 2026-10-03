@@ -371,11 +371,17 @@ func (r *SSHRunner) Install(name string) (string, error) {
 	return string(out), nil
 }
 
-func installerCommand(url string) string {
-	return "install_script=$(mktemp) || { echo 'could not create a temporary installer file' >&2; exit 1; }; " +
+func installerCommand(url string, expectedSHA ...string) string {
+	verify := ""
+	if len(expectedSHA) > 0 {
+		verify = "printf '%s  %s\\n' " + quote(expectedSHA[0]) + " \"$install_script\" | sha256sum -c - >&2 || " +
+			"{ echo 'Backpack installer checksum mismatch; refusing to execute it' >&2; exit 1; }; "
+	}
+	return "umask 077; install_script=$(mktemp) || { echo 'could not create a temporary installer file' >&2; exit 1; }; " +
 		"trap 'rm -f \"$install_script\"' EXIT; " +
 		"curl -fsSL " + quote(url) + " -o \"$install_script\" || " +
 		"{ rc=$?; echo \"could not download Backpack installer (curl exit $rc)\" >&2; exit \"$rc\"; }; " +
+		verify +
 		"bash \"$install_script\" < /dev/null || " +
 		"{ rc=$?; echo \"Backpack installer exited with status $rc\" >&2; exit \"$rc\"; }"
 }
