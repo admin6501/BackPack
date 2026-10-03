@@ -103,7 +103,7 @@ func TestEveryScreenDrawsAndComesBack(t *testing.T) {
 		wants []string
 	}{
 		{"manage", manageMenu, []string{"Manage"}},
-		{"backup", backupMenu, []string{"Backup"}},
+		{"backup", backupMenu, []string{"Backup", "Restore on another server over SSH"}},
 		{"web panel", webPanelMenu, []string{"Web Panel"}},
 		{"telegram", telegramMenu, []string{"Telegram"}},
 		{"update", updateMenu, []string{"Update"}},

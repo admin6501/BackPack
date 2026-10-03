@@ -74,6 +74,9 @@ const usage = `backpack — non-interactive commands
   backpack tunnel status <name> [--json]  one tunnel: state, peer, and what it has carried
   backpack check -c <file>              validate a config without starting it
   backpack version [--json]
+  backpack backup capabilities [--json]
+  backpack backup check <file> [--json]
+  backpack backup restore <file> --yes [--server-ip <IP>] [--json]
 
 Run backpack with no arguments for the interactive menu.
 Exit codes: 0 ok, 1 failed, 2 usage, 3 not found, 4 unhealthy.
@@ -93,6 +96,8 @@ func Run(args []string) Result {
 		args = append(append([]string{}, args...), "--json")
 	}
 	switch args[0] {
+	case "backup":
+		return runBackup(args[1:])
 	case "tunnel":
 		return runTunnel(args[1:])
 	case "check":
@@ -418,7 +423,7 @@ func takeJSONFlag(args []string) (bool, []string) {
 // drifting — a command added below is routable immediately.
 func IsCommand(s string) bool {
 	switch s {
-	case "tunnel", "check", "version":
+	case "tunnel", "check", "version", "backup":
 		return true
 	}
 	return false

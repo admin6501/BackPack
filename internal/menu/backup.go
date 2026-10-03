@@ -38,12 +38,14 @@ func backupMenu() {
 			{Title: "Restore from a backup file", Desc: "pick one from the folder or enter a path"},
 			{Title: "Copy backups off this machine", Desc: "where the weekly backup is sent — " + offsiteLabel()},
 			{Title: "Test a restore", Desc: "prove a backup file would actually restore, changing nothing"},
+			{Title: "Restore on another server over SSH", Desc: "check/install Backpack, transfer a backup and restore it"},
 		}
 		actions := []func(){
 			createBackup,
 			restoreBackup,
 			configureOffsite,
 			testRestore,
+			restoreRemoteBackup,
 		}
 		// Only offered where it means something: a machine with no managed
 		// servers has no sealed password and nothing to keep.
@@ -131,7 +133,7 @@ func createBackup() {
 
 // restoreBackup restores tunnels and settings from an archive picked from the
 // backup folder (or a manually entered path).
-func restoreBackup() {
+func chooseBackup() string {
 	archives, _ := filepath.Glob(app.BackupDir + "/*.tar.gz")
 
 	var path string
@@ -145,7 +147,7 @@ func restoreBackup() {
 		idx := tui.ChooseOpt("Restore which backup:", opts)
 		switch {
 		case idx < 0:
-			return
+			return ""
 		case idx < len(archives):
 			path = archives[idx]
 		default:
@@ -155,6 +157,11 @@ func restoreBackup() {
 		tui.Warn("No backups found in " + app.BackupDir + " — enter a path manually.")
 		path = tui.Prompt("Path to the backup .tar.gz file: ")
 	}
+	return path
+}
+
+func restoreBackup() {
+	path := chooseBackup()
 	if path == "" {
 		return
 	}

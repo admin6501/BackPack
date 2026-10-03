@@ -34,6 +34,7 @@ type backupMeta struct {
 
 // RestoreResult summarises what a restore put back in place.
 type RestoreResult struct {
+	ServicesFailed   []string // previously active writers that could not resume
 	Files            int      // config files written to disk
 	Tunnels          []string // tunnels re-registered as systemd services
 	Started          int      // tunnels successfully started
@@ -139,6 +140,9 @@ func writeBackupEntries(tw *tar.Writer, root string) error {
 		// leaves those passwords unreadable, and the fleet screen asks for them
 		// again — which is what an operator would choose if they were asked
 		// whether a backup should carry them.
+		if orphanAccounting(root, filepath.ToSlash(rel)) {
+			return nil
+		}
 		if rel == fleetKeyName {
 			return nil
 		}
@@ -340,7 +344,17 @@ func syncDir(dir string) {
 // The caller is responsible for (re)starting the web-panel service afterwards —
 // that lives in the webui package to avoid an import cycle.
 func Restore(r io.Reader) (RestoreResult, error) {
-	var res RestoreResult
+	return restore(r, false)
+}
+
+// RestoreOffline is the independent CLI recovery path. Unlike an in-panel
+// restore it can safely stop the panel/monitor and tunnel writers before the
+// atomic commit, so their final writes cannot overwrite restored usage.
+func RestoreOffline(r io.Reader) (RestoreResult, error) {
+	return restore(r, true)
+}
+
+func restore(r io.Reader, quiesce bool) (res RestoreResult, err error) {
 
 	if err := os.MkdirAll(app.ConfigDir, 0755); err != nil {
 		return res, err
@@ -358,6 +372,31 @@ func Restore(r io.Reader) (RestoreResult, error) {
 	contents, err := stageRestore(r, app.ConfigDir, stage)
 	if err != nil {
 		// Staging failed, so the live directory was never touched.
+		return res, err
+	}
+	if quiesce {
+		services := []string{app.MonitorService, app.WebUIService}
+		for _, t := range core.List() {
+			services = append(services, t.Service)
+		}
+		resume, stopErr := pauseRestoreWriters(services, core.Systemctl)
+		defer func() {
+			res.ServicesFailed = resume()
+			for _, service := range res.ServicesFailed {
+				res.Warnings = append(res.Warnings, "Could not resume "+service)
+			}
+		}()
+		if stopErr != nil {
+			return res, stopErr
+		}
+		// Services flush their final counters while stopping. Refresh only files
+		// absent from the archive, preserving both those latest destination
+		// totals and every archived metric/history/accounting byte unchanged.
+		if err := seedStageExcept(app.ConfigDir, stage, contents.ArchiveFiles); err != nil {
+			return res, err
+		}
+	}
+	if err := pruneOrphanAccounting(stage); err != nil {
 		return res, err
 	}
 	if err := commitRestore(app.ConfigDir, stage); err != nil {
