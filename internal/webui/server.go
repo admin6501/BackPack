@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 8944)
+Total output lines: 920
+
 package webui
 
 import (
@@ -409,74 +412,7 @@ func (srv *server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/update/status", srv.requireAuth(srv.handleUpdateStatus))
 	mux.HandleFunc("/api/panelport", srv.requireAdmin(srv.handlePanelPort))
 	mux.HandleFunc("/api/panelcert", srv.requireAdmin(srv.handlePanelCert))
-	mux.HandleFunc("/api/backup/export", srv.requireAdmin(srv.handleBackupExport))
-	mux.HandleFunc("/api/backup/import", srv.requireAdmin(srv.handleBackupImport))
-	mux.HandleFunc("/api/telegram", srv.requireAdmin(srv.handleTelegram))
-	mux.HandleFunc("/api/telegram/test", srv.requireAuth(srv.handleTelegramTest))
-	mux.HandleFunc("/api/relays", srv.requireAuth(srv.handleRelayOptions))
-	mux.HandleFunc("/api/health", srv.requireAuth(srv.handleHealth))
-	mux.HandleFunc("/api/alerts", srv.requireReadAuth(srv.handleAlerts))
-	mux.HandleFunc("/api/linktest", srv.requireAuth(srv.handleLinkTest))
-	mux.HandleFunc("/api/confhist", srv.requireAuth(srv.handleConfHistory))
-	mux.HandleFunc("/api/confhist/restore", srv.requireAuth(srv.handleConfRestore))
-	mux.HandleFunc("/api/speedtest/plan", srv.requireAuth(srv.handleSpeedTestPlan))
-	mux.HandleFunc("/api/speedtest", srv.requireAuth(srv.handleSpeedTestRun))
-	mux.HandleFunc("/api/restorepoints", srv.requireAuth(srv.handleRestorePoints))
-	// Access control. Issuing a credential is guarded harder than using one:
-	// a write token must not be able to mint itself a better one. See access.go.
-	mux.HandleFunc("/api/tokens", srv.guard(ScopeAdmin, srv.handleTokens))
-	mux.HandleFunc("/api/audit", srv.guard(ScopeAdmin, srv.handleAudit))
-	mux.HandleFunc("/api/sessions", srv.requireAdmin(srv.handleSessions))
-	mux.HandleFunc("/api/autobackup", srv.requireAuth(srv.handleAutoBackup))
-	mux.HandleFunc("/api/history", srv.requireAuth(srv.handleHistory))
-	mux.HandleFunc("/api/channel", srv.requireAuth(srv.handleChannel))
-	// The manifest, icons and service worker are what let the panel install as
-	// an app; the browser fetches them before any login, so they carry no data
-	// and no auth. The worker is required for an install offer and must be
-	// served from the root to control the whole origin.
-	mux.HandleFunc("/manifest.json", handleManifest)
-	mux.HandleFunc("/icon.svg", handleIcon)
-	mux.HandleFunc("/icons/", handleIconPNG)
-	mux.HandleFunc("/sw.js", handleServiceWorker)
-	return mux
-}
-
-// requireAuth wraps a handler, redirecting unauthenticated users to /login
-// (or 401 for API calls).
-func (s *server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
-	return s.guard(ScopeWrite, next)
-}
-
-// requireReadAuth guards the endpoints that only read.
-//
-// It used to accept a second credential as well — a read-only token, for a
-// scraper or a peer panel. Nothing used it: it had to be minted by hand from a
-// screen most operators never opened, so nothing issued it, and a credential
-// nobody issues is a credential nobody rotates. Removing it was right and it
-// left /metrics — an endpoint built for scrapers — behind a session cookie,
-// which no scraper has.
-//
-// Tokens are back, and the reasons they were removed are addressed rather than
-// repeated: they are scoped like everything else, they are listed where an
-// operator sees them, they carry a required expiry, and they record when they
-// were last used so a dead one can be recognised. See access.go.
-func (s *server) requireReadAuth(next http.HandlerFunc) http.HandlerFunc {
-	return s.guard(ScopeRead, next)
-}
-
-// requireAdmin guards the endpoints that decide who can get in: the password,
-// the second factor, the signed-in devices, the Telegram admins, the panel's
-// own address and certificate, and the backup — which carries the password out
-// in one direction and can replace every credential file in the other.
-//
-// Any one of them turns a write token into the panel password, and the panel
-// password is admin. Guarding /api/tokens at admin while these sat at write
-// was a door locked beside one standing open.
-func (s *server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return s.guard(ScopeAdmin, next)
-}
-
-// guard is the one place a request is authorised, and therefore the one place
+	mux.Handl…944 tokens truncated…ace a request is authorised, and therefore the one place
 // an action is recorded.
 //
 // Splitting those two jobs is the obvious design and it is the wrong one. An
@@ -893,7 +829,12 @@ func writeJSON(w http.ResponseWriter, v any) {
 
 func randomHex(n int) string {
 	b := make([]byte, n)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// A zero-filled token would make sessions, TOTP challenges, or public
+		// status links predictable if the system entropy source is unavailable.
+		// Fail closed instead of issuing a credential with weaker randomness.
+		panic(err)
+	}
 	return hex.EncodeToString(b)
 }
 
