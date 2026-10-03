@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 
 	"github.com/backpack/backpack/internal/app"
@@ -30,31 +29,23 @@ func runBackup(args []string) Result {
 		}
 		return ok(r.Summary())
 	}
-	serverIP := ""
-	if len(args) == 5 && args[3] == "--server-ip" {
-		serverIP = args[4]
-		if ip := net.ParseIP(serverIP); ip == nil || ip.IsUnspecified() || ip.IsMulticast() {
-			return fail(CodeUsage, "--server-ip needs a valid destination IP.\n")
-		}
-		args = args[:3]
-	}
 	if len(args) != 3 || args[0] != "restore" || args[2] != "--yes" {
-		return fail(CodeUsage, "Use backup capabilities, backup check <file>, or backup restore <file> --yes [--server-ip <IP>] [--json].\n")
+		return fail(CodeUsage, "Use backup capabilities, backup check <file>, or backup restore <file> --yes [--json].\n")
 	}
 	if os.Geteuid() != 0 {
 		return fail(CodeFailed, "Backup restore requires root.\n")
 	}
-	return restoreBackupFile(args[1], asJSON, serverIP)
+	return restoreBackupFile(args[1], asJSON)
 }
 
 // Called only after the public command has checked root and --yes.
-func restoreBackupFile(path string, asJSON bool, serverIP string) Result {
+func restoreBackupFile(path string, asJSON bool) Result {
 	f, err := os.Open(path)
 	if err != nil {
 		return fail(CodeFailed, "Cannot open backup: %v\n", err)
 	}
 	defer f.Close()
-	r, err := manage.RestoreForServerIP(f, serverIP)
+	r, err := manage.RestoreOffline(f)
 	if err != nil {
 		return fail(CodeFailed, "Restore failed: %v\n", err)
 	}

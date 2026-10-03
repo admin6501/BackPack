@@ -161,11 +161,10 @@ have applied the settings.
 Matching configurations are overwritten and tunnels restarted; destination
 configurations not named in the backup remain. A failed tunnel restart or web
 panel restart is reported as a partial restore, never as full success.
-For **server/listener** configurations only, explicit local IP bindings are
-replaced with the destination IP, including the local side of reverse-server
-port mappings. Ports, backend targets, wildcard/loopback bindings, client/dial
-configurations, real peer addresses, private tunnel addresses and forged spoof
-sources are kept as saved. Only tunnels contained in the archive are migrated.
+IP addresses and tunnel settings remain exactly as saved. Orphan metrics and
+configuration-history files without a matching tunnel config are excluded from
+new backups and removed from the staged restore, including older archives.
+Active tunnel counters and histories are retained.
 
 Traffic totals, quota limits, customer links/settings, country labels and
 history are restored as recorded **when the backup was created**. The CLI
@@ -181,7 +180,7 @@ For automation on the destination:
 ```sh
 backpack backup capabilities --json
 backpack backup check /path/to/backup.tar.gz --json
-sudo backpack backup restore /path/to/backup.tar.gz --yes --server-ip 203.0.113.20 --json
+sudo backpack backup restore /path/to/backup.tar.gz --yes --json
 ```
 
 `capabilities` advertises `restore_protocol: 2`. `check` validates without
@@ -196,9 +195,7 @@ settings were applied but a restored service failed to start.
 مقصد، ریستور را تأیید کنید. اگر بک‌پک نصب نباشد نصب می‌شود؛ نسخه‌های قدیمی
 که فرمان ریستور خودکار ندارند، ابتدا به‌روزرسانی می‌شوند. فایل به‌صورت امن
 منتقل و صحت آن بررسی می‌شود، سپس تنظیمات ریستور و تونل‌ها ری‌استارت می‌شوند.
-نام کاربری باید root باشد یا دسترسی sudo بدون رمز داشته باشد. فقط آی‌پی‌های
-واقعیِ محل گوش‌دادن در تونل‌های سرور با آی‌پی مقصد جایگزین می‌شوند؛ تنظیمات
-کلاینت، آی‌پی جعلی اسپوف، آی‌پی خصوصی تونل، پورت‌ها و مقصد بک‌اند تغییر نمی‌کنند.
+نام کاربری باید root باشد یا دسترسی sudo بدون رمز داشته باشد. آدرس‌ها و تنظیمات تونل مطابق بکاپ باقی می‌مانند.
 مصرف و تاریخچه تا زمان ساخت بکاپ، سقف ترافیک و اطلاعات کاربران حفظ می‌شوند.
 سرویس‌های نویسندهٔ مصرف پیش از اعمال بکاپ متوقف و سپس دوباره فعال می‌شوند تا
 شمارنده‌های قدیمی مقصد، مصرف ریستورشده را بازنویسی نکنند. کلید fleet جداگانه

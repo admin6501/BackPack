@@ -28,16 +28,13 @@ func TestBackupRestoreCommandReadsArchiveAndReportsFailure(t *testing.T) {
 	if err := os.WriteFile(path, []byte("the selected archive"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	old := manage.RestoreForServerIP
+	old := manage.RestoreOffline
 	oldMonitor := manage.EnsureMonitorService
-	t.Cleanup(func() { manage.RestoreForServerIP = old })
+	t.Cleanup(func() { manage.RestoreOffline = old })
 	t.Cleanup(func() { manage.EnsureMonitorService = oldMonitor })
 	monitorStarts := 0
 	manage.EnsureMonitorService = func() error { monitorStarts++; return nil }
-	manage.RestoreForServerIP = func(r io.Reader, ip string) (manage.RestoreResult, error) {
-		if ip != "203.0.113.20" {
-			t.Error("destination IP did not reach the restore operation")
-		}
+	manage.RestoreOffline = func(r io.Reader) (manage.RestoreResult, error) {
 		b, err := io.ReadAll(r)
 		if err != nil || string(b) != "the selected archive" {
 			t.Error("wrong archive passed to restore")
@@ -45,7 +42,7 @@ func TestBackupRestoreCommandReadsArchiveAndReportsFailure(t *testing.T) {
 		return manage.RestoreResult{Files: 3, Started: 1, Warnings: []string{"fleet key needed"}}, nil
 	}
 	for _, asJSON := range []bool{false, true} {
-		r := restoreBackupFile(path, asJSON, "203.0.113.20")
+		r := restoreBackupFile(path, asJSON)
 		if r.Code != CodeOK {
 			t.Fatalf("restore: %+v", r)
 		}
@@ -65,16 +62,16 @@ func TestBackupRestoreCommandReadsArchiveAndReportsFailure(t *testing.T) {
 		t.Fatal("fresh destination monitor was not started after restore")
 	}
 	manage.EnsureMonitorService = func() error { return errors.New("monitor failed") }
-	if r := restoreBackupFile(path, true, "203.0.113.20"); r.Code != CodeUnhealthy {
+	if r := restoreBackupFile(path, true); r.Code != CodeUnhealthy {
 		t.Fatal("monitor startup failure reported as success")
 	}
-	manage.RestoreForServerIP = func(io.Reader, string) (manage.RestoreResult, error) {
+	manage.RestoreOffline = func(io.Reader) (manage.RestoreResult, error) {
 		return manage.RestoreResult{}, errors.New("bad archive")
 	}
-	if r := restoreBackupFile(path, true, ""); r.Code != CodeFailed || !strings.Contains(r.Err, "bad archive") {
+	if r := restoreBackupFile(path, true); r.Code != CodeFailed || !strings.Contains(r.Err, "bad archive") {
 		t.Fatalf("restore failure: %+v", r)
 	}
-	if r := restoreBackupFile(path+".missing", false, ""); r.Code != CodeFailed {
+	if r := restoreBackupFile(path+".missing", false); r.Code != CodeFailed {
 		t.Fatal("missing archive accepted")
 	}
 }

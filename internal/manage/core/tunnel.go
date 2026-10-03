@@ -83,12 +83,17 @@ func LoadTunnelConfig(name string) (config.Config, error) {
 // Delete removes a tunnel: stops/disables the service, deletes the unit,
 // config, any per-tunnel refresh script, and reloads systemd.
 func Delete(name string) error {
+	if err := CheckName(name); err != nil {
+		return err
+	}
 	service := app.ServiceName(name)
 	if IsActive(service) || IsEnabled(service) {
 		_ = DisableService(service)
 	}
 	removeUnit(name)
 	os.Remove(app.ConfigPath(name))
+	os.Remove(filepath.Join(app.ConfigDir, name+".metrics.json"))
+	os.Remove(filepath.Join(app.ConfigDir, "history", name+".json"))
 	deleteTunnelMeta(name)
 	// The other end, if it was on a managed server, is left running there —
 	// there is deliberately no operation that removes a tunnel on a node, and a

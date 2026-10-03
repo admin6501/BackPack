@@ -57,7 +57,7 @@ func TestRemoteRestoreStreamsPrivateSnapshotAndSkipsInstalledBinary(t *testing.T
 			binary := filepath.Join(dir, "backpack")
 			captured := filepath.Join(dir, "received.tar.gz")
 			// The actual remote shell runs; only Backpack/systemd are replaced.
-			body := "#!/bin/sh\n[ \"$5\" = --server-ip ] && [ \"$6\" = 127.0.0.1 ] || exit 2\ncp \"$3\" " + quote(captured) + "\nstat -c '%a' \"$3\" > " + quote(filepath.Join(dir, "mode")) + "\nprintf '%s\\n' '{\"restore_protocol\":2,\"Files\":1,\"Started\":1,\"Failed\":0}'\n"
+			body := "#!/bin/sh\n\ncp \"$3\" " + quote(captured) + "\nstat -c '%a' \"$3\" > " + quote(filepath.Join(dir, "mode")) + "\nprintf '%s\\n' '{\"restore_protocol\":2,\"Files\":1,\"Started\":1,\"Failed\":0}'\n"
 			if err := os.WriteFile(binary, []byte(body), 0700); err != nil {
 				t.Fatal(err)
 			}
@@ -153,7 +153,7 @@ func TestRemoteRestoreRejectsCorruptionBeforeRunningRestoreAndCleansUpload(t *te
 		t.Fatal(err)
 	}
 	checksum := fmt.Sprintf("%x", sha256.Sum256([]byte("expected archive")))
-	script := strings.ReplaceAll(remoteRestoreScript(checksum, "203.0.113.20"), "/usr/local/bin/backpack", binary)
+	script := strings.ReplaceAll(remoteRestoreScript(checksum), "/usr/local/bin/backpack", binary)
 	script = strings.ReplaceAll(script, "/tmp/backpack-restore.", dir+"/backpack-restore.")
 	cmd := exec.Command("sh", "-c", script)
 	cmd.Stdin = strings.NewReader("corrupted archive")

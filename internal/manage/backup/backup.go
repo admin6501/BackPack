@@ -34,7 +34,6 @@ type backupMeta struct {
 
 // RestoreResult summarises what a restore put back in place.
 type RestoreResult struct {
-	Migrated         []string // server/listener configs rebound to the destination
 	ServicesFailed   []string // previously active writers that could not resume
 	Files            int      // config files written to disk
 	Tunnels          []string // tunnels re-registered as systemd services
@@ -141,6 +140,9 @@ func writeBackupEntries(tw *tar.Writer, root string) error {
 		// leaves those passwords unreadable, and the fleet screen asks for them
 		// again — which is what an operator would choose if they were asked
 		// whether a backup should carry them.
+		if orphanAccounting(root, filepath.ToSlash(rel)) {
+			return nil
+		}
 		if rel == fleetKeyName {
 			return nil
 		}
@@ -342,17 +344,17 @@ func syncDir(dir string) {
 // The caller is responsible for (re)starting the web-panel service afterwards —
 // that lives in the webui package to avoid an import cycle.
 func Restore(r io.Reader) (RestoreResult, error) {
-	return restore(r, "", false)
+	return restore(r, false)
 }
 
-// RestoreForServerIP is the independent CLI recovery path. Unlike an in-panel
+// RestoreOffline is the independent CLI recovery path. Unlike an in-panel
 // restore it can safely stop the panel/monitor and tunnel writers before the
 // atomic commit, so their final writes cannot overwrite restored usage.
-func RestoreForServerIP(r io.Reader, destinationIP string) (RestoreResult, error) {
-	return restore(r, destinationIP, true)
+func RestoreOffline(r io.Reader) (RestoreResult, error) {
+	return restore(r, true)
 }
 
-func restore(r io.Reader, destinationIP string, quiesce bool) (res RestoreResult, err error) {
+func restore(r io.Reader, quiesce bool) (res RestoreResult, err error) {
 
 	if err := os.MkdirAll(app.ConfigDir, 0755); err != nil {
 		return res, err
@@ -371,12 +373,6 @@ func restore(r io.Reader, destinationIP string, quiesce bool) (res RestoreResult
 	if err != nil {
 		// Staging failed, so the live directory was never touched.
 		return res, err
-	}
-	if destinationIP != "" {
-		res.Migrated, err = migrateServerIPs(stage, contents.TunnelFiles, destinationIP)
-		if err != nil {
-			return res, err
-		}
 	}
 	if quiesce {
 		services := []string{app.MonitorService, app.WebUIService}
@@ -399,6 +395,9 @@ func restore(r io.Reader, destinationIP string, quiesce bool) (res RestoreResult
 		if err := seedStageExcept(app.ConfigDir, stage, contents.ArchiveFiles); err != nil {
 			return res, err
 		}
+	}
+	if err := pruneOrphanAccounting(stage); err != nil {
+		return res, err
 	}
 	if err := commitRestore(app.ConfigDir, stage); err != nil {
 		return res, err

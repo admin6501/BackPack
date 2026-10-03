@@ -23,14 +23,13 @@ import (
 // the archive. Credentials are never enrolled in the fleet or written to disk.
 // The same SSH connection is used before and after the operator's confirmation.
 type RemoteRestore struct {
-	client        *ssh.Client
-	file          *os.File
-	checksum      string
-	sudo          bool
-	destinationIP string
-	Fingerprint   string
-	NeedsInstall  bool
-	Report        manage.RestoreReport
+	client       *ssh.Client
+	file         *os.File
+	checksum     string
+	sudo         bool
+	Fingerprint  string
+	NeedsInstall bool
+	Report       manage.RestoreReport
 }
 
 const maxTransferBackup = 512 << 20
@@ -44,7 +43,7 @@ func PrepareRemoteRestore(ctx context.Context, target SSHTarget, path string) (_
 	if net.ParseIP(target.Host) == nil || target.Port < 0 || target.Port > 65535 || target.User == "" {
 		return nil, fmt.Errorf("a destination host, valid SSH port and username are required")
 	}
-	r := &RemoteRestore{destinationIP: target.Host}
+	r := &RemoteRestore{}
 	defer func() {
 		if err != nil {
 			r.Close()
@@ -144,7 +143,7 @@ func (r *RemoteRestore) Restore(ctx context.Context, progress func(string)) (man
 	if progress != nil {
 		progress("Transferring, verifying SHA-256 and restoring the backup...")
 	}
-	out, err := restoreSSHCommand(ctx, r.client, r.command(remoteRestoreScript(r.checksum, r.destinationIP)), r.file, sshInstallTimeout)
+	out, err := restoreSSHCommand(ctx, r.client, r.command(remoteRestoreScript(r.checksum)), r.file, sshInstallTimeout)
 	// Even a partial restore returns its result alongside a nonzero exit status.
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	var response struct {
@@ -173,12 +172,12 @@ func (r *RemoteRestore) Restore(ctx context.Context, progress func(string)) (man
 	return result, fmt.Errorf("destination did not return a valid restore result; verify it before retrying")
 }
 
-func remoteRestoreScript(checksum, destinationIP string) string {
+func remoteRestoreScript(checksum string) string {
 	return "set -eu; umask 077; dir=$(mktemp -d /tmp/backpack-restore.XXXXXXXXXX); " +
 		"trap 'rm -rf -- \"$dir\"' EXIT; trap 'exit 1' HUP INT TERM; " +
 		"cat > \"$dir/backup.tar.gz\"; " +
 		"printf '%s  %s\\n' " + quote(checksum) + " \"$dir/backup.tar.gz\" | sha256sum -c - >&2; " +
-		app.BinPath + " backup restore \"$dir/backup.tar.gz\" --yes --server-ip " + quote(destinationIP) + " --json < /dev/null"
+		app.BinPath + " backup restore \"$dir/backup.tar.gz\" --yes --json < /dev/null"
 }
 
 func (r *RemoteRestore) Close() {

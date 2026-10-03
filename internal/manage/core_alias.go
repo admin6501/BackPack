@@ -87,15 +87,15 @@ var (
 	ListSnapshots   = backup.ListSnapshots
 	SnapshotRoot    = backup.Root
 
-	WriteBackup        = backup.WriteBackup
-	BackupToFile       = backup.BackupToFile
-	Restore            = backup.Restore
-	RestoreForServerIP = backup.RestoreForServerIP
-	OffsiteCommand     = backup.OffsiteCommand
-	SetOffsiteCommand  = backup.SetOffsiteCommand
-	SendOffsite        = backup.SendOffsite
-	NewestBackup       = backup.NewestBackup
-	TestRestore        = backup.TestRestore
+	WriteBackup       = backup.WriteBackup
+	BackupToFile      = backup.BackupToFile
+	Restore           = backup.Restore
+	RestoreOffline    = backup.RestoreOffline
+	OffsiteCommand    = backup.OffsiteCommand
+	SetOffsiteCommand = backup.SetOffsiteCommand
+	SendOffsite       = backup.SendOffsite
+	NewestBackup      = backup.NewestBackup
+	TestRestore       = backup.TestRestore
 
 	AutoBackupEnabled = backup.AutoBackupEnabled
 	SetAutoBackup     = backup.SetAutoBackup
