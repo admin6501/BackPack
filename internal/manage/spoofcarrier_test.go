@@ -106,3 +106,19 @@ func TestAnUnsetSpoofCarrierRendersNothing(t *testing.T) {
 		t.Errorf("a tunnel with no forged source rendered spoof keys:\n%s", out)
 	}
 }
+
+func TestSetupAgainCanTurnExistingStealthOff(t *testing.T) {
+	sc := config.SpoofConfig{SpoofPeerIP: "203.0.113.10"}
+	applySpoofStealth(&sc)
+	input := "\n\n\n\n"
+	if len(routableInterfaces()) > 1 {
+		input += "\n"
+	}
+	input += "n\n"
+	restore := tui.SetInput(strings.NewReader(input))
+	defer restore()
+	askSpoofCarrier(&sc, true)
+	if spoofStealthOn(sc) || sc.SpoofPaddingMax != 0 || sc.SpoofPortMin != 0 {
+		t.Fatal("setup again kept previous stealth flags", sc)
+	}
+}

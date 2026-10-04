@@ -182,7 +182,7 @@ func TestMirroringADirectLinkSwapsTheSidesAndTheAddresses(t *testing.T) {
 	}
 	// The producer's local address is the receiver's peer, and the prefix is
 	// dropped because it describes the producer's end of the /30.
-	if f.LocalIP != "10.20.0.2" || f.PeerIP != "10.20.0.1" {
+	if f.LocalIP != "10.20.0.2/30" || f.PeerIP != "10.20.0.1" {
 		t.Errorf("tunnel addresses did not swap: local=%q peer=%q", f.LocalIP, f.PeerIP)
 	}
 	// Iran dials on a direct tunnel, so the kharej side is not given an address

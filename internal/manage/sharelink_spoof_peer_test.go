@@ -38,3 +38,12 @@ func TestSpoofPoolDoesNotPinOnePeerSource(t *testing.T) {
 		t.Fatal("rotating source incorrectly pinned", f.Spoof)
 	}
 }
+
+func TestPeerTunnelAddressKeepsProducersSubnetPrefix(t *testing.T) {
+	for _, prefix := range []string{"24", "30"} {
+		f := MirrorForPeer(ShareLink{Kind: "direct", From: "kharej", LocalIP: "10.10.0.2/" + prefix, PeerIP: "10.10.0.1"})
+		if f.LocalIP != "10.10.0.1/"+prefix || f.PeerIP != "10.10.0.2" {
+			t.Fatal("local prefix lost", f.LocalIP, f.PeerIP)
+		}
+	}
+}

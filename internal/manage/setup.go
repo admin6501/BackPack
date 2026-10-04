@@ -506,6 +506,8 @@ func askSpoofCarrier(sc *config.SpoofConfig, onIran bool) {
 	fmt.Println()
 	if tui.Confirm("Turn Stealth on", false) {
 		applySpoofStealth(sc)
+	} else {
+		clearSpoofStealth(sc)
 	}
 
 	spoofSummary(*sc, here, there)

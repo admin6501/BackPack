@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"reflect"
 	"strings"
 	"unicode/utf8"
@@ -353,6 +354,12 @@ func MirrorForPeer(l ShareLink) PeerForm {
 		// The private network's two addresses swap: the producer's local is the
 		// receiver's peer.
 		f.LocalIP, f.PeerIP = l.PeerIP, hostOf(l.LocalIP)
+		if !strings.Contains(f.LocalIP, "/") && net.ParseIP(f.LocalIP) != nil {
+			if _, network, err := net.ParseCIDR(l.LocalIP); err == nil {
+				ones, _ := network.Mask.Size()
+				f.LocalIP = fmt.Sprintf("%s/%d", f.LocalIP, ones)
+			}
+		}
 		if f.LocalIP != "" {
 			paired = append(paired, "localIp", "peerIp")
 		}
