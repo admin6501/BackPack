@@ -8,6 +8,7 @@ import (
 
 	"github.com/backpack/backpack/internal/control"
 	"github.com/backpack/backpack/internal/manage"
+	"github.com/backpack/backpack/internal/manage/spec"
 	"github.com/backpack/backpack/internal/node"
 	"github.com/backpack/backpack/internal/tui"
 	"golang.org/x/sys/unix"
@@ -165,18 +166,10 @@ func setUpPeer(t manage.Tunnel) {
 		tui.PressEnter()
 		return
 	}
-	// A kharej reverse tunnel has no forwarded-port list in its own config:
-	// those ports belong to Iran. Ask once for the missing local-to-peer value.
-	if apply.Tunnel != nil && apply.Tunnel.Role == "server" && strings.TrimSpace(apply.Tunnel.Ports) == "" {
-		apply.Tunnel.Ports = strings.TrimSpace(tui.Prompt("Ports to expose on the Iran server (e.g. 443=127.0.0.1:2096): "))
-		if apply.Tunnel.Ports == "" {
-			tui.Error("The Iran server needs at least one forwarded port.")
-			tui.PressEnter()
-			return
-		}
-	}
-	if apply.Direct != nil && apply.Direct.Side == "iran" && strings.TrimSpace(apply.Direct.Ports) == "" {
-		apply.Direct.Ports = strings.TrimSpace(tui.Prompt("Ports to expose on Iran (optional): "))
+	if err := completePeerPorts(&apply); err != nil {
+		tui.Error(err.Error())
+		tui.PressEnter()
+		return
 	}
 	var fleet control.Fleet
 	if err := fleet.Start(); err != nil {
@@ -251,4 +244,25 @@ func setUpPeer(t manage.Tunnel) {
 		}
 	}
 	tui.PressEnter()
+}
+
+// Only Iran exposes customer ports. Ask at the initiating end before SSH.
+func completePeerPorts(apply *node.ApplyRequest) error {
+	var ports *string
+	if apply.Tunnel != nil && apply.Tunnel.Role == "server" {
+		ports = &apply.Tunnel.Ports
+	}
+	if apply.Direct != nil && apply.Direct.Side == "iran" {
+		ports = &apply.Direct.Ports
+	}
+	if ports == nil {
+		return nil
+	}
+	if strings.TrimSpace(*ports) == "" {
+		*ports = strings.TrimSpace(tui.Prompt("Ports to expose on the Iran server (e.g. 443=127.0.0.1:2096): "))
+	}
+	if strings.TrimSpace(*ports) == "" {
+		return fmt.Errorf("the Iran server needs at least one forwarded port")
+	}
+	return spec.ValidatePortSpecs(spec.ParsePorts(*ports))
 }

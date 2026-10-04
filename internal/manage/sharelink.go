@@ -104,6 +104,7 @@ type ShareLink struct {
 	Uplink    string `json:"su,omitempty"`
 	Downlink  string `json:"sd,omitempty"`
 	SrcIPs    string `json:"ss,omitempty"`
+	PeerSrcIP string `json:"ps,omitempty"` // forged source expected from the peer
 	Stealth   bool   `json:"sl,omitempty"`
 	ICMPReply bool   `json:"si,omitempty"`
 
@@ -414,6 +415,10 @@ func MirrorForPeer(l ShareLink) PeerForm {
 			f.Note = "The other end rotates several forged sources, so this side cannot pin one — " +
 				"leave its expected source empty and let the encryption sort the traffic out."
 		}
+		if l.PeerSrcIP != "" {
+			sp.SrcIPs = l.PeerSrcIP
+			paired = append(paired, "spoof.srcIPs")
+		}
 		f.Spoof = sp
 		// The listening side of a forged-source carrier cannot learn where its
 		// peer is: every packet it receives carries a forged source. The link
@@ -506,6 +511,7 @@ func shareLinkOf(name, host string, cfg config.Config) (string, error) {
 		sc := cfg.L3.SpoofConfig
 		l.Profile, l.Uplink, l.Downlink = sc.SpoofProfile, sc.SpoofUplink, sc.SpoofDownlink
 		l.SrcIPs = strings.Join(nonEmpty(append([]string{sc.SpoofSrcIP}, sc.SpoofSrcPool...)), ", ")
+		l.PeerSrcIP = sc.SpoofPeerSrcIP
 		l.Stealth = spoofStealthOn(sc)
 		l.ICMPReply = sc.SpoofICMPReply
 
