@@ -513,7 +513,7 @@ func limitsLabel(maxConns, bandwidthMbps int) string {
 
 func explicitL3Mode(l config.L3Config) string {
 	if l.Side != "" {
-		return l.Mode
+		return strings.ToLower(strings.TrimSpace(l.Mode))
 	}
 	return ""
 }

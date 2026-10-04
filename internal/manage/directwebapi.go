@@ -30,7 +30,7 @@ import (
 
 // NewDirectTunnel is a filled direct-tunnel form.
 type NewDirectTunnel struct {
-	// Mode is optional for GRE over FOU: dial or listen, independent of Side.
+	// Mode is optional: dial or listen, independent of geographic Side.
 	Mode string `json:"mode"`
 	// Side is "iran" or "kharej". Iran dials out and exposes the ports; kharej
 	// waits and holds the real service.
@@ -417,8 +417,8 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 	// Iran reaches out; kharej waits. This is the whole of the direct/reverse
 	// difference at this layer.
 	mode := strings.ToLower(strings.TrimSpace(n.Mode))
-	if mode != "" && (carrier != "gre-fou" || (mode != "dial" && mode != "listen")) {
-		return l3Spec{}, fmt.Errorf("explicit mode must be dial or listen and is supported for gre-fou only")
+	if mode != "" && mode != "dial" && mode != "listen" {
+		return l3Spec{}, fmt.Errorf("explicit mode must be dial or listen")
 	}
 	dials := side == sideIran
 	if mode != "" {
@@ -514,9 +514,9 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 		if n.Stealth {
 			applySpoofStealth(&spec.Spoof)
 		}
-		if side == sideKharej && net.ParseIP(spec.Spoof.SpoofPeerIP).To4() == nil {
+		if !dials && net.ParseIP(spec.Spoof.SpoofPeerIP).To4() == nil {
 			return l3Spec{}, fmt.Errorf(
-				"the spoof carrier needs the Iran server's real IP on this side, " +
+				"the spoof carrier needs the other server's real IP on the listening side, " +
 					"because the peer forges the source of every packet it sends")
 		}
 	}

@@ -323,12 +323,12 @@ func l3PortRange(port, paths int) (lo, hi int) {
 // hand their kharej 9000; the second tunnel then fails to bind and restarts for
 // ever, with the reason only in its journal. Pure, so it can be tested.
 func l3ListenClash(name, carrier string, port, paths int, existing []l3Tunnel) string {
-	if !udpCarriers[carrier] {
+	if !udpCarriers[strings.ToLower(strings.TrimSpace(carrier))] {
 		return ""
 	}
 	lo, hi := l3PortRange(port, paths)
 	for _, e := range existing {
-		if strings.EqualFold(e.T.Name, name) || !udpCarriers[orDefault(e.L.Carrier, "udp")] {
+		if strings.EqualFold(e.T.Name, name) || !udpCarriers[strings.ToLower(strings.TrimSpace(orDefault(e.L.Carrier, "udp")))] {
 			continue
 		}
 		_, p, err := net.SplitHostPort(e.L.Addr)

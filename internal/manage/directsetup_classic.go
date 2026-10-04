@@ -247,7 +247,11 @@ func summariseL3Classic(cfg l3Spec) {
 	tui.Rule()
 	tui.Title("About to create")
 	tui.Info("Kind        : full IP tunnel (layer 3)")
-	tui.Info("This machine: " + sideLabel(cfg.Side))
+	label := sideLabel(cfg.Side)
+	if cfg.Mode != "" {
+		label = sideName(cfg.Side)
+	}
+	tui.Info("This machine: " + label)
 	tui.Info("Carrier     : " + cfg.Carrier)
 	if cfg.Mode != "" {
 		tui.Info("Connection  : " + cfg.Mode)
@@ -257,7 +261,7 @@ func summariseL3Classic(cfg l3Spec) {
 		encap += fmt.Sprintf(" (key %d)", cfg.GREKey)
 	}
 	tui.Info("Wrapping    : " + encap)
-	if cfg.Side == sideIran {
+	if (cfg.Mode == "" && cfg.Side == sideIran) || cfg.Mode == "dial" {
 		tui.Info("Dials       : " + cfg.Addr)
 	} else {
 		tui.Info("Listens on  : " + cfg.Addr)

@@ -213,7 +213,8 @@ func DecodeShareLink(s string) (ShareLink, error) {
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return out, fmt.Errorf("the setup link is damaged — copy it again, all of it")
 	}
-	if out.Mode != "" && (out.Kind != "direct" || out.Tr != "gre-fou" || (out.Mode != "listen" && out.Mode != "dial")) {
+	out.Mode = strings.ToLower(strings.TrimSpace(out.Mode))
+	if out.Mode != "" && (out.Kind != "direct" || (out.Mode != "listen" && out.Mode != "dial")) {
 		return out, fmt.Errorf("the setup link has an unsupported connection mode")
 	}
 	if out.Tok == "" || out.Tr == "" {

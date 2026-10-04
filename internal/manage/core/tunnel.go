@@ -56,10 +56,7 @@ func List() []Tunnel {
 		case cfg.L3.Enabled():
 			t.Role = cfg.L3.SideName()
 			if cfg.L3.Side != "" {
-				t.Direction = "direct"
-				if (t.Role == "iran") == strings.EqualFold(cfg.L3.Mode, "listen") {
-					t.Direction = "reverse"
-				}
+				t.Direction = cfg.L3.DirectionName()
 			}
 			t.Transport = "l3/" + OrDefault(cfg.L3.Carrier, "udp")
 			t.Addr = cfg.L3.Addr

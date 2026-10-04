@@ -225,3 +225,13 @@ func (l L3Config) SideName() string {
 	}
 	return "iran"
 }
+
+// DirectionName reports initiation direction without confusing geographic side
+// with dial/listen. Match the engine's normalization of manually edited files.
+func (l L3Config) DirectionName() string {
+	dials := strings.EqualFold(strings.TrimSpace(l.Mode), "dial")
+	if dials == (l.SideName() == "iran") {
+		return "direct"
+	}
+	return "reverse"
+}

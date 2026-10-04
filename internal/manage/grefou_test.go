@@ -83,3 +83,49 @@ func TestGREFOUPortClashesWithUDP(t *testing.T) {
 		t.Fatal("FOU listener can collide with UDP")
 	}
 }
+
+func TestGREFOUReviewRegressions(t *testing.T) {
+	for _, side := range []directSide{sideIran, sideKharej} {
+		mode := "listen"
+		if side == sideKharej {
+			mode = "dial"
+		}
+		c := config.L3Config{Side: side.String(), Mode: " " + strings.ToUpper(mode) + " ", Carrier: "udp", Addr: "203.0.113.7:9000", Token: "shared", LocalIP: "10.231.0.1/30", PeerIP: "10.231.0.2", MTU: 1400}
+		if c.DirectionName() != "reverse" {
+			t.Fatal("whitespace changed the initiation direction")
+		}
+		tun := Tunnel{Role: c.SideName(), Transport: "l3/udp", Direction: c.DirectionName()}
+		if DialsOut(tun) != (side == sideKharej) || HoldsPorts(tun) != (side == sideIran) {
+			t.Fatal("management confused connection direction and geography")
+		}
+		out := capture(t, func() { summariseL3Classic(l3Spec{Side: side, Mode: mode, Carrier: "gre-fou", Addr: c.Addr}) })
+		wrong := "Dials       :"
+		if side == sideKharej {
+			wrong = "Listens on  :"
+		}
+		if strings.Contains(out, wrong) {
+			t.Fatal("summary describes the wrong initiation mode")
+		}
+		link, err := shareLinkOf("explicit-udp", "203.0.113.8", config.Config{L3: c})
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := DecodeShareLink(link)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f := MirrorForPeer(decoded)
+		if f.Side == "iran" {
+			f.Ports = "2082"
+		}
+		if _, err := f.ToNewDirectTunnel().spec(); err != nil {
+			t.Fatalf("valid explicit UDP mode rejected: %v", err)
+		}
+	}
+	for _, carrier := range []string{"gre-fou", " GRE-FOU "} {
+		existing := []l3Tunnel{{T: Tunnel{Name: "upper"}, L: config.L3Config{Mode: "listen", Carrier: " GRE-FOU ", Addr: "0.0.0.0:9000"}}}
+		if l3ListenClash("new", carrier, 9000, 1, existing) == "" {
+			t.Fatal("capitalized carrier bypassed the port collision check")
+		}
+	}
+}
