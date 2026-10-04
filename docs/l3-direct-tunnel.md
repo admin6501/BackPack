@@ -648,4 +648,4 @@ A Setup Link swaps local/peer tunnel addresses while retaining the producer's CI
 
 در هر دو جهت ستاپ، پیشوند شبکه روی آدرس محلی حفظ می‌شود و آدرس طرف مقابل بدون اسلش است. ویرایش پورت یا تنظیمات دیگر، دامنهٔ کریر SNI را حذف نمی‌کند.
 
-*Last verified against Backpack v1.8.21.*
+*Last verified against Backpack v1.8.22.*

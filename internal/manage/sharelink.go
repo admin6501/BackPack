@@ -406,7 +406,7 @@ func MirrorForPeer(l ShareLink) PeerForm {
 	// of this across — including the producer's real address, which the
 	// listening side cannot work out for itself and refuses to start without.
 	// So a spoof tunnel built from the panel could never have its far end made.
-	if l.Tr == "spoof" || l.Profile != "" || l.Uplink != "" || l.Downlink != "" || l.SrcIPs != "" {
+	if l.Tr == "spoof" || l.Profile != "" || l.Uplink != "" || l.Downlink != "" || l.SrcIPs != "" || l.PeerSrcIP != "" {
 		sp := &SpoofTune{
 			Profile:   l.Profile,
 			Uplink:    l.Uplink,
@@ -434,6 +434,11 @@ func MirrorForPeer(l ShareLink) PeerForm {
 		if l.PeerSrcIP != "" {
 			sp.SrcIPs = l.PeerSrcIP
 			paired = append(paired, "spoof.srcIPs")
+		} else {
+			// The wizard supplies only its own forged source. Use it as the
+			// peer default too, including a complete rotating pool; an explicit
+			// expected peer source above always takes precedence.
+			sp.SrcIPs = l.SrcIPs
 		}
 		f.Spoof = sp
 		// The listening side of a forged-source carrier cannot learn where its

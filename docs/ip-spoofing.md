@@ -351,10 +351,10 @@ If you set it, nothing changes: it was never doing anything.
 
 ## Peer setup and reconfiguration
 
-When setting up the other end over SSH or with a Setup Link, the real reachable IPv4 address stays separate from the forged source. The producer's expected peer source becomes the new peer's own forged source; a rotating pool does not pin one source on the receiver. Iran forwarded ports are requested if the link does not contain them.
+When setting up the other end over SSH or with a Setup Link, the real reachable IPv4 address stays separate from the forged source. The producer's explicitly expected peer source becomes the new peer's own forged source. When that field is absent (the normal wizard case), the peer inherits the producer's own source or complete source pool. A rotating pool does not pin one source on the receiver. Iran forwarded ports are requested if the link does not contain them.
 
 Running setup again and choosing no for Stealth clears the old Stealth settings. Choosing no for separate direction profiles removes the previous overrides; an empty forged source disables forging and selecting one source replaces an old pool.
 
-در ستاپ طرف مقابل، آی‌پی واقعی با آی‌پی جعلی جدا می‌ماند و پورت‌های ایران، اگر در لینک نباشند، پرسیده می‌شوند. در ستاپ مجدد، انتخاب خاموش برای Stealth یا پروفایل جداگانه تنظیم قبلی را پاک می‌کند؛ خالی گذاشتن مبدأ جعلی، جعل مبدأ را خاموش می‌کند.
+در ستاپ طرف مقابل، اگر مبدأ جداگانه‌ای برای طرف مقابل مشخص نشده باشد، آی‌پی جعلی یا pool انتخاب‌شده به مبدأ جعلی طرف مقابل هم منتقل می‌شود. آی‌پی واقعی با آی‌پی جعلی جدا می‌ماند و پورت‌های ایران، اگر در لینک نباشند، پرسیده می‌شوند. در ستاپ مجدد، انتخاب خاموش برای Stealth یا پروفایل جداگانه تنظیم قبلی را پاک می‌کند؛ خالی گذاشتن مبدأ جعلی، جعل مبدأ را خاموش می‌کند.
 
-*Last verified against Backpack v1.8.21.*
+*Last verified against Backpack v1.8.22.*

@@ -47,3 +47,65 @@ func TestPeerTunnelAddressKeepsProducersSubnetPrefix(t *testing.T) {
 		}
 	}
 }
+
+// A normal wizard sets only this machine's source, not an expected peer source.
+// Exercise that real producer config, rather than a hand-built link with ps set.
+func TestWizardSpoofSourceIsInheritedByRenderedPeer(t *testing.T) {
+	for _, from := range []string{"iran", "kharej"} {
+		for _, tc := range []struct {
+			name, source, expected string
+			pool                   []string
+		}{
+			{name: "single", source: "81.28.60.1"},
+			{name: "pool", source: "81.28.60.1", pool: []string{"81.28.60.1", "81.28.60.2"}},
+			{name: "explicit-peer", source: "81.28.60.1", expected: "81.28.60.3"},
+			{name: "unforged"},
+		} {
+			t.Run(from+"/"+tc.name, func(t *testing.T) {
+				mode, local, peer := "dial", "10.10.0.1/30", "10.10.0.2"
+				if from == "kharej" {
+					mode, local, peer = "listen", "10.10.0.2/30", "10.10.0.1"
+				}
+				producer := config.Config{L3: config.L3Config{Mode: mode, Carrier: "spoof", Encap: "gre", Addr: "203.0.113.10:2547", Token: "a-token-0123456789abcdefghijklmno", Iface: "bp0", LocalIP: local, PeerIP: peer, MTU: 1400, SpoofConfig: config.SpoofConfig{SpoofProfile: "icmp", SpoofPeerIP: "203.0.113.11", SpoofSrcIP: tc.source, SpoofSrcPool: tc.pool, SpoofPeerSrcIP: tc.expected}}}
+				encoded, err := shareLinkOf("source", "203.0.113.10", producer)
+				if err != nil {
+					t.Fatal(err)
+				}
+				link, err := DecodeShareLink(encoded)
+				if err != nil {
+					t.Fatal(err)
+				}
+				form := MirrorForPeer(link)
+				if form.Side == "iran" {
+					form.Ports = "2082, 2095"
+				}
+				spec, err := form.ToNewDirectTunnel().spec()
+				if err != nil {
+					t.Fatal(err)
+				}
+				var got config.Config
+				if _, err := toml.Decode(spec.render(), &got); err != nil {
+					t.Fatal(err)
+				}
+				want := tc.source
+				if tc.expected != "" {
+					want = tc.expected
+				}
+				if got.L3.SpoofSrcIP != want {
+					t.Fatalf("peer own source=%q, want %q", got.L3.SpoofSrcIP, want)
+				}
+				if len(tc.pool) > 0 && tc.expected == "" {
+					if len(got.L3.SpoofSrcPool) != 2 {
+						t.Fatalf("source pool lost: %v", got.L3.SpoofSrcPool)
+					}
+					if got.L3.SpoofPeerSrcIP != "" {
+						t.Fatal("pool pinned to one source")
+					}
+				}
+				if got.L3.SpoofPeerIP != "203.0.113.10" {
+					t.Fatal("real IP confused with forged source")
+				}
+			})
+		}
+	}
+}
