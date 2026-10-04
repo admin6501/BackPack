@@ -127,7 +127,7 @@ them both ends have to agree on. This says what exists.
 | `addr` | `string` | Addr is the peer's host:port when dialling, or the address to bind when listening. |
 | `auto_mtu` | `*bool` | AutoMTU measures what the path really carries, once the tunnel is up, and sets the interface to match. |
 | `bandwidth_mbps` | `int` | BandwidthMbps caps total throughput across this tunnel, in megabits per second. 0 is unlimited. |
-| `carrier` | `string` | Carrier is the datagram transport underneath: "udp" (the default, and the right choice on a path that does not interfere), "pck" (raw TCP segments, so a capture sees an ordinary flow), "quic" (a real QUIC session, so a capture sees HTTP/3), "sni" (pck, plus a TLS ClientHello naming an allowed domain at the start of the flow), "xdi" (inside ICMP echo) or "spoof" (raw IP with a forged source). All but udp and quic are Linux-only and need CAP_NET_RAW. |
+| `carrier` | `string` | Carrier is the datagram transport underneath: "udp" (the default, and the right choice on a path that does not interfere), "pck" (raw TCP segments, so a capture sees an ordinary flow), "quic" (a real QUIC session, so a capture sees HTTP/3), "sni" (pck, plus a TLS ClientHello naming an allowed domain at the start of the flow), "xdi" (inside ICMP echo) or "spoof" (raw IP with a forged source). Those raw carriers are Linux-only and need CAP_NET_RAW. "gre-fou" carries encrypted GRE in UDP with real source addresses and requires no raw socket. |
 | `encap` | `string` | Encap is "ipip" (the default, and free) or "gre" (four bytes, or eight with a key). One tunnel carries both IPv4 and IPv6 either way. |
 | `fec_data` | `int` | FECData and FECParity add forward error correction to the carrier: for every FECData datagrams, FECParity extra ones are sent, and any FECParity of the group may be lost without losing anything. Both zero — the default — is no error correction. |
 | `fec_parity` | `int` | FECParity is how many parity packets accompany each group. Both ends must agree on this and on fec_data. |
@@ -143,6 +143,7 @@ them both ends have to agree on. This says what exists.
 | `ports` | `[]string` | Ports are forwarded port mappings served over the tunnel, in the same syntax as the reverse tunnel's: "443", "443=8443", "10000-10009", and "443=10.0.0.1:80\|10.0.0.2:80" for several backends. A target with no host of its own means PeerIP, which is what almost every mapping wants. |
 | `preset` | `string` | Preset is the name of the tuning profile the two keys below came from. It is a label: the engine reads the values, not this. |
 | `qdisc` | `string` | Qdisc is the queueing discipline on the interface, and is the setting that actually decides jitter. Empty takes fq_codel, which drops when packets start waiting instead of letting the queue grow into delay. |
+| `side` | `string` | Side keeps geography separate from the connection direction. Empty uses the original direct convention (dial=Iran, listen=kharej). |
 | `sni_domain` | `string` | SNIDomain is the server name the "sni" carrier puts in that hello. Empty uses the built-in default. It has to be a domain the path already lets through — which one that is depends on the route, so it is the operator's to choose and to test. |
 | `sockbuf` | `int` | SockBuf sizes the carrier's socket buffers in bytes. Zero takes the carrier default of 4 MiB. |
 | `token` | `string` | Token is the shared secret. It is the only credential: the handshake derives its pre-shared key from it, and a peer without it is answered with silence. |
@@ -240,4 +241,4 @@ them both ends have to agree on. This says what exists.
 
 ---
 
-*Generated from `config/` on 2026-10-02. Last verified against Backpack v1.8.22.*
+*Generated from `config/` on 2026-10-04. Last verified against Backpack v1.8.22.*

@@ -116,6 +116,10 @@ func setupL3(side directSide) {
 	// IP and SNI spoofing keep the wizard they had: both ends set up by hand,
 	// the token made on kharej. Their answers depend on the route, and the
 	// operator wanted them left as they were. See directsetup_classic.go.
+	if carrier == "gre-fou" {
+		setupL3Classic(side, carrier)
+		return
+	}
 	if carrier == "spoof" || carrier == "sni" {
 		setupL3Classic(side, carrier)
 		return

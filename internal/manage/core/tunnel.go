@@ -14,6 +14,7 @@ import (
 // Tunnel is a discovered tunnel derived from a config file on disk.
 type Tunnel struct {
 	Name      string
+	Direction string // Optional explicit initiation direction for L3.
 	Role      string // "server" or "client"
 	Transport string
 	Addr      string   // bind_addr (server) or remote_addr (client)
@@ -53,7 +54,10 @@ func List() []Tunnel {
 			t.Addr = cfg.Direct.Addr
 			t.Ports = cfg.Direct.Ports
 		case cfg.L3.Enabled():
-			t.Role = L3Role(cfg.L3.Mode)
+			t.Role = cfg.L3.SideName()
+			if cfg.L3.Side != "" {
+				t.Direction = cfg.L3.DirectionName()
+			}
 			t.Transport = "l3/" + OrDefault(cfg.L3.Carrier, "udp")
 			t.Addr = cfg.L3.Addr
 			t.Ports = cfg.L3.Ports

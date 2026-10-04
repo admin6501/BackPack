@@ -39,7 +39,7 @@ func showShareLink(name string) {
 // there was one to print.
 func printShareLink(name string) bool {
 	host := ""
-	if t, ok := Find(name); ok && (t.Role == "server" || (IsDirectKind(t) && (t.Role == "kharej" || strings.Contains(t.Transport, "spoof")))) {
+	if t, ok := Find(name); ok && (t.Role == "server" || (IsDirectKind(t) && (!DialsOut(t) || strings.Contains(t.Transport, "spoof")))) {
 		// A reverse server listens on all interfaces, so its config cannot tell
 		// the kharej side which public address to dial. Use the detected address
 		// as a starting point, and let the operator correct it for NAT, a CDN,
@@ -176,7 +176,7 @@ func needsPeerServerAddress(f PeerForm) bool {
 	if f.Kind == "reverse" {
 		return strings.EqualFold(f.Side, "kharej") && strings.TrimSpace(f.ServerAddr) == ""
 	}
-	return f.Kind == "direct" && ((f.Side == "iran" && strings.TrimSpace(f.ServerAddr) == "") || (f.Carrier == "spoof" && strings.TrimSpace(f.SpoofPeerIP) == ""))
+	return f.Kind == "direct" && ((((f.Mode == "" && f.Side == "iran") || f.Mode == "dial") && strings.TrimSpace(f.ServerAddr) == "") || (f.Carrier == "spoof" && strings.TrimSpace(f.SpoofPeerIP) == ""))
 }
 
 // withPeerServerAddress completes legacy or incomplete links before the
@@ -190,7 +190,7 @@ func withPeerServerAddress(f PeerForm, host string) (PeerForm, error) {
 	if host == "" {
 		return f, fmt.Errorf("the other server’s reachable address is required")
 	}
-	if f.Kind == "reverse" || f.Side == "iran" {
+	if f.Kind == "reverse" || (f.Mode == "" && f.Side == "iran") || f.Mode == "dial" {
 		f.ServerAddr = host
 	}
 	if f.Kind == "direct" && f.Carrier == "spoof" {

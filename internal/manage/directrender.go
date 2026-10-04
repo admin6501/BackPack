@@ -158,6 +158,7 @@ type l3Spec struct {
 	TrafficLimitMode string
 	Name             string
 	Side             directSide
+	Mode             string
 	Carrier          string
 	// SNIDomain is the server name the "sni" carrier announces. Ignored by
 	// every other carrier, and empty means the engine's default.
@@ -220,6 +221,10 @@ func (s l3Spec) render() string {
 	mode := "dial"
 	if s.Side == sideKharej {
 		mode = "listen"
+	}
+	if s.Mode != "" {
+		mode = s.Mode
+		writeKV(&b, "side", quote(s.Side.String()))
 	}
 	writeKV(&b, "mode", quote(mode))
 	writeKV(&b, "addr", quote(s.Addr))
@@ -405,6 +410,9 @@ func HoldsPorts(t Tunnel) bool {
 // DialsOut reports whether this side reaches out to the other, rather than
 // waiting to be reached.
 func DialsOut(t Tunnel) bool {
+	if t.Direction == "reverse" && IsDirectKind(t) {
+		return t.Role == "kharej"
+	}
 	return t.Role == "client" || t.Role == "iran"
 }
 
@@ -425,6 +433,9 @@ func IsDirectKind(t Tunnel) bool {
 // TunnelDirection reports whether a tunnel is dialled from Iran or waits for
 // kharej to dial in — "direct" or "reverse".
 func TunnelDirection(t Tunnel) string {
+	if t.Direction != "" {
+		return t.Direction
+	}
 	if IsDirectKind(t) {
 		return "direct"
 	}
@@ -476,6 +487,9 @@ func l3EncapLabel(l config.L3Config) string {
 	// with the same header. Saying so everywhere costs eight characters and
 	// stops the two being confused.
 	label := "GRE + Noise"
+	if l.Carrier == "gre-fou" {
+		label = "GRE over FOU + Noise"
+	}
 	if l.GREKey != 0 {
 		label += fmt.Sprintf(" (key %d)", l.GREKey)
 	}
@@ -495,4 +509,11 @@ func limitsLabel(maxConns, bandwidthMbps int) string {
 		bandwidth = fmt.Sprintf("%d Mbit/s", bandwidthMbps)
 	}
 	return conns + ", " + bandwidth
+}
+
+func explicitL3Mode(l config.L3Config) string {
+	if l.Side != "" {
+		return strings.ToLower(strings.TrimSpace(l.Mode))
+	}
+	return ""
 }

@@ -162,9 +162,13 @@ type pair struct {
 	dialDev, listenDev *fakeDevice
 }
 
-func newPair(t *testing.T, encap string, greKey uint32, dialToken, listenToken string) *pair {
+func newPair(t *testing.T, encap string, greKey uint32, dialToken, listenToken string, carriers ...string) *pair {
 	t.Helper()
 
+	carrier := CarrierUDP
+	if len(carriers) > 0 {
+		carrier = carriers[0]
+	}
 	p := &pair{
 		dialDev:   newFakeDevice(1400),
 		listenDev: newFakeDevice(1400),
@@ -176,7 +180,7 @@ func newPair(t *testing.T, encap string, greKey uint32, dialToken, listenToken s
 	var err error
 	p.listener, err = New(Config{
 		Mode: ModeListen, Addr: "127.0.0.1:0", Token: listenToken,
-		Encap: encap, GREKey: greKey,
+		Encap: encap, GREKey: greKey, Carrier: carrier,
 		LocalIP: "10.10.0.2/30", PeerIP: "10.10.0.1", MTU: 1400,
 	}, quietLogger())
 	if err != nil {
@@ -191,7 +195,7 @@ func newPair(t *testing.T, encap string, greKey uint32, dialToken, listenToken s
 
 	p.dialer, err = New(Config{
 		Mode: ModeDial, Addr: bound.String(), Token: dialToken,
-		Encap: encap, GREKey: greKey,
+		Encap: encap, GREKey: greKey, Carrier: carrier,
 		LocalIP: "10.10.0.1/30", PeerIP: "10.10.0.2", MTU: 1400,
 	}, quietLogger())
 	if err != nil {

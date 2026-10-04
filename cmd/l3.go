@@ -34,6 +34,10 @@ const l3RestartDelay = 5 * time.Second
 // runL3Tunnel keeps one layer-3 tunnel running until ctx ends.
 func runL3Tunnel(cfg *config.Config, ctx context.Context, configPath string) {
 	logger := utils.NewLoggerWithFormat(l3LogLevel(cfg), l3LogFormat(cfg))
+	if cfg.L3.Side != "" && cfg.L3.SideName() != "iran" && cfg.L3.SideName() != "kharej" {
+		logger.Fatal("layer-3 side must be iran or kharej")
+		return
+	}
 
 	tunnelCfg := l3.Config{
 		Mode:           cfg.L3.Mode,
@@ -101,7 +105,11 @@ func runL3Tunnel(cfg *config.Config, ctx context.Context, configPath string) {
 
 	// The engine's own counters, read once per snapshot. They survive the
 	// restart loop below because the tunnel object does.
-	finishMetrics := startMetricsWithTraffic(ctx, configPath, "l3-"+tunnelCfg.Carrier, l3Role(tunnelCfg.Mode),
+	metricsRole := "kharej-origin"
+	if cfg.L3.SideName() == "iran" {
+		metricsRole = "iran-edge"
+	}
+	finishMetrics := startMetricsWithTraffic(ctx, configPath, "l3-"+tunnelCfg.Carrier, metricsRole,
 		func() uint64 { return tunnel.Stats().BytesIn },
 		func() uint64 { return tunnel.Stats().BytesOut },
 	)
@@ -161,14 +169,4 @@ func l3LogFormat(cfg *config.Config) string {
 		return cfg.Server.LogFormat
 	}
 	return cfg.Client.LogFormat
-}
-
-// l3Role is what the metrics file records. The geography is what an operator
-// recognises, and it is stable across the direction the tunnel happens to be
-// dialled in.
-func l3Role(mode string) string {
-	if mode == l3.ModeDial {
-		return "iran-edge"
-	}
-	return "kharej-origin"
 }

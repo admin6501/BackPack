@@ -157,10 +157,10 @@ func directMSSLabel(mss int) string {
 // editL3Ports does the same for an [l3] tunnel.
 func editL3Ports(t Tunnel, cfg config.Config) bool {
 	l := cfg.L3
-	iran := !strings.EqualFold(strings.TrimSpace(l.Mode), "listen")
+	iran := l.SideName() == "iran"
 
 	tui.Info("Kind         : full IP tunnel (layer 3)")
-	tui.Info("This machine : " + l3Role(l.Mode))
+	tui.Info("This machine : " + l.SideName())
 	tui.Info("Carrier      : " + orDefault(l.Carrier, "udp"))
 	tui.Info("Wrapping     : " + l3EncapLabel(l))
 	tui.Info("Address      : " + l.Addr)
@@ -326,13 +326,13 @@ func saveL3(t Tunnel, l config.L3Config) {
 // edit re-renders the whole file rather than patching it.
 func l3SpecOf(t Tunnel, l config.L3Config) l3Spec {
 	side := sideIran
-	if strings.EqualFold(strings.TrimSpace(l.Mode), "listen") {
+	if l.SideName() == "kharej" {
 		side = sideKharej
 	}
 	return l3Spec{
 		TrafficLimitGB:   readTrafficLimit(t.Name),
 		TrafficLimitMode: readTrafficLimitMode(t.Name),
-		Name:             t.Name, Side: side,
+		Name:             t.Name, Side: side, Mode: explicitL3Mode(l),
 		Carrier:   orDefault(l.Carrier, "udp"),
 		SNIDomain: l.SNIDomain,
 		Encap:     "gre", GREKey: l.GREKey,
@@ -425,7 +425,7 @@ func spoofCarrierSummary(sc config.SpoofConfig) string {
 // order is what keeps a pair in step. It ends in the same summary the setup
 // does, which is where a mismatch is caught.
 func editL3Spoof(t Tunnel, l config.L3Config) bool {
-	onIran := !strings.EqualFold(strings.TrimSpace(l.Mode), "listen")
+	onIran := l.SideName() == "iran"
 	there := "kharej"
 	if !onIran {
 		there = "Iran"

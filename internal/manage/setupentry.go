@@ -39,6 +39,8 @@ func SetupIran() {
 		SetupServer()
 	case directionDirect:
 		setupDirectFor(sideIran)
+	case directionGREFOU:
+		setupL3Classic(sideIran, "gre-fou")
 	}
 }
 
@@ -51,6 +53,8 @@ func SetupKharej() {
 		SetupClient()
 	case directionDirect:
 		setupDirectFor(sideKharej)
+	case directionGREFOU:
+		setupL3Classic(sideKharej, "gre-fou")
 	}
 }
 
@@ -60,6 +64,7 @@ const (
 	directionCancelled tunnelDirection = iota
 	directionReverse
 	directionDirect
+	directionGREFOU
 )
 
 // askDirection is the one question that decides which engine builds the
@@ -82,11 +87,14 @@ func askDirection(machine string) tunnelDirection {
 			Title: "Direct",
 			Desc:  "Iran dials kharej — use it when an inbound connection to Iran does not get through",
 		},
+		{Title: "GRE over FOU", Desc: "encrypted GRE in UDP; choose direct or reverse initiation"},
 	}) {
 	case 0:
 		return directionReverse
 	case 1:
 		return directionDirect
+	case 2:
+		return directionGREFOU
 	}
 	return directionCancelled
 }

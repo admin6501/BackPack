@@ -53,7 +53,7 @@ func eachIranL3Tunnel(visit func(l3Tunnel)) {
 		if err != nil || !cfg.L3.Enabled() {
 			continue
 		}
-		if strings.EqualFold(strings.TrimSpace(cfg.L3.Mode), "listen") {
+		if cfg.L3.SideName() != "iran" {
 			continue
 		}
 		visit(l3Tunnel{T: t, L: cfg.L3})
@@ -307,7 +307,7 @@ func portHeld(addr string) bool {
 
 // udpCarriers are the carriers that bind a UDP socket of their own on the
 // listening side, so two tunnels with overlapping ports cannot both run.
-var udpCarriers = map[string]bool{"udp": true, "quic": true}
+var udpCarriers = map[string]bool{"udp": true, "quic": true, "gre-fou": true}
 
 // l3PortRange is the UDP ports a listening tunnel binds: its port, and the
 // ones after it when the udp carrier is spread over several sockets.
@@ -323,12 +323,12 @@ func l3PortRange(port, paths int) (lo, hi int) {
 // hand their kharej 9000; the second tunnel then fails to bind and restarts for
 // ever, with the reason only in its journal. Pure, so it can be tested.
 func l3ListenClash(name, carrier string, port, paths int, existing []l3Tunnel) string {
-	if !udpCarriers[carrier] {
+	if !udpCarriers[strings.ToLower(strings.TrimSpace(carrier))] {
 		return ""
 	}
 	lo, hi := l3PortRange(port, paths)
 	for _, e := range existing {
-		if strings.EqualFold(e.T.Name, name) || !udpCarriers[orDefault(e.L.Carrier, "udp")] {
+		if strings.EqualFold(e.T.Name, name) || !udpCarriers[strings.ToLower(strings.TrimSpace(orDefault(e.L.Carrier, "udp")))] {
 			continue
 		}
 		_, p, err := net.SplitHostPort(e.L.Addr)
@@ -371,7 +371,7 @@ func kharejL3Tunnels() []l3Tunnel {
 
 // kharejPortClash is l3ListenClash for a spec about to be written.
 func kharejPortClash(s l3Spec) string {
-	if s.Side != sideKharej {
+	if (s.Mode == "" && s.Side != sideKharej) || s.Mode == "dial" {
 		return ""
 	}
 	_, p, err := net.SplitHostPort(s.Addr)
