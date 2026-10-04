@@ -388,6 +388,16 @@ export function addView(ctx) {
         applySuggestion();
       }
 
+      const fouModeGroup = el('div', { class: 'grp3', id: 'fouModeGroup', hidden: true }, [
+        el('div', { class: 'gl3', text: 'GRE over FOU connection direction' }),
+        el('label', { for: 'fouDirection', text: 'Which server initiates the tunnel?' }),
+        el('select', { name: 'fouDirection', id: 'fouDirection' }, [
+          el('option', { value: 'direct', text: 'Direct: Iran initiates, kharej listens' }),
+          el('option', { value: 'reverse', text: 'Reverse: kharej initiates, Iran listens' }),
+        ]),
+      ]);
+      root.querySelector('.step3direct')?.append(fouModeGroup);
+
       function applyShape() {
         const direct = chosen.direction === 'direct';
         show('.step3rev', !direct);
@@ -424,6 +434,7 @@ export function addView(ctx) {
           // its own settings when the operator switched away and back.
           if (wrong) g.classList.remove('open');
         });
+        fouModeGroup.hidden = !(direct && chosen.carrier === 'gre-fou');
         // The token and the far end's address are the panel's business now.
         root.querySelectorAll('.tokgone, .addrgone').forEach(n => { n.hidden = true; });
         paintRail();
@@ -1188,6 +1199,11 @@ export function addView(ctx) {
         if (chosen.direction === 'direct') {
           payload.side = chosen.side === 'server' ? 'iran' : 'kharej';
           payload.carrier = chosen.carrier;
+          if (chosen.carrier === 'gre-fou') {
+            const reverse = payload.fouDirection === 'reverse';
+            payload.mode = ((payload.side === 'iran') !== reverse) ? 'dial' : 'listen';
+          }
+          delete payload.fouDirection;
         } else {
           payload.role = chosen.side;
           payload.transport = chosen.transport;

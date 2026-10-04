@@ -59,13 +59,14 @@ const (
 // ends disagreed about it? An interface name, a socket buffer or a tunnel's own
 // name would not, so they are not here and the receiving side keeps its own.
 type ShareLink struct {
-	V     int    `json:"v"`           // format version
-	Kind  string `json:"k"`           // "reverse" or "direct"
-	From  string `json:"f"`           // "iran" or "kharej" — the side that made it
-	Name  string `json:"n,omitempty"` // a suggestion, not a requirement
-	Tok   string `json:"t"`           // the shared secret
-	Tr    string `json:"tr"`          // reverse: transport. direct: carrier
-	Encap string `json:"e,omitempty"` // direct only
+	V     int    `json:"v"`              // format version
+	Kind  string `json:"k"`              // "reverse" or "direct"
+	From  string `json:"f"`              // "iran" or "kharej" — the side that made it
+	Name  string `json:"n,omitempty"`    // a suggestion, not a requirement
+	Tok   string `json:"t"`              // the shared secret
+	Tr    string `json:"tr"`             // reverse: transport. direct: carrier
+	Mode  string `json:"mode,omitempty"` // producer connection mode, when geography is explicit
+	Encap string `json:"e,omitempty"`    // direct only
 	// SNI is the domain the sni carrier announces. Both ends should announce
 	// the same one — each is only telling the box in front of it what to
 	// think, but two different names on one tunnel is a thing to remember for
@@ -212,6 +213,9 @@ func DecodeShareLink(s string) (ShareLink, error) {
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return out, fmt.Errorf("the setup link is damaged — copy it again, all of it")
 	}
+	if out.Mode != "" && (out.Kind != "direct" || out.Tr != "gre-fou" || (out.Mode != "listen" && out.Mode != "dial")) {
+		return out, fmt.Errorf("the setup link has an unsupported connection mode")
+	}
 	if out.Tok == "" || out.Tr == "" {
 		return out, fmt.Errorf("the setup link is missing the token or the transport — it was not made by this version")
 	}
@@ -241,6 +245,7 @@ func (l ShareLink) PeerSide() string {
 // disagree, and the disagreement would be invisible until a tunnel went quiet.
 type PeerForm struct {
 	Kind string `json:"kind"` // "reverse" or "direct"
+	Mode string `json:"mode,omitempty"`
 	Side string `json:"side"` // the side this form is for
 	Name string `json:"name,omitempty"`
 
@@ -351,6 +356,13 @@ func MirrorForPeer(l ShareLink) PeerForm {
 		}
 	} else {
 		f.Carrier = l.Tr
+		if l.Mode != "" {
+			f.Mode = "listen"
+			if l.Mode == "listen" {
+				f.Mode = "dial"
+			}
+			paired = append(paired, "mode")
+		}
 		if l.SNI != "" {
 			f.SNIDomain = l.SNI
 			paired = append(paired, "sniDomain")
@@ -374,9 +386,11 @@ func MirrorForPeer(l ShareLink) PeerForm {
 		}
 		// Iran dials kharej on a direct tunnel, so only the Iran side is asked
 		// for an address to reach.
-		if f.Side == "iran" {
+		if (f.Mode == "" && f.Side == "iran") || f.Mode == "dial" {
 			f.ServerAddr = l.Host
 			paired = append(paired, "serverAddr")
+		}
+		if f.Side == "iran" {
 			f.Ports = l.Ports
 			f.AcceptUDP = l.AcceptUDP
 		}
@@ -512,10 +526,8 @@ func shareLinkOf(name, host string, cfg config.Config) (string, error) {
 	switch {
 	case cfg.L3.Enabled():
 		l.Kind = "direct"
-		l.From = "kharej"
-		if !strings.EqualFold(strings.TrimSpace(cfg.L3.Mode), "listen") {
-			l.From = "iran" // the dialling side of a direct tunnel is Iran
-		}
+		l.From = cfg.L3.SideName()
+		l.Mode = explicitL3Mode(cfg.L3)
 		l.Tok = cfg.L3.Token
 		l.Tr = orDefault(cfg.L3.Carrier, "udp")
 		l.SNI = cfg.L3.SNIDomain

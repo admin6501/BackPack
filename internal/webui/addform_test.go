@@ -93,7 +93,7 @@ func jsonTags(prefix string, v any) map[string]string {
 // filling something in, and the view writes them onto the payload itself.
 var chosenInJS = map[string]bool{
 	"role": true, "transport": true, "side": true, "carrier": true,
-	"preset": true, "name": true,
+	"preset": true, "name": true, "mode": true, // GRE-FOU direction selector derives dial/listen.
 }
 
 // fromTheOtherSide are settings a direct tunnel takes only from the other

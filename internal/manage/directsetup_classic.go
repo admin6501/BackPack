@@ -31,15 +31,29 @@ func setupL3Classic(side directSide, carrier string) {
 	// not land on the first one's subnet. See freeL3Subnet.
 	cfg.LocalIP, cfg.PeerIP = freeL3Subnet(side)
 
-	// The Iran side dials out, which is the whole point of "direct".
-	if side == sideIran {
-		host := tui.Prompt("Kharej server address (IP or domain): ")
+	dials := side == sideIran
+	if carrier == "gre-fou" {
+		reverse := tui.ChooseOpt("Connection direction", []tui.Option{
+			{Title: "Direct", Desc: "Iran initiates; kharej listens"},
+			{Title: "Reverse", Desc: "Kharej initiates; Iran listens"},
+		})
+		if reverse < 0 {
+			return
+		}
+		dials = (side == sideIran) != (reverse == 1)
+		cfg.Mode = "listen"
+		if dials {
+			cfg.Mode = "dial"
+		}
+	}
+	if dials {
+		host := tui.Prompt("Listening peer address (IP or domain): ")
 		if strings.TrimSpace(host) == "" {
 			tui.Error("An address is required.")
 			tui.PressEnter()
 			return
 		}
-		port := tui.PromptDefault("Tunnel port on the kharej server", "9000")
+		port := tui.PromptDefault("Tunnel port on the listening peer", "9000")
 		if !validPort(port) {
 			tui.Error("Invalid port.")
 			tui.PressEnter()
@@ -135,6 +149,13 @@ func setupL3Classic(side directSide, carrier string) {
 		askL3Advanced(&cfg, side, false)
 	}
 
+	if carrier == "gre-fou" {
+		if why := kharejPortClash(cfg); why != "" {
+			tui.Error(why)
+			tui.PressEnter()
+			return
+		}
+	}
 	summariseL3Classic(cfg)
 	if !tui.Confirm("Create this tunnel", true) {
 		return
@@ -148,6 +169,9 @@ func setupL3Classic(side directSide, carrier string) {
 	fmt.Println()
 	tui.Rule()
 	remindOtherSide(side, cfg.Token)
+	if carrier == "gre-fou" {
+		showGREFOUPeerLink(cfg)
+	}
 	tui.PressEnter()
 }
 
@@ -225,6 +249,9 @@ func summariseL3Classic(cfg l3Spec) {
 	tui.Info("Kind        : full IP tunnel (layer 3)")
 	tui.Info("This machine: " + sideLabel(cfg.Side))
 	tui.Info("Carrier     : " + cfg.Carrier)
+	if cfg.Mode != "" {
+		tui.Info("Connection  : " + cfg.Mode)
+	}
 	encap := cfg.Encap
 	if cfg.GREKey != 0 {
 		encap += fmt.Sprintf(" (key %d)", cfg.GREKey)

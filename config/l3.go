@@ -39,6 +39,10 @@ type L3Config struct {
 	// this configuration, which is how every pre-existing config reads.
 	Mode string `toml:"mode"`
 
+	// Side keeps geography separate from the connection direction. Empty uses
+	// the original direct convention (dial=Iran, listen=kharej).
+	Side string `toml:"side"`
+
 	// Addr is the peer's host:port when dialling, or the address to bind when
 	// listening.
 	Addr string `toml:"addr"`
@@ -53,8 +57,9 @@ type L3Config struct {
 	// segments, so a capture sees an ordinary flow), "quic" (a real QUIC
 	// session, so a capture sees HTTP/3), "sni" (pck, plus a TLS ClientHello
 	// naming an allowed domain at the start of the flow), "xdi" (inside ICMP
-	// echo) or "spoof" (raw IP with a forged source). All but udp and quic are
-	// Linux-only and need CAP_NET_RAW.
+	// echo) or "spoof" (raw IP with a forged source). Those raw carriers are
+	// Linux-only and need CAP_NET_RAW. "gre-fou" carries encrypted GRE in UDP
+	// with real source addresses and requires no raw socket.
 	//
 	// A reliable carrier is not an option here — see the l3 package doc for
 	// why stacking retransmission is actively harmful rather than merely
@@ -208,4 +213,15 @@ func (l L3Config) Enabled() bool {
 // "yes" — and a plain bool cannot tell an absent key from an explicit false.
 func (l L3Config) AutoMTUEnabled() bool {
 	return l.AutoMTU == nil || *l.AutoMTU
+}
+
+// SideName identifies the forwarding side independently of who initiates.
+func (l L3Config) SideName() string {
+	if l.Side != "" {
+		return strings.ToLower(strings.TrimSpace(l.Side))
+	}
+	if strings.EqualFold(strings.TrimSpace(l.Mode), "listen") {
+		return "kharej"
+	}
+	return "iran"
 }

@@ -143,10 +143,11 @@ const defaultSockBuf = 4 << 20
 // Carrier names accepted in a configuration. A reliable transport — tcp, ws,
 // kcp — is deliberately absent and can never be added: see the package doc.
 const (
-	CarrierUDP   = "udp"
-	CarrierPck   = "pck"
-	CarrierXdi   = "xdi"
-	CarrierSpoof = "spoof"
+	CarrierGREFOU = "gre-fou"
+	CarrierUDP    = "udp"
+	CarrierPck    = "pck"
+	CarrierXdi    = "xdi"
+	CarrierSpoof  = "spoof"
 	// CarrierQuic is a real QUIC connection carrying the tunnel in DATAGRAM
 	// frames — unreliable, so it is a carrier and not a transport. See
 	// carrier_quic.go.
@@ -167,7 +168,7 @@ func KnownCarrier(name string) bool { return knownCarrier(name) }
 // refused before anything is created rather than after.
 func knownCarrier(name string) bool {
 	switch name {
-	case CarrierUDP, CarrierPck, CarrierXdi, CarrierSpoof, CarrierQuic, CarrierSNI:
+	case CarrierGREFOU, CarrierUDP, CarrierPck, CarrierXdi, CarrierSpoof, CarrierQuic, CarrierSNI:
 		return true
 	}
 	return false
@@ -198,6 +199,8 @@ func openBareCarrier(cfg Config) (DatagramCarrier, net.Addr, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.Carrier)) {
 	case "", CarrierUDP:
 		return openUDPPaths(cfg)
+	case CarrierGREFOU:
+		return openGREFOU(cfg)
 	case CarrierPck:
 		return openPck(cfg)
 	case CarrierXdi:

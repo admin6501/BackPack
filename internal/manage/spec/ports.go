@@ -151,6 +151,9 @@ func ValidateConfigFile(path string) []string {
 		}
 	}
 	if cfg.L3.Enabled() {
+		if cfg.L3.Side != "" && cfg.L3.SideName() != "iran" && cfg.L3.SideName() != "kharej" {
+			add("[l3] side must be iran or kharej")
+		}
 		if m := strings.ToLower(strings.TrimSpace(cfg.L3.Mode)); m != "dial" && m != "listen" {
 			add("[l3] mode is %q; it has to be \"dial\" or \"listen\"", cfg.L3.Mode)
 		}

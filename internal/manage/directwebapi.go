@@ -30,6 +30,8 @@ import (
 
 // NewDirectTunnel is a filled direct-tunnel form.
 type NewDirectTunnel struct {
+	// Mode is optional for GRE over FOU: dial or listen, independent of Side.
+	Mode string `json:"mode"`
 	// Side is "iran" or "kharej". Iran dials out and exposes the ports; kharej
 	// waits and holds the real service.
 	Side string `json:"side"`
@@ -130,6 +132,8 @@ func DirectCarriers() []map[string]string {
 			"desc": "inside ping (ICMP), for a path that filters UDP and TCP but lets ping through"},
 		{"value": "pck", "label": "PCK", "needsRoot": "1",
 			"desc": "looks like an ordinary TCP flow, but with no socket the firewall can touch"},
+		{"value": "gre-fou", "label": "GRE over FOU", "needsRoot": "",
+			"desc": "GRE in UDP with authenticated encryption; supports direct and reverse initiation"},
 		{"value": "udp", "label": "UDP", "needsRoot": "",
 			"desc": "plain and simple — use it where the path does not interfere"},
 		{"value": "quic", "label": "Quic", "needsRoot": "",
@@ -412,8 +416,16 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 
 	// Iran reaches out; kharej waits. This is the whole of the direct/reverse
 	// difference at this layer.
+	mode := strings.ToLower(strings.TrimSpace(n.Mode))
+	if mode != "" && (carrier != "gre-fou" || (mode != "dial" && mode != "listen")) {
+		return l3Spec{}, fmt.Errorf("explicit mode must be dial or listen and is supported for gre-fou only")
+	}
+	dials := side == sideIran
+	if mode != "" {
+		dials = mode == "dial"
+	}
 	addr := net.JoinHostPort("0.0.0.0", port)
-	if side == sideIran {
+	if dials {
 		host := strings.TrimSpace(n.PeerAddr)
 		if host == "" {
 			return l3Spec{}, fmt.Errorf("the kharej server's address is required on the Iran side")
@@ -443,7 +455,7 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 	spec := l3Spec{
 		TrafficLimitGB:   n.TrafficLimitGB,
 		TrafficLimitMode: n.TrafficLimitMode,
-		Name:             name, Side: side, Carrier: carrier,
+		Name:             name, Side: side, Carrier: carrier, Mode: mode,
 		// Always Backpack's own GRE inside the Noise session. There is no
 		// choice here and the panel does not offer one; see askL3Encap's
 		// removal in the CLI wizard for why.
@@ -616,7 +628,7 @@ func DirectSettingsOf(name string) (DirectSettings, error) {
 func directSettingsFrom(name string, l config.L3Config) DirectSettings {
 	return DirectSettings{
 		Name:    name,
-		Side:    l3Role(l.Mode),
+		Side:    l.SideName(),
 		Carrier: orDefault(l.Carrier, "udp"),
 		Encap:   l3EncapLabel(l),
 		Addr:    l.Addr,
@@ -635,7 +647,7 @@ func directSettingsFrom(name string, l config.L3Config) DirectSettings {
 
 		// The kharej side has no port list at all: every target arrives on the
 		// stream that asks for it, so what is forwarded is set on Iran.
-		HoldsPorts: !strings.EqualFold(strings.TrimSpace(l.Mode), "listen"),
+		HoldsPorts: l.SideName() == "iran",
 
 		Spoof:   spoofOf(l.SpoofConfig),
 		Stealth: spoofStealthOn(l.SpoofConfig),
@@ -787,25 +799,27 @@ func MultipathFor(paths int) l3.MultipathConfig { return l3.MultipathConfig{Path
 // cannot quietly drop a spoof or pck profile.
 func directSpecFrom(name string, l config.L3Config) l3Spec {
 	side := sideIran
-	if strings.EqualFold(strings.TrimSpace(l.Mode), "listen") {
+	if l.SideName() == "kharej" {
 		side = sideKharej
 	}
 	return l3Spec{
-		TrafficLimitGB: readTrafficLimit(name),
-		Name:           name,
-		Side:           side,
-		Carrier:        orDefault(l.Carrier, "udp"),
-		SNIDomain:      l.SNIDomain,
-		Encap:          orDefault(l.Encap, "gre"),
-		GREKey:         l.GREKey,
-		Addr:           l.Addr,
-		Token:          l.Token,
-		Iface:          orDefault(l.Iface, "bp0"),
-		LocalIP:        l.LocalIP,
-		PeerIP:         l.PeerIP,
-		MTU:            l.MTU,
-		AutoMTU:        l.AutoMTU,
-		SockBuf:        l.SockBuf, MSSClamp: l.MSSClamp,
+		TrafficLimitGB:   readTrafficLimit(name),
+		TrafficLimitMode: readTrafficLimitMode(name),
+		Name:             name,
+		Side:             side,
+		Mode:             explicitL3Mode(l),
+		Carrier:          orDefault(l.Carrier, "udp"),
+		SNIDomain:        l.SNIDomain,
+		Encap:            orDefault(l.Encap, "gre"),
+		GREKey:           l.GREKey,
+		Addr:             l.Addr,
+		Token:            l.Token,
+		Iface:            orDefault(l.Iface, "bp0"),
+		LocalIP:          l.LocalIP,
+		PeerIP:           l.PeerIP,
+		MTU:              l.MTU,
+		AutoMTU:          l.AutoMTU,
+		SockBuf:          l.SockBuf, MSSClamp: l.MSSClamp,
 		FECData: l.FECData, FECParity: l.FECParity,
 		Paths:  l.Paths,
 		Preset: l.Preset, TxQueueLen: l.TxQueueLen, Qdisc: l.Qdisc,
