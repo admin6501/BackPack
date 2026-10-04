@@ -42,7 +42,6 @@ type fakeServer struct {
 	menu        bool   // an older binary ignores arguments and opens its main menu
 	refuse      string // the far side answers, and says no
 	protocolErr string // present binary, incompatible node request encoding
-	execHandler func(string, ssh.Channel) uint32
 }
 
 // oldNodeUsage is verbatim what Backpack v1.7.6 and earlier print when asked to
@@ -145,15 +144,9 @@ func (s *fakeServer) handle(c net.Conn, cfg *ssh.ServerConfig) {
 
 				s.mu.Lock()
 				s.ran = append(s.ran, payload.Command)
-				handler := s.execHandler
 				failing, isOld, menu, prefix, refuse, protocolErr :=
 					s.failing, s.old, s.menu, s.prefix, s.refuse, s.protocolErr
 				s.mu.Unlock()
-				if handler != nil {
-					status := handler(payload.Command, ch)
-					ch.SendRequest("exit-status", false, ssh.Marshal(struct{ S uint32 }{status}))
-					return
-				}
 				if menu {
 					fmt.Fprint(ch, "1) Setup Server  2) Setup Client  3) Manage\nSelect an option: ")
 					for range creqs { // An interactive program waits until the session closes.
@@ -180,6 +173,10 @@ func (s *fakeServer) handle(c net.Conn, cfg *ssh.ServerConfig) {
 					fmt.Fprintln(ch, prefix)
 				}
 				if refuse != "" {
+					// node exec reads the request before it can reject the operation.
+					if _, err := io.Copy(io.Discard, ch); err != nil {
+						return
+					}
 					out, _ := json.Marshal(Response{Err: refuse})
 					fmt.Fprintln(ch, base64.StdEncoding.EncodeToString(out))
 					ch.SendRequest("exit-status", false, ssh.Marshal(struct{ S uint32 }{0}))
@@ -456,7 +453,7 @@ func TestTheWholeFormReachesTheFarServer(t *testing.T) {
 	if arrived.Tunnel == nil {
 		t.Fatal("the tunnel form did not arrive at all")
 	}
-	if *arrived.Tunnel != *sent.Tunnel {
+	if !reflect.DeepEqual(*arrived.Tunnel, *sent.Tunnel) {
 		t.Errorf("the form changed on the way:\n sent %+v\n got  %+v", *sent.Tunnel, *arrived.Tunnel)
 	}
 }

@@ -103,6 +103,7 @@ var chosenInJS = map[string]bool{
 // them is the point.
 var fromTheOtherSide = map[string]bool{
 	"fecData": true, "fecParity": true, "mtu": true, "mssClamp": true, "autoMtu": true,
+	"fallbackTransports": true, "fallbackDwell": true,
 }
 
 func TestTheSetupFormMatchesWhatTheServerAccepts(t *testing.T) {

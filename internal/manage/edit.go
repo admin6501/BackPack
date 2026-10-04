@@ -21,15 +21,21 @@ func loadServerSpec(name string) (TunnelSpec, error) {
 	if _, err := toml.DecodeFile(app.ConfigPath(name), &cfg); err != nil {
 		return TunnelSpec{}, err
 	}
-	sc := cfg.Server
-	if sc.BindAddr == "" {
+	if cfg.Server.BindAddr == "" {
 		return TunnelSpec{}, fmt.Errorf("%q is not a server tunnel", name)
 	}
+	return serverSpecOf(name, cfg), nil
+}
+
+func serverSpecOf(name string, cfg config.Config) TunnelSpec {
+	sc := cfg.Server
+
 	return TunnelSpec{
-		TrafficLimitGB:     cfg.TrafficLimitGB,
-		TrafficLimitMode:   cfg.TrafficLimitMode,
-		Role:               "server",
-		Name:               name,
+		TrafficLimitGB:   cfg.TrafficLimitGB,
+		TrafficLimitMode: cfg.TrafficLimitMode,
+		Role:             "server",
+		Name:             name,
+		PPROF:            sc.PPROF, SkipOptz: sc.SkipOptz, SOPinTCP: sc.SOPinTCP, SnifferLog: sc.SnifferLog, ServerMuxSession: sc.MuxSession,
 		Transport:          string(sc.Transport),
 		BindAddr:           sc.BindAddr,
 		Token:              sc.Token,
@@ -77,7 +83,7 @@ func loadServerSpec(name string) (TunnelSpec, error) {
 		PckInterface:       sc.PckInterface,
 		PckGatewayMAC:      sc.PckGatewayMAC,
 		PckFlags:           sc.PckFlags,
-	}, nil
+	}
 }
 
 // loadClientSpec reconstructs a client tunnel's spec from its config file so it
@@ -87,15 +93,21 @@ func loadClientSpec(name string) (TunnelSpec, error) {
 	if _, err := toml.DecodeFile(app.ConfigPath(name), &cfg); err != nil {
 		return TunnelSpec{}, err
 	}
-	cc := cfg.Client
-	if cc.RemoteAddr == "" {
+	if cfg.Client.RemoteAddr == "" {
 		return TunnelSpec{}, fmt.Errorf("%q is not a client tunnel", name)
 	}
+	return clientSpecOf(name, cfg), nil
+}
+
+func clientSpecOf(name string, cfg config.Config) TunnelSpec {
+	cc := cfg.Client
+
 	return TunnelSpec{
-		TrafficLimitGB:     cfg.TrafficLimitGB,
-		TrafficLimitMode:   cfg.TrafficLimitMode,
-		Role:               "client",
-		Name:               name,
+		TrafficLimitGB:   cfg.TrafficLimitGB,
+		TrafficLimitMode: cfg.TrafficLimitMode,
+		Role:             "client",
+		Name:             name,
+		PPROF:            cc.PPROF, SkipOptz: cc.SkipOptz, SOPinTCP: cc.SOPinTCP, SnifferLog: cc.SnifferLog, RetryInterval: cc.RetryInterval, DialTimeout: cc.DialTimeout,
 		Transport:          string(cc.Transport),
 		RemoteAddr:         cc.RemoteAddr,
 		FallbackAddrs:      cc.FallbackAddrs,
@@ -142,7 +154,7 @@ func loadClientSpec(name string) (TunnelSpec, error) {
 		PckInterface:       cc.PckInterface,
 		PckGatewayMAC:      cc.PckGatewayMAC,
 		PckFlags:           cc.PckFlags,
-	}, nil
+	}
 }
 
 // LoadSpec reconstructs any tunnel's spec (server or client) from disk.

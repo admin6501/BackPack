@@ -114,8 +114,10 @@ type ShareLink struct {
 	// version is negotiated and must match. For the kcp transport FECData and
 	// FECParity above carry its error-correction pair, which must match too —
 	// zero on both meaning off.
-	SimpleAuth bool `json:"sa,omitempty"`
-	MuxVer     int  `json:"mv,omitempty"`
+	SimpleAuth         bool     `json:"sa,omitempty"`
+	MuxVer             int      `json:"mv,omitempty"`
+	FallbackTransports []string `json:"ft,omitempty"`
+	FallbackDwell      int      `json:"dw,omitempty"`
 }
 
 // Encode renders a link as the string an operator copies.
@@ -276,8 +278,10 @@ type PeerForm struct {
 
 	// Reverse only: how a wss client proves itself, and the smux version.
 	// Both must match the server's.
-	SimpleAuth bool `json:"simpleAuth,omitempty"`
-	MuxVersion int  `json:"muxVersion,omitempty"`
+	SimpleAuth         bool     `json:"simpleAuth,omitempty"`
+	MuxVersion         int      `json:"muxVersion,omitempty"`
+	FallbackTransports []string `json:"fallbackTransports,omitempty"`
+	FallbackDwell      int      `json:"fallbackDwell,omitempty"`
 
 	// Paired names the form fields that came from the link. Changing one of
 	// them breaks the tunnel unless the other end is changed to match, which is
@@ -323,6 +327,11 @@ func MirrorForPeer(l ShareLink) PeerForm {
 
 	if l.Kind == "reverse" {
 		f.Transport = l.Tr
+		f.FallbackTransports = append([]string(nil), l.FallbackTransports...)
+		f.FallbackDwell = l.FallbackDwell
+		if len(l.FallbackTransports) > 0 {
+			paired = append(paired, "fallbackTransports", "fallbackDwell")
+		}
 		paired = append(paired, "transport")
 		f.SimpleAuth, f.MuxVersion = l.SimpleAuth, l.MuxVer
 		if l.SimpleAuth {
@@ -533,7 +542,9 @@ func shareLinkOf(name, host string, cfg config.Config) (string, error) {
 		l.MSS = cfg.Server.MSS
 		l.SimpleAuth = cfg.Server.SimpleAuth
 		l.MuxVer = cfg.Server.MuxVersion
-		if cfg.Server.Transport == "kcp" {
+		l.FallbackTransports, l.FallbackDwell = config.FallbackNames(cfg.Server.FallbackTransports), cfg.Server.FallbackDwell
+		l.MTU = cfg.Server.MTU
+		if isKCP(string(cfg.Server.Transport)) {
 			l.FECData, l.FECParity = cfg.Server.DataShards, cfg.Server.ParityShards
 		}
 
@@ -544,6 +555,12 @@ func shareLinkOf(name, host string, cfg config.Config) (string, error) {
 		l.Port = addrPort(cfg.Client.RemoteAddr)
 		l.Preset = cfg.Client.Preset
 		l.MSS = cfg.Client.MSS
+		l.SimpleAuth, l.MuxVer = cfg.Client.SimpleAuth, cfg.Client.MuxVersion
+		l.FallbackTransports, l.FallbackDwell = config.FallbackNames(cfg.Client.FallbackTransports), cfg.Client.FallbackDwell
+		l.MTU = cfg.Client.MTU
+		if isKCP(string(cfg.Client.Transport)) {
+			l.FECData, l.FECParity = cfg.Client.DataShards, cfg.Client.ParityShards
+		}
 
 	default:
 		return "", fmt.Errorf("%q is not a tunnel this version can hand over", name)

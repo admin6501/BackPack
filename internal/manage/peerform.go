@@ -23,13 +23,15 @@ func (f PeerForm) ToNewTunnel() NewTunnel {
 		role = "server"
 	}
 	n := NewTunnel{
-		Role:       role,
-		Transport:  f.Transport,
-		Name:       f.Name,
-		TunnelPort: f.TunnelPort,
-		Token:      f.Token,
-		Ports:      f.Ports,
-		Preset:     f.Preset,
+		Role:               role,
+		Transport:          f.Transport,
+		Name:               f.Name,
+		TunnelPort:         f.TunnelPort,
+		Token:              f.Token,
+		Ports:              f.Ports,
+		Preset:             f.Preset,
+		FallbackTransports: append([]string(nil), f.FallbackTransports...),
+		FallbackDwell:      f.FallbackDwell,
 	}
 	if role == "client" {
 		n.ServerAddr = f.ServerAddr
@@ -50,9 +52,13 @@ func (f PeerForm) ToNewTunnel() NewTunnel {
 	if f.MuxVersion > 0 {
 		tune.sent["muxVersion"] = true
 	}
-	if f.Transport == "kcp" {
+	if isKCP(f.Transport) {
 		// Zero on both is "off", and has to be carried as an answer.
 		tune.sent["kcpDataShards"], tune.sent["kcpParityShards"] = true, true
+	}
+	if isKCP(f.Transport) && f.MTU > 0 {
+		tune.KCPMTU = f.MTU
+		tune.sent["kcpMTU"] = true
 	}
 	if len(tune.sent) > 0 {
 		n.Tune = &tune

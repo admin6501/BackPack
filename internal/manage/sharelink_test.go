@@ -2,6 +2,7 @@ package manage
 
 import (
 	"encoding/base64"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -39,7 +40,7 @@ func TestShareLinkRoundTripsEverySetting(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	want.V = 1 // set by Encode
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("the link did not survive the trip:\n got %+v\nwant %+v", got, want)
 	}
 }
