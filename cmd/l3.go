@@ -170,13 +170,3 @@ func l3LogFormat(cfg *config.Config) string {
 	}
 	return cfg.Client.LogFormat
 }
-
-// l3Role is what the metrics file records. The geography is what an operator
-// recognises, and it is stable across the direction the tunnel happens to be
-// dialled in.
-func l3Role(mode string) string {
-	if mode == l3.ModeDial {
-		return "iran-edge"
-	}
-	return "kharej-origin"
-}
