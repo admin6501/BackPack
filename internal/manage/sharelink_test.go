@@ -218,9 +218,7 @@ func TestMirroringAReverseLinkGivesKharejTheAddressAndNoPorts(t *testing.T) {
 	}
 }
 
-// The subtle one: the producer's forged source is not copied across — it
-// becomes what this side EXPECTS from it. Copying it would have both ends
-// forging the same address, which is not what the pinning means.
+// A source-only wizard link supplies both the peer pin and its own source default.
 func TestTheProducersForgedSourceBecomesTheExpectedOne(t *testing.T) {
 	l := sampleLink()
 	l.SrcIPs = "8.8.4.4"
@@ -232,8 +230,8 @@ func TestTheProducersForgedSourceBecomesTheExpectedOne(t *testing.T) {
 	if f.Spoof.PeerSrcIP != "8.8.4.4" {
 		t.Errorf("expected source = %q, want the producer's 8.8.4.4", f.Spoof.PeerSrcIP)
 	}
-	if f.Spoof.SrcIPs != "" {
-		t.Errorf("the producer's forged source was copied as this side's own: %q", f.Spoof.SrcIPs)
+	if f.Spoof.SrcIPs != "8.8.4.4" {
+		t.Errorf("peer own source = %q, want inherited 8.8.4.4", f.Spoof.SrcIPs)
 	}
 	// And the listening side is told where its peer really is, which it cannot
 	// learn from packets whose source is forged.
