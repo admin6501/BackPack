@@ -424,4 +424,11 @@ FEC؛ و zero-copy (فقط روی tcp ساده).
 
 ---
 
-*Last verified against Backpack v1.8.20.*
+
+## Setup links and ordinary edits
+
+Reverse Setup Links retain auth/mux parameters, KCP/XDI/PCK FEC and MTU, and the fallback transport chain in either direction. Incomplete links ask for the required reachable peer address and Iran forwarded ports before creating a tunnel. Reverse edits retain custom retry/dial timeouts and local debug/tuning overrides. PCK setup's automatic interface/gateway choice clears old manual overrides.
+
+لینک ستاپ ریورس تنظیمات مشترک دو طرف را در هر دو جهت منتقل می‌کند. آدرس و پورت ضروریِ ناقص پیش از ساخت پرسیده می‌شود. ویرایش معمولی زمان اتصال سفارشی را حفظ می‌کند؛ انتخاب رابط خودکار PCK تنظیم دستی قبلی را پاک می‌کند.
+
+*Last verified against Backpack v1.8.21.*

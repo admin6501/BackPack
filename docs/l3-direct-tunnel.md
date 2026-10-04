@@ -641,4 +641,11 @@ obfuscated به `CAP_NET_RAW` هم نیاز دارند). **هیچ‌وقت حا�
 
 ---
 
-*Last verified against Backpack v1.8.20.*
+
+## Settings retained by peer setup and edits
+
+A Setup Link swaps local/peer tunnel addresses while retaining the producer's CIDR prefix on the new local address. With the standard /30 network, Iran is `10.10.0.1/30`, kharej is `10.10.0.2/30`, and each peer address has no prefix. This is the same in either setup direction. Ordinary CLI and web edits retain the SNI carrier's `sni_domain`.
+
+در هر دو جهت ستاپ، پیشوند شبکه روی آدرس محلی حفظ می‌شود و آدرس طرف مقابل بدون اسلش است. ویرایش پورت یا تنظیمات دیگر، دامنهٔ کریر SNI را حذف نمی‌کند.
+
+*Last verified against Backpack v1.8.21.*
