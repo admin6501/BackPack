@@ -115,4 +115,4 @@ for the full picture.
 
 ---
 
-*Last verified against Backpack v1.8.23.*
+*Last verified against Backpack v1.8.24.*

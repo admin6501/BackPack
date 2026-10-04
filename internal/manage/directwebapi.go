@@ -428,7 +428,7 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 	if dials {
 		host := strings.TrimSpace(n.PeerAddr)
 		if host == "" {
-			return l3Spec{}, fmt.Errorf("the kharej server's address is required on the Iran side")
+			return l3Spec{}, fmt.Errorf("the listening peer's address is required on the dialing side")
 		}
 		addr = net.JoinHostPort(host, port)
 	}

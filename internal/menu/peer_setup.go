@@ -113,7 +113,7 @@ func choosePeerNode(fleet *control.Fleet) (string, error) {
 func peerApplyRequest(link manage.ShareLink) (node.ApplyRequest, string, error) {
 	form := manage.MirrorForPeer(link)
 	if form.ServerAddr == "" && ((form.Kind == "reverse" && form.Side == "kharej") ||
-		(form.Kind == "direct" && form.Side == "iran")) {
+		(form.Kind == "direct" && (form.Mode == "dial" || (form.Mode == "" && form.Side == "iran")))) {
 		return node.ApplyRequest{}, "", fmt.Errorf("the other side needs an address for this server")
 	}
 	if form.Kind == "direct" {
@@ -125,6 +125,12 @@ func peerApplyRequest(link manage.ShareLink) (node.ApplyRequest, string, error) 
 	}
 	t := form.ToNewTunnel()
 	return node.ApplyRequest{Kind: "reverse", Tunnel: &t}, form.Name, nil
+}
+
+// A listener must supply its reachable address even when it is on Iran in
+// reverse L3 mode. Geography alone does not determine who initiates.
+func peerSetupNeedsHost(t manage.Tunnel) bool {
+	return !manage.DialsOut(t) || (manage.IsDirectKind(t) && strings.Contains(t.Transport, "spoof"))
 }
 
 func setUpPeer(t manage.Tunnel) {
@@ -139,8 +145,7 @@ func setUpPeer(t manage.Tunnel) {
 	host := ""
 	// A listening end's config usually says 0.0.0.0. The peer needs the
 	// reachable address, which only the operator can confirm on a routed VPS.
-	if t.Role == "server" || (manage.IsDirectKind(t) &&
-		(t.Role == "kharej" || strings.Contains(t.Transport, "spoof"))) {
+	if peerSetupNeedsHost(t) {
 		host = strings.TrimSpace(tui.PromptDefault("This server's address as the peer reaches it", manage.PublicIPv4()))
 		if host == "" || host == "-" {
 			tui.Error("A reachable address is required before setting up the other end.")

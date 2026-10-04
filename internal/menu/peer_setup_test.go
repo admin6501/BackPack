@@ -62,3 +62,57 @@ func TestDirectPeerFromKharejAsksForIranPortsBeforeSSH(t *testing.T) {
 		}
 	}
 }
+
+func TestGREFOUPeerSetupPreservesInitiationAndRequiresListenerAddress(t *testing.T) {
+	for _, side := range []string{"iran", "kharej"} {
+		for _, mode := range []string{"dial", "listen"} {
+			direction := "direct"
+			if (side == "iran") != (mode == "dial") {
+				direction = "reverse"
+			}
+			local := manage.Tunnel{Role: side, Transport: "l3/gre-fou", Direction: direction}
+			if peerSetupNeedsHost(local) != (mode == "listen") {
+				t.Fatalf("%s/%s: wrong reachable-address prompt", side, mode)
+			}
+			link := manage.ShareLink{Kind: "direct", From: side, Mode: mode, Tr: "gre-fou", Name: "existing", Tok: "same-secret", Port: "1992", LocalIP: "10.10.1.1/30", PeerIP: "10.10.1.2", GREKey: 17}
+			if mode == "listen" {
+				if _, _, err := peerApplyRequest(link); err == nil {
+					t.Fatal("dialing peer accepted without a reachable address")
+				}
+				link.Host = "203.0.113.7"
+			}
+			req, _, err := peerApplyRequest(link)
+			if err != nil {
+				t.Fatalf("%s/%s: %v", side, mode, err)
+			}
+			wantMode := "listen"
+			if mode == "listen" {
+				wantMode = "dial"
+			}
+			if req.Direct == nil || req.Direct.Mode != wantMode || req.Direct.Side == side || req.Direct.Token != link.Tok || req.Direct.LocalIP != "10.10.1.2/30" || req.Direct.PeerIP != "10.10.1.1" || req.Direct.GREKey != 17 {
+				t.Fatalf("bad mirrored request: %+v", req.Direct)
+			}
+			if wantMode == "dial" && req.Direct.PeerAddr != link.Host {
+				t.Fatal("listener address not carried to dialer")
+			}
+			if wantMode == "listen" && req.Direct.PeerAddr != "" {
+				t.Fatal("listener was given a dial address")
+			}
+		}
+	}
+}
+
+func TestPeerSetupHostPromptKeepsLegacyDirections(t *testing.T) {
+	for _, tc := range []struct {
+		role, transport string
+		want            bool
+	}{
+		{"server", "tcp", true}, {"client", "tcp", false},
+		{"iran", "direct/tcp", false}, {"kharej", "direct/tcp", true},
+		{"iran", "l3/spoof", true}, {"kharej", "l3/spoof", true},
+	} {
+		if peerSetupNeedsHost(manage.Tunnel{Role: tc.role, Transport: tc.transport}) != tc.want {
+			t.Fatalf("wrong host prompt for %s/%s", tc.role, tc.transport)
+		}
+	}
+}
