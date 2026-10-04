@@ -299,6 +299,7 @@ func askPck(s *TunnelSpec) {
 		s.PckFlags = nil // the default, left out of the config entirely
 	}
 
+	s.PckInterface, s.PckGatewayMAC = "", ""
 	if tui.Confirm("Override The Automatic Interface / Gateway Detection", false) {
 		if names := routableInterfaces(); len(names) > 0 {
 			tui.Info("Interfaces: " + strings.Join(names, ", "))
@@ -394,6 +395,8 @@ func askSpoofCarrier(sc *config.SpoofConfig, onIran bool) {
 	if tui.Confirm("Set the two directions separately", false) {
 		sc.SpoofUplink = askSpoofProfile("Uplink profile (kharej → Iran):")
 		sc.SpoofDownlink = askSpoofProfile("Downlink profile (Iran → kharej):")
+	} else {
+		sc.SpoofUplink, sc.SpoofDownlink = "", ""
 	}
 
 	// ---- 2. where the replies go -------------------------------------------
@@ -435,6 +438,9 @@ func askSpoofCarrier(sc *config.SpoofConfig, onIran bool) {
 	tui.Info("session — that is what gets past a limit or a block that counts by")
 	tui.Info("address.")
 	raw := strings.TrimSpace(tui.PromptDefault("Forged source IPv4 (empty = do not forge)", ""))
+	if raw == "" {
+		sc.SpoofSrcIP, sc.SpoofSrcPool = "", nil
+	}
 	if raw != "" {
 		var pool []string
 		for _, part := range strings.Split(raw, ",") {
@@ -447,6 +453,9 @@ func askSpoofCarrier(sc *config.SpoofConfig, onIran bool) {
 				continue
 			}
 			pool = append(pool, ip)
+		}
+		if len(pool) > 0 {
+			sc.SpoofSrcIP, sc.SpoofSrcPool = "", nil
 		}
 		if len(pool) == 1 {
 			sc.SpoofSrcIP = pool[0]
@@ -468,6 +477,7 @@ func askSpoofCarrier(sc *config.SpoofConfig, onIran bool) {
 		for {
 			iface := strings.TrimSpace(tui.PromptDefault("Interface", ""))
 			if iface == "" {
+				sc.SpoofInterface = ""
 				break
 			}
 			if _, err := net.InterfaceByName(iface); err != nil {
@@ -506,6 +516,8 @@ func askSpoofCarrier(sc *config.SpoofConfig, onIran bool) {
 	fmt.Println()
 	if tui.Confirm("Turn Stealth on", false) {
 		applySpoofStealth(sc)
+	} else {
+		clearSpoofStealth(sc)
 	}
 
 	spoofSummary(*sc, here, there)

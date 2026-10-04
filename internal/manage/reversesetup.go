@@ -364,8 +364,13 @@ func reverseClientFromLink(link ShareLink, host string) TunnelSpec {
 	if link.MuxVer > 0 {
 		s.MuxVersion = link.MuxVer
 	}
-	if link.Tr == "kcp" {
+	s.FallbackTransports = append([]string(nil), link.FallbackTransports...)
+	s.FallbackDwell = link.FallbackDwell
+	if isKCP(link.Tr) {
 		s.KCPDataShards, s.KCPParityShards = link.FECData, link.FECParity
+		if link.MTU > 0 {
+			s.KCPMTU = link.MTU
+		}
 	}
 	return s
 }

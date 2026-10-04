@@ -180,6 +180,9 @@ func (s *fakeServer) handle(c net.Conn, cfg *ssh.ServerConfig) {
 					fmt.Fprintln(ch, prefix)
 				}
 				if refuse != "" {
+					if _, err := io.Copy(io.Discard, ch); err != nil {
+						return
+					}
 					out, _ := json.Marshal(Response{Err: refuse})
 					fmt.Fprintln(ch, base64.StdEncoding.EncodeToString(out))
 					ch.SendRequest("exit-status", false, ssh.Marshal(struct{ S uint32 }{0}))
@@ -456,7 +459,7 @@ func TestTheWholeFormReachesTheFarServer(t *testing.T) {
 	if arrived.Tunnel == nil {
 		t.Fatal("the tunnel form did not arrive at all")
 	}
-	if *arrived.Tunnel != *sent.Tunnel {
+	if !reflect.DeepEqual(*arrived.Tunnel, *sent.Tunnel) {
 		t.Errorf("the form changed on the way:\n sent %+v\n got  %+v", *sent.Tunnel, *arrived.Tunnel)
 	}
 }

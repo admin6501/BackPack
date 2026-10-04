@@ -795,6 +795,7 @@ func directSpecFrom(name string, l config.L3Config) l3Spec {
 		Name:           name,
 		Side:           side,
 		Carrier:        orDefault(l.Carrier, "udp"),
+		SNIDomain:      l.SNIDomain,
 		Encap:          orDefault(l.Encap, "gre"),
 		GREKey:         l.GREKey,
 		Addr:           l.Addr,

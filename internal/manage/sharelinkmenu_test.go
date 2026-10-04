@@ -153,7 +153,7 @@ func TestADirectLinkSwapsThePrivateAddresses(t *testing.T) {
 	}
 	form := MirrorForPeer(back)
 
-	if form.LocalIP != "10.9.0.2" {
+	if form.LocalIP != "10.9.0.2/24" {
 		t.Errorf("local = %q, want the producer's peer address", form.LocalIP)
 	}
 	if form.PeerIP != "10.9.0.1" {

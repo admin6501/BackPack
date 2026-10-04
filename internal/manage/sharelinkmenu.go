@@ -2,6 +2,7 @@ package manage
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/backpack/backpack/internal/tui"
@@ -38,7 +39,7 @@ func showShareLink(name string) {
 // there was one to print.
 func printShareLink(name string) bool {
 	host := ""
-	if t, ok := Find(name); ok && t.Role == "server" {
+	if t, ok := Find(name); ok && (t.Role == "server" || (IsDirectKind(t) && (t.Role == "kharej" || strings.Contains(t.Transport, "spoof")))) {
 		// A reverse server listens on all interfaces, so its config cannot tell
 		// the kharej side which public address to dial. Use the detected address
 		// as a starting point, and let the operator correct it for NAT, a CDN,
@@ -47,9 +48,13 @@ func printShareLink(name string) bool {
 		if detected == "-" {
 			detected = ""
 		}
-		host = strings.Trim(strings.TrimSpace(tui.PromptDefault("Iran IP Or Domain (What Kharej Dials)", detected)), "[]")
+		label := "Iran IP Or Domain (What Kharej Dials)"
+		if IsDirectKind(t) {
+			label = "This server’s reachable real IP or domain"
+		}
+		host = strings.Trim(strings.TrimSpace(tui.PromptDefault(label, detected)), "[]")
 		if host == "" {
-			tui.Error("A reachable Iran IP or domain is required to build the kharej setup link.")
+			tui.Error("A reachable real IP or domain is required to build the peer setup link.")
 			return false
 		}
 	}
@@ -110,8 +115,12 @@ func setupFromLink() {
 
 	form := MirrorForPeer(link)
 	if needsPeerServerAddress(form) {
-		tui.Warn("This setup link does not contain the Iran server address.")
-		host := strings.Trim(strings.TrimSpace(tui.Prompt("Iran IP Or Domain (What Kharej Dials): ")), "[]")
+		tui.Warn("This setup link is missing the other server’s reachable address.")
+		label := "Iran IP Or Domain (What Kharej Dials): "
+		if form.Kind == "direct" {
+			label = "Other server’s reachable real address: "
+		}
+		host := strings.Trim(strings.TrimSpace(tui.Prompt(label)), "[]")
 		var addressErr error
 		form, addressErr = withPeerServerAddress(form, host)
 		if addressErr != nil {
@@ -119,6 +128,11 @@ func setupFromLink() {
 			tui.PressEnter()
 			return
 		}
+	}
+	if err := completePeerFormPorts(&form); err != nil {
+		tui.Error(err.Error())
+		tui.PressEnter()
+		return
 	}
 	fmt.Println()
 	tui.Info("This will build the " + form.Side + " end of a " + form.Kind + " tunnel.")
@@ -132,13 +146,7 @@ func setupFromLink() {
 	}
 	fmt.Println()
 
-	// The forwarded ports are already decided, or deliberately absent.
-	//
-	// MirrorForPeer fills them for the side that exposes them and leaves them
-	// empty for the side that does not — the kharej end of a reverse tunnel
-	// dials in and has no ports of its own to publish. Asking for them here
-	// would be asking a question the link has already answered, and asking it
-	// of the end that has no business answering it.
+	// Iran exposes the forwarded ports; incomplete links are filled above.
 	if form.Ports != "" {
 		tui.Info("Ports      : " + form.Ports)
 		fmt.Println()
@@ -162,10 +170,13 @@ func setupFromLink() {
 	tui.PressEnter()
 }
 
-// needsPeerServerAddress reports the one peer form that cannot be built
-// without an address: the kharej side of a reverse tunnel dials Iran.
+// needsPeerServerAddress identifies incomplete links that need a reachable
+// remote address before the peer can dial or send spoofed packets.
 func needsPeerServerAddress(f PeerForm) bool {
-	return f.Kind == "reverse" && strings.EqualFold(f.Side, "kharej") && strings.TrimSpace(f.ServerAddr) == ""
+	if f.Kind == "reverse" {
+		return strings.EqualFold(f.Side, "kharej") && strings.TrimSpace(f.ServerAddr) == ""
+	}
+	return f.Kind == "direct" && ((f.Side == "iran" && strings.TrimSpace(f.ServerAddr) == "") || (f.Carrier == "spoof" && strings.TrimSpace(f.SpoofPeerIP) == ""))
 }
 
 // withPeerServerAddress completes legacy or incomplete links before the
@@ -177,9 +188,17 @@ func withPeerServerAddress(f PeerForm, host string) (PeerForm, error) {
 	}
 	host = strings.Trim(strings.TrimSpace(host), "[]")
 	if host == "" {
-		return f, fmt.Errorf("the Iran server address is required to set up the kharej end")
+		return f, fmt.Errorf("the other server’s reachable address is required")
 	}
-	f.ServerAddr = host
+	if f.Kind == "reverse" || f.Side == "iran" {
+		f.ServerAddr = host
+	}
+	if f.Kind == "direct" && f.Carrier == "spoof" {
+		if net.ParseIP(host).To4() == nil {
+			return f, fmt.Errorf("spoof requires the peer’s real IPv4 address")
+		}
+		f.SpoofPeerIP = host
+	}
 	return f, nil
 }
 
@@ -196,3 +215,16 @@ func applyPeerForm(f PeerForm) (service string, active bool, err error) {
 // SetupFromLink is the menu's entry point. Exported because internal/menu owns
 // the main menu and this package owns everything it dispatches to.
 func SetupFromLink() { setupFromLink() }
+
+func completePeerFormPorts(f *PeerForm) error {
+	if f.Side != "iran" {
+		return nil
+	}
+	if strings.TrimSpace(f.Ports) == "" {
+		f.Ports = strings.TrimSpace(tui.Prompt("Ports to expose on Iran (e.g. 443=127.0.0.1:2096): "))
+	}
+	if strings.TrimSpace(f.Ports) == "" {
+		return fmt.Errorf("at least one forwarded port is required on Iran")
+	}
+	return validatePortSpecs(parsePorts(f.Ports))
+}

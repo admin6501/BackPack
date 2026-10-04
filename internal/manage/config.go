@@ -54,14 +54,21 @@ type TunnelSpec struct {
 	// FallbackDwell is how many seconds one candidate is held. 0 = the default.
 	FallbackDwell int
 
-	Nodelay        bool
-	Heartbeat      int
-	KeepAlive      int
-	ChannelSize    int
-	ConnectionPool int
-	AggressivePool bool
-	AcceptUDP      bool
-	LogLevel       string
+	Nodelay          bool
+	Heartbeat        int
+	KeepAlive        int
+	ChannelSize      int
+	ConnectionPool   int
+	RetryInterval    int
+	DialTimeout      int
+	PPROF            bool
+	SkipOptz         bool
+	SOPinTCP         bool
+	SnifferLog       string
+	ServerMuxSession int
+	AggressivePool   bool
+	AcceptUDP        bool
+	LogLevel         string
 	// LogFormat is "" for human-readable output or "json" for machine parsing.
 	LogFormat string
 
@@ -159,6 +166,18 @@ func monitorBind(configured string) string {
 
 // writeTuning emits the throughput/latency knobs shared by server and client.
 func (s TunnelSpec) writeTuning(p func(string, ...any)) {
+	if s.PPROF {
+		p("pprof = true\n")
+	}
+	if s.SkipOptz {
+		p("skip_optz = true\n")
+	}
+	if s.SOPinTCP {
+		p("so_pin_tcp = true\n")
+	}
+	if s.SnifferLog != "" {
+		p("sniffer_log = %q\n", s.SnifferLog)
+	}
 	if s.MSS > 0 {
 		p("mss = %d\n", s.MSS)
 	}
@@ -299,6 +318,9 @@ func (s TunnelSpec) Render() string {
 		}
 		if isMux(s.Transport) {
 			p("mux_con = %d\n", s.MuxCon)
+			if s.ServerMuxSession > 0 {
+				p("mux_session = %d\n", s.ServerMuxSession)
+			}
 			p("mux_version = %d\n", s.MuxVersion)
 			p("mux_framesize = %d\n", s.MuxFrameSize)
 			p("mux_recievebuffer = %d\n", s.MuxRecvBuffer)
@@ -356,8 +378,15 @@ func (s TunnelSpec) Render() string {
 	if s.HealthFailover {
 		p("health_failover = true\n")
 	}
-	p("retry_interval = %d\n", 3)
-	p("dial_timeout = %d\n", 10)
+	retry, dial := s.RetryInterval, s.DialTimeout
+	if retry <= 0 {
+		retry = 3
+	}
+	if dial <= 0 {
+		dial = 10
+	}
+	p("retry_interval = %d\n", retry)
+	p("dial_timeout = %d\n", dial)
 	p("log_level = %q\n", s.LogLevel)
 	if s.LogFormat != "" {
 		p("log_format = %q\n", s.LogFormat)

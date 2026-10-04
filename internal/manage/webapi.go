@@ -366,14 +366,16 @@ func PresetTune(preset, role, transport string) FineTune {
 // collects it. It is the form's shape, not the config's: Ports and IPv6 are
 // server-only, ServerAddr is client-only, and the rest is common.
 type NewTunnel struct {
-	Role       string `json:"role"` // "server" (Iran) or "client" (kharej)
-	Transport  string `json:"transport"`
-	Name       string `json:"name"`
-	TunnelPort string `json:"tunnelPort"` // server: bind port — client: the server's port
-	ServerAddr string `json:"serverAddr"` // client only: IP or domain of the server
-	Token      string `json:"token"`
-	Ports      string `json:"ports"` // server only: comma-separated forwarded ports
-	Preset     string `json:"preset"`
+	Role               string   `json:"role"` // "server" (Iran) or "client" (kharej)
+	Transport          string   `json:"transport"`
+	Name               string   `json:"name"`
+	TunnelPort         string   `json:"tunnelPort"` // server: bind port — client: the server's port
+	ServerAddr         string   `json:"serverAddr"` // client only: IP or domain of the server
+	Token              string   `json:"token"`
+	Ports              string   `json:"ports"` // server only: comma-separated forwarded ports
+	Preset             string   `json:"preset"`
+	FallbackTransports []string `json:"fallbackTransports,omitempty"`
+	FallbackDwell      int      `json:"fallbackDwell,omitempty"`
 
 	IPv6          bool `json:"ipv6"`          // server only: bind :: instead of 0.0.0.0
 	ProxyProtocol bool `json:"proxyProtocol"` // server only
@@ -557,6 +559,14 @@ func specFromNew(n NewTunnel) (TunnelSpec, error) {
 			presetLabel(n.Preset), s.Transport)
 	}
 	ApplyPreset(&s, n.Preset)
+	chain, err := cleanChain(s.Transport, n.FallbackTransports)
+	if err != nil {
+		return s, err
+	}
+	if n.FallbackDwell < 0 {
+		return s, fmt.Errorf("fallback dwell cannot be negative")
+	}
+	s.FallbackTransports, s.FallbackDwell = chain, n.FallbackDwell
 	if n.Tune != nil {
 		n.Tune.apply(&s)
 	}

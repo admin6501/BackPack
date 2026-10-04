@@ -38,7 +38,7 @@ func TestTheKharejGetsEveryPairedSettingFromTheLink(t *testing.T) {
 	body := spec.render()
 	for _, want := range []string{
 		`mode         = "listen"`,
-		`local_ip     = "10.10.2.2"`,
+		`local_ip     = "10.10.2.2/30"`,
 		`peer_ip      = "10.10.2.1"`,
 		"gre_key      = 7",
 		"mtu          = 1380",
