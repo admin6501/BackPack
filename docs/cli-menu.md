@@ -431,4 +431,4 @@ Reverse Setup Links retain auth/mux parameters, KCP/XDI/PCK FEC and MTU, and the
 
 لینک ستاپ ریورس تنظیمات مشترک دو طرف را در هر دو جهت منتقل می‌کند. آدرس و پورت ضروریِ ناقص پیش از ساخت پرسیده می‌شود. ویرایش معمولی زمان اتصال سفارشی را حفظ می‌کند؛ انتخاب رابط خودکار PCK تنظیم دستی قبلی را پاک می‌کند.
 
-*Last verified against Backpack v1.8.23.*
+*Last verified against Backpack v1.8.24.*
