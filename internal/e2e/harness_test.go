@@ -11,10 +11,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -83,6 +85,13 @@ func startEchoBackend(t *testing.T) *echoBackend {
 		for {
 			conn, err := l.Accept()
 			if err != nil {
+				// The FD chaos child starves the backend as well as the tunnel.
+				// A temporary descriptor shortage must not permanently stop the
+				// test service and masquerade as a tunnel recovery failure.
+				if errors.Is(err, syscall.EMFILE) || errors.Is(err, syscall.ENFILE) {
+					time.Sleep(10 * time.Millisecond)
+					continue
+				}
 				return // listener closed
 			}
 			go func(c net.Conn) {

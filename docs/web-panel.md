@@ -158,4 +158,4 @@ that does the same job — is in
 
 ---
 
-*Last verified against Backpack v1.8.22.*
+*Last verified against Backpack v1.8.23.*
