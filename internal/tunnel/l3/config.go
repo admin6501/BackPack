@@ -240,11 +240,11 @@ func (c *Config) Validate() error {
 		c.Iface = defaultIfaceName
 	}
 
-	if err := validateTunnelAddr("local_ip", c.LocalIP, true); err != nil {
+	if err := CheckTunnelAddress("local_ip", c.LocalIP, true); err != nil {
 		return err
 	}
 	if c.PeerIP != "" {
-		if err := validateTunnelAddr("peer_ip", c.PeerIP, false); err != nil {
+		if err := CheckTunnelAddress("peer_ip", c.PeerIP, false); err != nil {
 			return err
 		}
 	}
@@ -292,10 +292,10 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// validateTunnelAddr checks one of the two addresses the interface is given.
+// CheckTunnelAddress checks one of the two addresses the interface is given.
 // The local one may carry a prefix; the peer one may not, because it names a
 // single host.
-func validateTunnelAddr(field, value string, allowPrefix bool) error {
+func CheckTunnelAddress(field, value string, allowPrefix bool) error {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return fmt.Errorf("l3: %s is required (this end's address on the tunnel, e.g. \"10.10.0.1/30\")", field)
@@ -352,7 +352,7 @@ func CheckTunnelEnds(localIP, peerIP string) error {
 	}
 	localAddr, subnet, err := net.ParseCIDR(strings.TrimSpace(localIP))
 	if err != nil {
-		return nil // validateTunnelAddr reports malformed addresses separately.
+		return nil // CheckTunnelAddress reports malformed addresses separately.
 	}
 	ones, bits := subnet.Mask.Size()
 	if ones == bits {

@@ -477,6 +477,12 @@ func l3Block(addr string) string {
 // other, so manually entering an existing 10.10.N.0/30 block could steal its
 // route from an older interface.
 func validateL3TunnelAddresses(localIP, peerIP string) error {
+	if err := l3.CheckTunnelAddress("local_ip", localIP, true); err != nil {
+		return err
+	}
+	if err := l3.CheckTunnelAddress("peer_ip", peerIP, false); err != nil {
+		return err
+	}
 	if err := l3.CheckTunnelEnds(localIP, peerIP); err != nil {
 		return err
 	}
