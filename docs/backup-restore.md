@@ -205,4 +205,4 @@ settings were applied but a restored service failed to start.
 
 ---
 
-*Last verified against Backpack v1.8.24.*
+*Last verified against Backpack v1.8.25.*

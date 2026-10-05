@@ -241,4 +241,4 @@ them both ends have to agree on. This says what exists.
 
 ---
 
-*Generated from `config/` on 2026-10-04. Last verified against Backpack v1.8.24.*
+*Generated from `config/` on 2026-10-04. Last verified against Backpack v1.8.25.*
