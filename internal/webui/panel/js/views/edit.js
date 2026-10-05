@@ -97,6 +97,11 @@ function read(root) {
   return out;
 }
 
+function keepDirectTab(button, holdsPorts) {
+  return button.dataset.editTab === 'connection' ||
+    (button.dataset.editTab === 'ports' && holdsPorts) || button.classList.contains('hist');
+}
+
 /* Direct edits have their own API shape. Only Iran owns forwarded ports;
    a blank port list is an explicit request to remove every mapping. */
 function editPayload(name, root, settings, direct) {
@@ -369,7 +374,7 @@ export async function editView(ctx) {
         root.querySelectorAll('.pane[data-tab="Connection"] .f, .pane[data-tab="Connection"] .two')
           .forEach(row => { if (!row.querySelector('[name="trafficLimitGB"], [name="trafficLimitMode"]')) row.remove(); });
         root.querySelectorAll('.tabs button').forEach(b => {
-          if (b.textContent.trim() !== 'Connection' && !(b.textContent.trim() === 'Ports' && settings.holdsPorts) && !b.classList.contains('hist')) b.remove();
+          if (!keepDirectTab(b, settings.holdsPorts)) b.remove();
         });
         root.querySelector('[name="proxyProtocol"]')?.closest('.tg')?.remove();
         root.querySelector('[data-name="proxyProtocol"]')?.closest('.tg')?.remove();
