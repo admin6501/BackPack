@@ -49,3 +49,17 @@ func TestAllDirectCarriersRequireIranPortsOnCreateAndEdit(t *testing.T) {
 		}
 	}
 }
+
+func TestPortSharingCannotLeaveANewDirectEndWithoutMappings(t *testing.T) {
+	old := iranL3("existing", "10.10.0.2", "443", "8000-8010")
+	for _, selected := range [][]string{{"443"}, {"8005"}} {
+		keep, _, _ := planL3Sharing(selected, "10.10.1.2", []l3Tunnel{old})
+		if _, err := requiredDirectPorts(strings.Join(keep, ",")); err == nil {
+			t.Fatalf("all-shared or clashing list accepted: %v", selected)
+		}
+	}
+	keep, _, _ := planL3Sharing([]string{"443", "42221"}, "10.10.1.2", []l3Tunnel{old})
+	if _, err := requiredDirectPorts(strings.Join(keep, ",")); err != nil {
+		t.Fatal("sharing with an owned port should remain available:", err)
+	}
+}

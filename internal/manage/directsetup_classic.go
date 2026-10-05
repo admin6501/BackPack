@@ -105,6 +105,11 @@ func setupL3Classic(side directSide, carrier string) {
 		// A second kharej asking for the first one's ports means "serve
 		// them from both", not "fail to bind". See l3share.go.
 		cfg.Ports = offerL3Sharing(cfg)
+		if len(cfg.Ports) == 0 {
+			tui.Error("No forwarded ports remain. Choose at least one port not held by another tunnel.")
+			tui.PressEnter()
+			return
+		}
 		if busy := busyForwardPorts(cfg.Ports, cfg.PeerIP); len(busy) > 0 {
 			tui.Error("Already in use on this server: " + strings.Join(busy, ", ") +
 				" — the web panel's own port is the usual one. Pick other ports.")

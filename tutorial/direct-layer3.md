@@ -52,9 +52,9 @@ carrier asks for both real peer IPv4 addresses and forged sources separately.
 ## Check the result
 
 First check **Manage → Manage Tunnels** and **Manage → Tunnel Metrics**. Then
-send traffic through one exposed port. If you left forwarded ports blank, test
-the private link from Iran with `ping 10.10.0.2`, using the actual peer address
-from your tunnel summary if it differs. A service shown as running only proves
+send traffic through one exposed port. You can also test the private link from
+Iran with `ping 10.10.0.2`, using the actual peer address from your tunnel
+summary if it differs. A service shown as running only proves
 the process started; it does not prove the application on kharej answers.
 
 If the tunnel cannot establish, check the carrier and token, the listener on

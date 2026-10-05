@@ -163,6 +163,12 @@ func offerL3Sharing(cfg l3Spec) []string {
 	var existing []l3Tunnel
 	eachIranL3Tunnel(func(t l3Tunnel) { existing = append(existing, t) })
 	keep, shares, clash := planL3Sharing(cfg.Ports, cfg.PeerIP, existing)
+	// Do not rewrite an existing tunnel to target an end the wizard cannot
+	// create under its mandatory-port policy. Check before sharing mutates it.
+	if _, err := requiredDirectPorts(strings.Join(keep, ",")); err != nil {
+		tui.Error("All selected ports are held by other tunnels; choose at least one unclaimed forwarded port.")
+		return nil
+	}
 
 	if len(clash) > 0 {
 		fmt.Println()
@@ -227,6 +233,11 @@ func shareL3PortsQuietly(cfg l3Spec) ([]string, error) {
 	var existing []l3Tunnel
 	eachIranL3Tunnel(func(t l3Tunnel) { existing = append(existing, t) })
 	keep, shares, clash := planL3Sharing(cfg.Ports, cfg.PeerIP, existing)
+	// Do not rewrite an existing tunnel to target an end the wizard cannot
+	// create under its mandatory-port policy. Check before sharing mutates it.
+	if _, err := requiredDirectPorts(strings.Join(keep, ",")); err != nil {
+		return nil, fmt.Errorf("all selected ports are held by other tunnels; choose at least one unclaimed forwarded port")
+	}
 	if len(clash) > 0 {
 		return nil, fmt.Errorf("ports %s overlap a port range another tunnel on this server "+
 			"already forwards, and a range cannot be shared between kharej servers — "+
