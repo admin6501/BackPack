@@ -24,7 +24,9 @@ question. The questions are:
 |---|---|
 | Kharej IP Or Domain | kharej's real, reachable address |
 | Tunnel Port | `9000` |
-| Forwarded Ports (Blank For TUN) | `2095` to expose one user port on Iran; Enter for just a private interface |
+| Forwarded Ports (Required) | `2095` to expose one user port on Iran; at least one valid mapping is required |
+| This Server's Tunnel Address | accept the suggested free address, such as `10.10.0.1/30` |
+| The Kharej Server's Tunnel Address | accept the paired address without a prefix, such as `10.10.0.2` |
 | Tunnel Name | choose a distinct name |
 | Security Token | accept the generated token and keep the setup link private |
 | Carry UDP As Well As TCP On Those Ports | `y` only if those forwarded services need UDP |
@@ -32,8 +34,8 @@ question. The questions are:
 | Fine-Tune The Advanced Settings | normally `n` |
 
 Read the summary and the **setup link** before confirming. The wizard selects
-an unused interface and private subnet rather than asking you to copy two
-addresses. After creating this end, you can answer **yes** to **Set up the other
+an unused interface and suggests an unused private subnet; the manual prompts
+let you change the two addresses. The setup link carries that pair to kharej. After creating this end, you can answer **yes** to **Set up the other
 server over SSH now**; see [Set up both ends](set-up-both-ends.md). That route
 installs Backpack on kharej if needed and mirrors the settings.
 
