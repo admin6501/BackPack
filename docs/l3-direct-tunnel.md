@@ -87,8 +87,13 @@ port of its own.
 
 **From the menu — the easy way.** Run `sudo backpack`, choose **Setup Iran** or
 **Setup Kharej**, then **Direct**. It asks how the packets should travel,
-suggests private addresses for both ends, and writes the config itself. The
-wizard no longer asks for a separate "Full IP tunnel" kind. See the
+suggests private addresses for both ends, and writes the config itself. Manual
+setup asks for both private addresses on Iran and kharej before the
+tunnel name. Press Enter to accept the unused subnet suggested for this server.
+The local address includes its prefix (for example `10.10.0.1/30`); the peer
+address has no prefix. A Setup Link carries the selected pair to the other end,
+swapping the addresses and retaining the local prefix, without asking again.
+The wizard no longer asks for a separate "Full IP tunnel" kind. See the
 [step-by-step direct tutorial](../tutorial/direct-layer3.md).
 
 The rest of this page is what it writes.

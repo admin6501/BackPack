@@ -157,8 +157,8 @@ func setupL3(side directSide) {
 	cfg := l3Spec{Side: side, Carrier: carrier, Encap: encap, GREKey: greKey}
 	// Chosen against what is already on the machine, so a second tunnel does
 	// not land on the first one's subnet. See freeL3Subnet. On Iran they are
-	// not asked at all — the code carries them to kharej — and can be changed
-	// under the advanced settings.
+	// offered as editable defaults; the setup link carries the chosen pair to
+	// kharej, with the addresses swapped.
 	cfg.LocalIP, cfg.PeerIP = freeL3Subnet(side)
 
 	// The Iran side dials out, which is the whole point of "direct". Its
@@ -198,16 +198,9 @@ func setupL3(side directSide) {
 		}
 		cfg.Addr = net.JoinHostPort("0.0.0.0", port)
 
-		// Exactly as the Iran server printed them: this machine's comes first.
-		cfg.LocalIP = tui.PromptDefault("This Server's Tunnel Address", cfg.LocalIP)
-		cfg.PeerIP = tui.PromptDefault("The Iran Server's Tunnel Address", cfg.PeerIP)
-		for err := validateL3TunnelAddresses(cfg.LocalIP, cfg.PeerIP); err != nil; err = validateL3TunnelAddresses(cfg.LocalIP, cfg.PeerIP) {
-			tui.Error(err.Error())
-			cfg.LocalIP, cfg.PeerIP = freeL3Subnet(side)
-			cfg.LocalIP = tui.PromptDefault("This Server's Tunnel Address", cfg.LocalIP)
-			cfg.PeerIP = tui.PromptDefault("The Iran Server's Tunnel Address", cfg.PeerIP)
-		}
 	}
+
+	askL3TunnelAddresses(&cfg, side)
 
 	cfg.Name = uniqueName(tui.PromptDefault("Tunnel Name", cfg.defaultName()))
 
@@ -239,7 +232,7 @@ func setupL3(side directSide) {
 	cfg.MTU, cfg.Iface = defaultL3MTU, freeL3Iface()
 	chooseL3Preset(false).apply(&cfg)
 	if tui.Confirm("Fine-Tune The Advanced Settings", false) {
-		askL3Advanced(&cfg, side, side == sideIran)
+		askL3Advanced(&cfg, side)
 	}
 
 	// The Iran side shows the kharej's setup link before anything is written,
@@ -506,28 +499,31 @@ func checkL3BlockAvailable(localIP, owner string) error {
 // is the cheaper mistake.
 const defaultL3MTU = 1400
 
-// askL3Advanced is what sits behind "fine-tune by hand", matching where the
-// reverse wizard keeps its own. None of it needs answering.
-//
-// addresses asks the tunnel addresses here, which the Iran side of the
-// link-based flow does: they are chosen there, from the blocks free on the
-// Iran server, and the link carries them to kharej. The classic flow asks
-// them in the main questions instead.
-func askL3Advanced(cfg *l3Spec, side directSide, addresses bool) {
-	if addresses {
-		fmt.Println()
-		tui.Info("The two ends of the private network. The defaults are a block no")
-		tui.Info("other tunnel on this server uses; the code carries them to kharej.")
-		cfg.LocalIP = tui.PromptDefault("This server's tunnel address", cfg.LocalIP)
-		cfg.PeerIP = tui.PromptDefault("The kharej server's tunnel address", cfg.PeerIP)
-		for err := validateL3TunnelAddresses(cfg.LocalIP, cfg.PeerIP); err != nil; err = validateL3TunnelAddresses(cfg.LocalIP, cfg.PeerIP) {
+// askL3TunnelAddresses runs on both manual setup paths. Link imports retain
+// the pair from the source so the two ends cannot silently disagree.
+func askL3TunnelAddresses(cfg *l3Spec, side directSide) {
+	peerLabel := "The Kharej Server's Tunnel Address"
+	if side == sideKharej {
+		peerLabel = "The Iran Server's Tunnel Address"
+	}
+	fmt.Println()
+	tui.Info("Private addresses for the two ends. Keep the defaults unless you need")
+	tui.Info("a different subnet. Both servers must agree, with the addresses swapped.")
+	for {
+		cfg.LocalIP = tui.PromptDefault("This Server's Tunnel Address", cfg.LocalIP)
+		cfg.PeerIP = tui.PromptDefault(peerLabel, cfg.PeerIP)
+		if err := validateL3TunnelAddresses(cfg.LocalIP, cfg.PeerIP); err != nil {
 			tui.Error(err.Error())
 			cfg.LocalIP, cfg.PeerIP = freeL3Subnet(side)
-			cfg.LocalIP = tui.PromptDefault("This server's tunnel address", cfg.LocalIP)
-			cfg.PeerIP = tui.PromptDefault("The kharej server's tunnel address", cfg.PeerIP)
+			continue
 		}
+		return
 	}
+}
 
+// askL3Advanced keeps tuning optional; private addresses are asked on the
+// ordinary manual path before the name, token, and setup-link generation.
+func askL3Advanced(cfg *l3Spec, side directSide) {
 	fmt.Println()
 	tui.Info("The tunnel measures what the path really carries once it is up and")
 	tui.Info("corrects the MTU itself, so this is only a starting point. Turn that")
