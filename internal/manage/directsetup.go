@@ -354,12 +354,13 @@ func setupL3FromLink(chosen string) {
 
 	form := MirrorForPeer(link)
 	form.Name = uniqueName(tui.PromptDefault("Tunnel Name", form.Name))
-	if link.Tr == "spoof" {
-		// The one carrier whose far end needs something of its own that a link
-		// cannot carry: where the Iran server really is, behind its forged
-		// sources. MirrorForPeer fills it when the link has it.
-		if net.ParseIP(form.SpoofPeerIP).To4() == nil {
-			form.SpoofPeerIP = strings.TrimSpace(tui.Prompt("The Iran Server's Real IP: "))
+	if needsPeerServerAddress(form) {
+		host := tui.Prompt("Other server's reachable real IP or domain: ")
+		form, err = withPeerServerAddress(form, host)
+		if err != nil {
+			tui.Error(err.Error())
+			tui.PressEnter()
+			return
 		}
 	}
 
@@ -371,7 +372,11 @@ func setupL3FromLink(chosen string) {
 	tui.Title("Direct " + carrierLabel(link.Tr) + " (Kharej)")
 	fmt.Println()
 	row("Name", form.Name)
-	row("Listens On", "port "+form.TunnelPort)
+	if form.Mode == "dial" {
+		row("Dials", net.JoinHostPort(form.ServerAddr, form.TunnelPort))
+	} else {
+		row("Listens On", "port "+form.TunnelPort)
+	}
 	row("Interface", form.LocalIP+" ↔ "+form.PeerIP+" (the Iran server)")
 	row("Config File", app.ConfigPath(form.Name))
 	tui.Rule()

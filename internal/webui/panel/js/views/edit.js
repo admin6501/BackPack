@@ -97,6 +97,19 @@ function read(root) {
   return out;
 }
 
+/* Direct edits have their own API shape. Only Iran owns forwarded ports;
+   a blank port list is an explicit request to remove every mapping. */
+function editPayload(name, root, settings, direct) {
+  if (!direct) return { name, ...read(root) };
+  const quota = root.querySelector('[name="trafficLimitGB"]');
+  const mode = root.querySelector('[name="trafficLimitMode"]');
+  return { name, direct: {
+    trafficLimitGB: Number(quota.value),
+    trafficLimitMode: mode?.value || 'both',
+    ...(settings.holdsPorts ? { ports: root.querySelector('[name="ports"]')?.value ?? settings.ports } : {}),
+  } };
+}
+
 /* What this tunnel actually has.
  *
  * The edit dialog showed every setting to every tunnel: a plain TCP tunnel was
@@ -147,7 +160,7 @@ function shapeForTransport(root, settings, tunnel) {
 
   // Which half of the tunnel this is decides the rest.
   show(byName('serverAddr'), !server);
-  show(byName('ports'), server);
+  show(byName('ports'), settings.holdsPorts ?? server);
   show(byName('tune.acceptUDP'), server);
   show(byName('tune.channelSize'), server);
   show(byName('tune.connectionPool'), !server);
@@ -349,17 +362,19 @@ export async function editView(ctx) {
       if (direct) {
         // This form is built for reverse tunnels. The direct edit endpoint
         // accepts a nested `direct` object, and the other preview controls do
-        // not map to its settings. Present only the quota we can safely edit.
+        // not map to its settings. Present quota and the Iran-side forwarded ports; omit reverse-only controls.
         root.querySelectorAll('.pane[data-tab]').forEach(p => {
-          if (p.dataset.tab !== 'Connection') p.remove();
+          if (p.dataset.tab !== 'Connection' && !(p.dataset.tab === 'Ports' && settings.holdsPorts)) p.remove();
         });
         root.querySelectorAll('.pane[data-tab="Connection"] .f, .pane[data-tab="Connection"] .two')
           .forEach(row => { if (!row.querySelector('[name="trafficLimitGB"], [name="trafficLimitMode"]')) row.remove(); });
         root.querySelectorAll('.tabs button').forEach(b => {
-          if (b.textContent.trim() !== 'Connection' && !b.classList.contains('hist')) b.remove();
+          if (b.textContent.trim() !== 'Connection' && !(b.textContent.trim() === 'Ports' && settings.holdsPorts) && !b.classList.contains('hist')) b.remove();
         });
+        root.querySelector('[name="proxyProtocol"]')?.closest('.tg')?.remove();
+        root.querySelector('[data-name="proxyProtocol"]')?.closest('.tg')?.remove();
         const lede = root.querySelector('.lede');
-        if (lede) lede.textContent = 'Set the traffic allowance for this tunnel. Existing usage is kept when you change the limit.';
+        if (lede) lede.textContent = 'Edit the traffic allowance and forwarded ports. Existing usage is kept.';
       }
       /* The switches and the menus were drawings.
        *
@@ -431,9 +446,7 @@ export async function editView(ctx) {
           toast('Enter a whole number of GiB, or 0 for unlimited.', true);
           return;
         }
-        const payload = direct
-          ? { name, direct: { trafficLimitGB: Number(quota.value), trafficLimitMode: quotaMode?.value || 'both' } }
-          : { name, ...read(root) };
+        const payload = editPayload(name, root, settings, direct);
         save.disabled = true;
         try {
           const r = await api.tunnelEdit(payload);
