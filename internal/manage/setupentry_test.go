@@ -157,6 +157,7 @@ func TestWizardOrderMatchesReverse(t *testing.T) {
 				`tui.Prompt("Kharej IP Or Domain: ")`,
 				`tui.PromptDefault("Tunnel Port", "9000")`,
 				`tui.Prompt("Forwarded Ports (Blank For TUN): ")`,
+				"askL3TunnelAddresses(&cfg, side)",
 				`uniqueName(tui.PromptDefault("Tunnel Name"`,
 				"askL3Token(&cfg)",
 				`tui.Confirm("Carry UDP As Well As TCP On Those Ports"`,

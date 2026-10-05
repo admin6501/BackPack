@@ -146,7 +146,7 @@ func setupL3Classic(side directSide, carrier string) {
 	cfg.MTU, cfg.Iface = defaultL3MTU, freeL3Iface()
 	chooseL3Preset(true).apply(&cfg)
 	if tui.Confirm("Fine-tune the advanced settings by hand", false) {
-		askL3Advanced(&cfg, side, false)
+		askL3Advanced(&cfg, side)
 	}
 
 	if carrier == "gre-fou" {
