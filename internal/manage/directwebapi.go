@@ -470,11 +470,9 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 	findL3Preset(strings.ToLower(strings.TrimSpace(n.Preset))).apply(&spec)
 
 	if side == sideIran {
-		spec.Ports = parsePorts(n.Ports)
-		if len(spec.Ports) == 0 {
-			return l3Spec{}, fmt.Errorf("at least one forwarded port is required on the Iran side")
-		}
-		if err := validatePortSpecs(spec.Ports); err != nil {
+		var err error
+		spec.Ports, err = requiredDirectPorts(n.Ports)
+		if err != nil {
 			return l3Spec{}, err
 		}
 		spec.AcceptUDP = n.AcceptUDP
@@ -711,8 +709,8 @@ func EditDirectSettings(name string, e DirectEdit) error {
 // wipes settings.
 func applyDirectEdit(l config.L3Config, e DirectEdit) (config.L3Config, error) {
 	if e.Ports != nil {
-		ports := parsePorts(*e.Ports)
-		if err := validatePortSpecs(ports); err != nil {
+		ports, err := requiredDirectPorts(*e.Ports)
+		if err != nil {
 			return l, err
 		}
 		l.Ports = ports

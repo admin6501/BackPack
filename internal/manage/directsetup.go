@@ -179,16 +179,12 @@ func setupL3(side directSide) {
 		}
 		cfg.Addr = net.JoinHostPort(strings.TrimSpace(host), port)
 
-		// Ports over a layer-3 tunnel are optional: without them it is a
-		// plain private network (TUN) and routes whatever it is given.
-		if raw := tui.Prompt("Forwarded Ports (Blank For TUN): "); strings.TrimSpace(raw) != "" {
-			cfg.Ports = parsePorts(raw)
-			if err := validatePortSpecs(cfg.Ports); err != nil {
-				tui.Error(err.Error())
-				tui.PressEnter()
-				return
-			}
+		var ok bool
+		cfg.Ports, ok = askRequiredDirectPorts("Forwarded Ports (Required): ")
+		if !ok {
+			return
 		}
+
 	} else {
 		port := tui.PromptDefault("Tunnel Port", "9000")
 		if !validPort(port) {
@@ -214,6 +210,11 @@ func setupL3(side directSide) {
 		// from both", not "fail to bind". See l3share.go. Asked after UDP,
 		// because a shared port takes this tunnel's answer to it.
 		cfg.Ports = offerL3Sharing(cfg)
+		if len(cfg.Ports) == 0 {
+			tui.Error("No forwarded ports remain. Choose at least one port not held by another tunnel.")
+			tui.PressEnter()
+			return
+		}
 		if busy := busyForwardPorts(cfg.Ports, cfg.PeerIP); len(busy) > 0 {
 			tui.Error("Already in use on this server: " + strings.Join(busy, ", ") +
 				" — the web panel's own port is the usual one. Pick other ports.")

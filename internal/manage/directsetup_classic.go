@@ -93,29 +93,28 @@ func setupL3Classic(side directSide, carrier string) {
 	}
 	cfg.Token = token
 
-	// Ports over a layer-3 tunnel are optional: without them it simply routes.
+	// Iran must expose at least one forwarded port on every carrier.
 	if side == sideIran {
 		fmt.Println()
-		tui.Info("Optionally forward ports over the tunnel as well. Leave blank to")
-		tui.Info("just have the private network and route traffic yourself.")
-		raw := tui.Prompt("Ports to expose here (blank for none): ")
-		if strings.TrimSpace(raw) != "" {
-			cfg.Ports = parsePorts(raw)
-			if err := validatePortSpecs(cfg.Ports); err != nil {
-				tui.Error(err.Error())
-				tui.PressEnter()
-				return
-			}
-			cfg.AcceptUDP = tui.Confirm("Carry UDP as well as TCP on those ports", false)
-			// A second kharej asking for the first one's ports means "serve
-			// them from both", not "fail to bind". See l3share.go.
-			cfg.Ports = offerL3Sharing(cfg)
-			if busy := busyForwardPorts(cfg.Ports, cfg.PeerIP); len(busy) > 0 {
-				tui.Error("Already in use on this server: " + strings.Join(busy, ", ") +
-					" — the web panel's own port is the usual one. Pick other ports.")
-				tui.PressEnter()
-				return
-			}
+		var ok bool
+		cfg.Ports, ok = askRequiredDirectPorts("Ports to expose here (required): ")
+		if !ok {
+			return
+		}
+		cfg.AcceptUDP = tui.Confirm("Carry UDP as well as TCP on those ports", false)
+		// A second kharej asking for the first one's ports means "serve
+		// them from both", not "fail to bind". See l3share.go.
+		cfg.Ports = offerL3Sharing(cfg)
+		if len(cfg.Ports) == 0 {
+			tui.Error("No forwarded ports remain. Choose at least one port not held by another tunnel.")
+			tui.PressEnter()
+			return
+		}
+		if busy := busyForwardPorts(cfg.Ports, cfg.PeerIP); len(busy) > 0 {
+			tui.Error("Already in use on this server: " + strings.Join(busy, ", ") +
+				" — the web panel's own port is the usual one. Pick other ports.")
+			tui.PressEnter()
+			return
 		}
 	}
 
