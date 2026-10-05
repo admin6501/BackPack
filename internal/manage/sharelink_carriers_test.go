@@ -86,7 +86,7 @@ func TestLegacyXDILinkOnlyAsksTheDialerForAnAddress(t *testing.T) {
 func TestPanelPortEditsRenderNewMappingsWithoutChangingXDIDirection(t *testing.T) {
 	for _, mode := range []string{"dial", "listen"} {
 		before := config.L3Config{Mode: mode, Side: "iran", Carrier: "xdi", Addr: "203.0.113.9:8888", Token: "keep-token", Iface: "bp4", LocalIP: "10.243.83.1/30", PeerIP: "10.243.83.2", Ports: []string{"2082", "2095"}, MTU: 1400, FECData: 10, FECParity: 3}
-		for _, raw := range []string{"2095,53835", "53835", ""} {
+		for _, raw := range []string{"2095,53835", "53835"} {
 			after, err := applyDirectEdit(before, DirectEdit{Ports: &raw})
 			if err != nil {
 				t.Fatal(err)

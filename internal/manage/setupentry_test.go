@@ -156,7 +156,7 @@ func TestWizardOrderMatchesReverse(t *testing.T) {
 				// port, what to forward, then the name and the token.
 				`tui.Prompt("Kharej IP Or Domain: ")`,
 				`tui.PromptDefault("Tunnel Port", "9000")`,
-				`tui.Prompt("Forwarded Ports (Blank For TUN): ")`,
+				`askRequiredDirectPorts("Forwarded Ports (Required): ")`,
 				"askL3TunnelAddresses(&cfg, side)",
 				`uniqueName(tui.PromptDefault("Tunnel Name"`,
 				"askL3Token(&cfg)",

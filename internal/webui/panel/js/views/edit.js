@@ -103,7 +103,7 @@ function keepDirectTab(button, holdsPorts) {
 }
 
 /* Direct edits have their own API shape. Only Iran owns forwarded ports;
-   a blank port list is an explicit request to remove every mapping. */
+   at least one forwarded port is required. */
 function editPayload(name, root, settings, direct) {
   if (!direct) return { name, ...read(root) };
   const quota = root.querySelector('[name="trafficLimitGB"]');
@@ -449,6 +449,12 @@ export async function editView(ctx) {
         if (quota && (!quota.value.trim() || !quota.validity.valid || !Number.isSafeInteger(Number(quota.value)))) {
           quota.focus();
           toast('Enter a whole number of GiB, or 0 for unlimited.', true);
+          return;
+        }
+        const ports = root.querySelector('[name="ports"]');
+        if (direct && settings.holdsPorts && !ports?.value.trim()) {
+          ports?.focus();
+          toast('Enter at least one forwarded port.', true);
           return;
         }
         const payload = editPayload(name, root, settings, direct);

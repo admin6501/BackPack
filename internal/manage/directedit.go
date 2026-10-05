@@ -190,7 +190,7 @@ func editL3Ports(t Tunnel, cfg config.Config) bool {
 	}
 	if iran {
 		options = append([]tui.Option{
-			{Title: "Forwarded ports", Desc: "optional ports carried over the tunnel"},
+			{Title: "Forwarded ports", Desc: "required ports carried over the tunnel"},
 			{Title: "UDP forwarding", Desc: "carry UDP as well as TCP — currently " + onOff(l.AcceptUDP)},
 		}, options...)
 	}
@@ -202,18 +202,11 @@ func editL3Ports(t Tunnel, cfg config.Config) bool {
 
 	switch choice {
 	case 0:
-		raw := tui.Prompt("Ports (comma separated, blank to remove them all): ")
-		if strings.TrimSpace(raw) == "" {
-			l.Ports = nil
-		} else {
-			ports := parsePorts(raw)
-			if err := validatePortSpecs(ports); err != nil {
-				tui.Error(err.Error())
-				tui.PressEnter()
-				return true
-			}
-			l.Ports = ports
+		ports, ok := askRequiredDirectPorts("Ports (comma separated, at least one required): ")
+		if !ok {
+			return true
 		}
+		l.Ports = ports
 		saveL3(t, l)
 	case 1:
 		l.AcceptUDP = tui.Confirm("Carry UDP as well as TCP", l.AcceptUDP)

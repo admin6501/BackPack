@@ -179,16 +179,12 @@ func setupL3(side directSide) {
 		}
 		cfg.Addr = net.JoinHostPort(strings.TrimSpace(host), port)
 
-		// Ports over a layer-3 tunnel are optional: without them it is a
-		// plain private network (TUN) and routes whatever it is given.
-		if raw := tui.Prompt("Forwarded Ports (Blank For TUN): "); strings.TrimSpace(raw) != "" {
-			cfg.Ports = parsePorts(raw)
-			if err := validatePortSpecs(cfg.Ports); err != nil {
-				tui.Error(err.Error())
-				tui.PressEnter()
-				return
-			}
+		var ok bool
+		cfg.Ports, ok = askRequiredDirectPorts("Forwarded Ports (Required): ")
+		if !ok {
+			return
 		}
+
 	} else {
 		port := tui.PromptDefault("Tunnel Port", "9000")
 		if !validPort(port) {

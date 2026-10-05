@@ -171,8 +171,11 @@ mapping wants. Full reference: [Port mappings](port-mappings.md). `accept_udp` a
 the same reason it is on the reverse tunnel — a web tunnel should not silently
 start carrying every QUIC flow on port 443.
 
-**Ports are optional.** Leave them out and the tunnel simply carries whatever
-the kernel routes into the interface, which is the plain layer-3 case.
+**At least one forwarded port is required on Iran** when creating or editing
+a direct tunnel through the menus, setup links, or web panel. Kharej does not
+keep its own port list. Existing manually managed layer-3 configurations can
+still route traffic through the interface; this rule applies to the management
+forms and does not stop those configurations from loading.
 
 Two things worth knowing:
 
