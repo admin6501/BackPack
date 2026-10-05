@@ -6,8 +6,8 @@
       <button class="x" onclick="closeEd()" title="Close"><svg class="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="lede">Change one thing or all of them — the tunnel restarts once, and reverts if it will not come back up.</div>
     <div class="tabs">
-      <button class="on" onclick="tab(this,'Connection')">Connection</button>
-      <button onclick="tab(this,'Ports')">Ports<span class="n">4</span></button>
+      <button class="on" data-edit-tab="connection" onclick="tab(this,'Connection')">Connection</button>
+      <button data-edit-tab="ports" onclick="tab(this,'Ports')">Ports<span class="n">4</span></button>
       <button onclick="tab(this,'Fine-tune')">Fine-tune</button>
       <button onclick="tab(this,'Carrier')">Carrier</button>
       <span class="sp"></span><button class="hist">History</button></div>

@@ -700,10 +700,7 @@ func EditDirectSettings(name string, e DirectEdit) error {
 	if _, err := toml.Decode(body, &check); err != nil {
 		return fmt.Errorf("the edit produced a config that does not parse: %w", err)
 	}
-	if err := app.WriteFileAtomic(app.ConfigPath(name), []byte(body), app.TunnelConfigMode); err != nil {
-		return err
-	}
-	return RestartService(app.ServiceName(name))
+	return applyRawConfig(name, []byte(body), "Edit direct tunnel settings")
 }
 
 // applyDirectEdit folds the form into a config.
