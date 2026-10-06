@@ -117,7 +117,7 @@ func TestTheReverseWizardOrder(t *testing.T) {
 		steps []string
 	}{
 		{"func SetupServer", []string{
-			"chooseTransport()",
+			"chooseTransport(true)",
 			`"Iran IP Or Domain (What Kharej Dials)"`,
 			`tui.Prompt("Tunnel Port: ")`,
 			`"Forwarded Ports (e.g. 443, 8080=127.0.0.1:2096): "`,
@@ -141,7 +141,7 @@ func TestTheReverseWizardOrder(t *testing.T) {
 			`tui.Confirm("Create This Tunnel"`,
 		}},
 		{"func SetupClient", []string{
-			"chooseTransport()",
+			"chooseTransport(true)",
 			`"How Do You Want To Set Up This Side?"`,
 			`tui.Prompt("Iran IP Or Domain: ")`,
 			`tui.Prompt("Tunnel Port: ")`,
