@@ -1,17 +1,18 @@
 # Transports
 
-Backpack carries every tunnel over one transport, chosen when you create the
-tunnel and changeable later from **Edit → Change transport**. They all move the
-same traffic between the two engines — they differ only in what they put on the
-wire, and therefore in how fast, how reliable, and how hard to detect they are.
+Backpack offers stream transports and layer-3 carriers. Compatible stream
+transports can be changed from **Edit → Change transport**. GRE over FOU is an
+L3 carrier: create it through the setup wizard rather than selecting it as a
+stream transport conversion.
 
 Not sure which to pick? Run **Manage → Link Test** on the kharej server; it
 measures your route and recommends one. See
 [Choosing a transport](choosing-a-transport.md).
 
-**Twelve of them.** IP Spoofing used to be a thirteenth and is not any more —
-it is a carrier of the [direct tunnel](l3-direct-tunnel.md) now, for the reason
-given at the bottom of this page.
+The reverse setup menu has **TCP, UDP, WebSocket and GRE** families. The first
+three build stream/forwarding tunnels; **GRE → GRE over FOU** builds an encrypted
+L3 tunnel with kharej initiating. Direct setup offers seven L3 carriers, including
+XDI and GRE over FOU. See [GRE over FOU](gre-over-fou.md).
 
 | Transport | Family | Encrypted handshake | PROXY protocol | Needs | Setup guide |
 |-----------|--------|:--:|:--:|-------|---|
@@ -26,7 +27,7 @@ given at the bottom of this page.
 | WS Mux | WebSocket | — | ✅ | — | [→](../tutorial/websocket.md) |
 | WSS | WebSocket | ✅ (TLS) | — | certificate | [→](../tutorial/websocket-tls.md) |
 | WSS Mux | WebSocket | ✅ (TLS) | ✅ | certificate | [→](../tutorial/websocket-tls.md) |
-| **xDi (ICMP)** | Experimental | ✅ (token key) | ✅ | Linux, root, ICMP open | [→](../tutorial/xdi-icmp.md) |
+| **GRE over FOU** | GRE (L3) | ✅ (Noise) | — | Linux, root for TUN, UDP open | [→](../tutorial/gre-over-fou.md) |
 
 "Encrypted handshake" means the tunnel's own credential is protected on the
 wire. On the plain transports (TCP, TCP Mux, UDP, WS, WS Mux) the token is sent
@@ -138,27 +139,17 @@ not subject to these pre-authentication limits.
 
 ---
 
-## Experimental family
+## Direct L3 carriers
 
-Not flavours of TCP or UDP but different ideas about how to move bytes at all.
-Both are Linux-only and need root.
+### XDI (ICMP)
 
-### xDi (ICMP)
-The KCP transport with its packets inside **ICMP echo requests and replies**
-instead of UDP datagrams. Everything above the packet layer — reliability, error
-correction, encryption — is identical.
-
-For the one network where UDP and TCP are filtered but ICMP is not, because ping
-is how such a network proves itself reachable. ICMP has no ports, so a raw ICMP
-socket receives every ping the host sees; each tunnel derives a **session tag**
-from its token, and a packet without this tunnel's tag is dropped without a
-second look — which is how several xDi tunnels share one host, and stay clear of
-stray pings and the kernel's own replies. Within a tunnel, each session — the
-control channel and every pooled connection — takes an **echo identifier** of
-its own, which is what stands in for the port ICMP does not have.
-
-Slower than everything else and heavy on ICMP rate limits. A last resort, not a
-default.
+Choose **Setup Iran / Setup Kharej → Direct → XDI**. The current wizard builds
+an encrypted GRE + Noise L3 session carried in ICMP echo, not the legacy
+KCP/control-channel transport. Optional FEC belongs to this L3 session.
+The private interface carries IP traffic, and Iran owns the forwarded ports.
+Both hosts need Linux and root for the TUN interface and raw ICMP sockets.
+Actual throughput depends on ICMP filtering and rate limits along the route.
+See the [XDI tutorial](../tutorial/xdi-icmp.md).
 
 ### IP Spoofing
 
@@ -261,4 +252,4 @@ IPv4 یا پیشوند IPv6 از نوع `/64` پذیرفته می‌شود. با
 
 ---
 
-*Last verified against Backpack v1.8.26.*
+*Last verified against Backpack v1.8.27.*

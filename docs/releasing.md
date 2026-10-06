@@ -33,13 +33,15 @@ git tag -a v1.8.7 -m "v1.8.7"
 git push origin v1.8.7
 ```
 
-The tag starts the release workflow. It tests the source, builds both
-architectures, writes `SHA256SUMS`, signs it if a signing key is configured,
-and asks GitHub to generate the release description from PRs. The description
-and assets appear together on the [Releases page](https://github.com/admin6501/BackPack/releases).
+The tag starts the release workflow. It tests the source, builds seven Linux
+architecture archives, writes `SHA256SUMS`, signs it if a signing key is configured,
+and uploads the archives, `install.sh`, `SBOM.txt` and checksum files. An existing
+release description is preserved; generated notes are only a fallback when no
+release exists. It then downloads the published archives and verifies their
+published checksums. See the [Releases page](https://github.com/admin6501/BackPack/releases).
 To rerun a failed publish, open **Actions → Release → Run workflow** and enter
-the existing tag. It checks out that tag and regenerates its description.
-Review the generated text on the Release page and edit it there when a feature
+the existing tag. It checks out that tag and preserves its existing description.
+Review the release text on the Release page and edit it there when a feature
 needs a fuller explanation. The release body holds the history; there is no
 separate changelog file.
 
@@ -147,4 +149,4 @@ during the incident.
 
 ---
 
-*Last verified against Backpack v1.8.26.*
+*Last verified against Backpack v1.8.27.*

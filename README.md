@@ -43,7 +43,7 @@ carries it through **one transport** to the kharej client, which hands it to the
 **real service**. In the **reverse** tunnel above the connection is dialed **by
 the client** (kharej → Iran), so the far side needs no open inbound port.
 
-### Three shapes
+### Tunnel directions
 
 The ports never move: Iran exposes them, kharej holds the real service. What
 changes is who reaches out first, and what the tunnel carries.
@@ -59,10 +59,16 @@ itself.
 
 A direct tunnel is a full IP tunnel — an interface on each host carrying whole
 IP packets, wrapped in Backpack's own GRE inside a Noise session and handed to
-one of three carriers. It measures its own MTU once it is up, which is the
+one of seven carriers. It measures its own MTU once it is up, which is the
 setting that fails worst when it is wrong.
 
-**→ [Direct tunnel](docs/l3-direct-tunnel.md)**
+**GRE over FOU** supports both initiation directions. Choose **Reverse →
+GRE (family 4) → GRE over FOU (option 1)**, or **Direct → GRE over FOU**.
+The web panel follows the same grouping. Setup Link and SSH pairing carry the
+opposite mode to the peer and preserve the shared settings.
+
+**→ [GRE over FOU tutorial](tutorial/gre-over-fou.md)** ·
+**[Direct tunnel](docs/l3-direct-tunnel.md)**
 
 ---
 
