@@ -11,12 +11,13 @@ assumes it.
 
 ## The direction
 
-The transport pages below set up a **reverse** tunnel: kharej dials Iran. If
+The TCP, UDP and WebSocket pages below set up a **reverse** tunnel: kharej dials Iran. If
 that will not come up — the provider filters inbound connections, or the tunnel
 port is blocked one way — use the **direct** wizard: Iran dials kharej.
 
 | Tutorial | Use it when | Needs |
 |---|---|---|
+| **[GRE over FOU](gre-over-fou.md)** | encrypted L3 tunnel with direct or reverse initiation | Linux, root, UDP open on the listener |
 | **[Direct tunnel](direct-layer3.md)** | the reverse tunnel will not connect; Iran dials out instead | Linux, root, a port open on kharej |
 | **[Direct, stream transports](direct-tunnel.md)** | you already run a `[direct]` tunnel — the wizard no longer builds these | a port open on kharej |
 

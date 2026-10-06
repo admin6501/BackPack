@@ -19,7 +19,7 @@ setting does. For a step-by-step first setup, use
 **[the IP Spoofing tutorial](../tutorial/ip-spoofing.md)** instead.
 
 ```
-Setup → Experimental → IP Spoofing
+Setup Iran / Setup Kharej → Direct → IP Spoofing
 ```
 
 Linux only. Needs root (`CAP_NET_RAW`). **Both ends must be on it.**
@@ -357,4 +357,4 @@ Running setup again and choosing no for Stealth clears the old Stealth settings.
 
 در ستاپ طرف مقابل، اگر مبدأ جداگانه‌ای برای طرف مقابل مشخص نشده باشد، آی‌پی جعلی یا pool انتخاب‌شده به مبدأ جعلی طرف مقابل هم منتقل می‌شود. آی‌پی واقعی با آی‌پی جعلی جدا می‌ماند و پورت‌های ایران، اگر در لینک نباشند، پرسیده می‌شوند. در ستاپ مجدد، انتخاب خاموش برای Stealth یا پروفایل جداگانه تنظیم قبلی را پاک می‌کند؛ خالی گذاشتن مبدأ جعلی، جعل مبدأ را خاموش می‌کند.
 
-*Last verified against Backpack v1.8.26.*
+*Last verified against Backpack v1.8.27.*

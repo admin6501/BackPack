@@ -1,106 +1,46 @@
-# Setting up an xDi (ICMP) tunnel
+# Set up a direct XDI (ICMP) tunnel
 
-The tunnel rides inside **ping packets**. It is the [KCP](udp-kcp-fec.md)
-transport with its packets in ICMP echo requests and replies instead of UDP
-datagrams — everything above the packet layer (reliability, error correction,
-encryption) is identical.
+The current **Direct → XDI** wizard builds an L3 tunnel: private IP packets are
+wrapped in GRE, protected by a Noise session, and carried in ICMP echo packets.
+The `Wrapping: GRE + Noise` label describes the inner framing and encryption;
+XDI describes the outer carrier. This setup does not use the legacy KCP
+control-channel and connection-pool transport.
 
-**It is for one situation:** a network where UDP *and* TCP are filtered but ICMP
-is not, because ping is how that network proves itself reachable.
+Both ends need Linux and root for the TUN interface and raw ICMP sockets. The
+route must pass ICMP echo traffic; successful ordinary ping is a useful first
+check, but does not guarantee that larger or sustained tunnel traffic passes.
 
-**It is a last resort, not a default.** Slower than the other transports and
-heavy on ICMP rate limits.
+## Setup
 
-**Requirements:** Linux, root (or `cap_net_raw`) on **both** ends. Startup is
-refused with a plain message if the raw socket is not available.
+1. On Iran run `sudo backpack` → **Setup Iran → Direct → XDI**.
+2. Enter the kharej IP/domain, tunnel number and at least one forwarded port.
+   ICMP has no TCP/UDP port: the tunnel number is a shared setup value, not an
+   outer TCP/UDP listener to open in the firewall.
+3. Keep or edit the private-address defaults. The local address includes its
+   prefix, such as `10.10.0.1/30`; the peer address is bare, such as `10.10.0.2`.
+4. Finish the name, token and tuning prompts, then create the tunnel.
+5. On kharej use **Setup from a link** and paste Iran's generated link. It carries
+   the chosen pair of private addresses, swapped for the other end. Manual
+   setup is also available under **Setup Kharej → Direct → XDI → Manual**.
 
-> Read [TCP](tcp.md) for the parts of the wizard not covered here.
+Iran initiates and exposes the forwarded ports. Kharej hosts the real services.
+Allow ICMP on the path and the forwarded TCP ports on Iran; allow forwarded UDP
+only when it is enabled. The link contains the token and must stay private.
 
----
+Optional FEC can compensate for some packet loss at the cost of extra traffic.
+Keep paired FEC settings consistent through the Setup Link or SSH pairing.
+Throughput and latency depend on the route's ICMP filtering, packet size and
+rate limits; they are not fixed by the carrier name.
 
-## The setup
+## فارسی
 
-The TCP walkthrough, with **`Experimental` → `xDi (ICMP)`** on both ends.
+XDI در منوی **Direct** یک تونل لایهٔ ۳ است: بسته‌بندی GRE و رمزگذاری Noise داخل
+بسته‌های ICMP حمل می‌شوند. بنابراین نمایش **GRE + Noise** در بخش Wrapping طبیعی
+است. این مسیر ستاپ از ترانسپورت قدیمی KCP استفاده نمی‌کند.
 
-The differences are all consequences of ICMP having **no ports**:
+ایران شروع‌کننده است و پورت‌های کاربران روی ایران قرار می‌گیرند. از **Setup Iran
+→ Direct → XDI** شروع کنید و لینک ساخته‌شده را در **Setup from a link** روی خارج
+وارد کنید. آدرس محلی پیشوندی مثل `/30` دارد و آدرس طرف مقابل بدون پیشوند است.
+هر دو سمت به لینوکس و root نیاز دارند و مسیر باید ترافیک ICMP را عبور بدهد.
 
-- **There is no tunnel port to open.** You still enter one — it names the tunnel
-  and keys its session — but nothing binds it and no firewall rule is needed
-  for it.
-- **The firewall must allow ICMP echo**, in both directions, on the Iran server
-  and anywhere in between. Many VPS images and cloud security groups drop it by
-  default:
-
-  ```bash
-  # ufw: make sure ICMP is not blocked
-  ping -c3 IRAN_IP           # from the kharej server — this must work first
-  ```
-
-  If plain `ping` between the two machines does not work, this transport cannot
-  work either. Test that before anything else.
-
-- **Forwarded ports are opened as usual** on the Iran server (`tcp`, plus `udp`
-  if you turned UDP forwarding on).
-
----
-
-## How several tunnels share one host
-
-A raw ICMP socket receives **every** ping the host sees, including stray ones and
-the kernel's own automatic replies. Each xDi tunnel derives a **session tag** from
-its token: a packet without this tunnel's tag is not this tunnel's packet and is
-dropped without a second look. So several xDi tunnels on one machine stay out of
-each other's way, and out of the way of ordinary ping traffic, with nothing to
-configure.
-
-Inside one tunnel there is a second thing to tell apart: a tunnel is a control
-channel plus a pool of data connections, and each of those is its own session.
-ICMP has no ports to separate them with, so each session takes an **echo
-identifier** of its own — the field ICMP has for exactly this — and answers only
-to packets carrying it. Nothing to configure here either; it is worth knowing
-only because a version that got it wrong could not carry traffic at all.
-
----
-
-## What to expect
-
-- **Throughput** is lower than every other transport, and ICMP rate limiting on
-  intermediate hops is usually what caps it. The `aggressive` preset drives it to
-  the same numbers as KCP where the path permits — which is often not.
-- **Latency** behaves like KCP, since it *is* KCP.
-- The FEC and window settings are KCP's, and both ends must match on them —
-  see [UDP + KCP + FEC](udp-kcp-fec.md).
-- The **Throughput preset is not offered** here: xDi builds its packets by hand
-  and pays a syscall per datagram, so bandwidth is not what it is for.
-
-If TCP or UDP works at all on your route, use it instead.
-
----
-
-<div dir="rtl">
-
-## خلاصهٔ فارسی
-
-**xDi** تونل را داخل بسته‌های **پینگ (ICMP)** می‌برد. در واقع همان KCP است که
-پکت‌هایش به‌جای دیتاگرام UDP در echo request/reply جا می‌شوند — قابلیت اطمینان،
-تصحیح خطا و رمزنگاری‌اش عیناً همان است.
-
-فقط برای یک حالت است: شبکه‌ای که هم TCP و هم UDP را فیلتر می‌کند ولی ICMP را
-نه. **آخرین راه‌حل است، نه گزینهٔ پیش‌فرض** — کندتر است و به محدودیت نرخ ICMP
-می‌خورد.
-
-**پیش‌نیاز:** لینوکس و دسترسی root روی **هر دو** طرف.
-
-راه‌اندازی مثل [TCP](tcp.md) با انتخاب `Experimental` → `xDi (ICMP)` در دو طرف.
-چون ICMP پورت ندارد: پورت تونل فقط اسم و شناسهٔ session است و **نیازی به باز
-کردنش در فایروال نیست**، اما **ICMP باید در دو جهت باز باشد**. قبل از هر کاری از
-سرور خارج `ping -c3 IRAN_IP` بگیر؛ اگر پینگ ساده کار نکند، این ترنسپورت هم کار
-نمی‌کند.
-
-هر تونل xDi از روی توکنش یک برچسب session می‌سازد، پس چند تونل روی یک سرور و
-پینگ‌های عادی مزاحم هم نمی‌شوند.
-
-</div>
-
----
-[← Back to the tutorials](README.md)
+[Full direct-tunnel walkthrough](direct-layer3.md) · [All tutorials](README.md)

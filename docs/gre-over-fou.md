@@ -8,10 +8,13 @@ forwarded TCP/UDP ports, traffic accounting and quotas.
 ## Setup
 
 Update both servers to a build containing this carrier. On the Iran server,
-run `sudo backpack`, choose **Setup Iran → GRE over FOU**, then choose:
+run `sudo backpack` and choose **Setup Iran** (or **Setup Kharej** on kharej):
 
-- **Direct:** Iran initiates; kharej listens on the chosen UDP port.
-- **Reverse:** kharej initiates; Iran listens on the chosen UDP port.
+- **Reverse → GRE (family 4) → GRE over FOU (option 1):** kharej initiates; Iran listens.
+- **Direct → GRE over FOU:** Iran initiates; kharej listens.
+
+The selected direction is retained. GRE is not a third direction on the first menu.
+See the [step-by-step tutorial](../tutorial/gre-over-fou.md).
 
 Enter the peer address on the initiating side, use the same token and UDP
 port at both ends, and enter the forwarded ports on Iran. The listener must
@@ -20,9 +23,9 @@ the other server; paste it into **Setup from a link**. It carries the correct
 opposite connection mode and swaps the private addresses while preserving
 their network prefix. A link from kharej asks for Iran's forwarded ports.
 
-In the web panel, choose **Direct → GRE over FOU**, then select direct or
-reverse in **GRE over FOU connection direction**. This carrier uses the
-layer-3 setup form in both directions. Managed-server setup mirrors the mode
+In the web panel, choose **Reverse → GRE → GRE over FOU**, or
+**Direct → GRE over FOU**. There is no second direction selector. This carrier
+uses the layer-3 setup form in both directions. Managed-server setup mirrors the mode
 to the other server automatically.
 
 Editing the MTU or forwarded ports preserves the connection direction and
@@ -81,13 +84,14 @@ will still need a different carrier.
 <div dir="rtl">
 
 این carrier بسته‌های GRE را داخل UDP و با آی‌پی واقعی حمل می‌کند. رمزگذاری
-Noise، محدودیت ترافیک و ثبت مصرف حفظ می‌شوند. در «Setup Iran → GRE over FOU»
-جهت را انتخاب کنید: دایرکت یعنی ایران شروع‌کننده است؛ ریورس یعنی خارج
-شروع‌کننده است. پورت‌های کاربران در هر دو حالت روی ایران می‌مانند. لینک ستاپ
+Noise، محدودیت ترافیک و ثبت مصرف حفظ می‌شوند. پس از Setup Iran یا Setup Kharej،
+برای ریورس «Reverse → خانوادهٔ ۴: GRE → گزینهٔ ۱: GRE over FOU» و برای دایرکت
+«Direct → GRE over FOU» را انتخاب کنید. دایرکت یعنی ایران شروع‌کننده است؛
+ریورس یعنی خارج شروع‌کننده است. پورت‌های کاربران در هر دو حالت روی ایران می‌مانند. لینک ستاپ
 جهت طرف مقابل و آدرس‌های خصوصی را خودکار منتقل می‌کند. هر دو سرور باید
 بک‌پک سازگار داشته باشند؛ این قالب رمزگذاری‌شده با GRE سادهٔ کرنل لینوکس
 سازگار نیست. مسیر باید UDP را عبور بدهد و پورت UDP سمت شنونده باز باشد.
 
 </div>
 
-Last verified against Backpack v1.8.26.
+Last verified against Backpack v1.8.27.

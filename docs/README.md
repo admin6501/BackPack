@@ -12,6 +12,7 @@ Reference pages: what each part of Backpack **is**, and every setting it has.
 - [Server layout (file locations)](server-layout.md)
 
 ### Tunnel direction
+- [GRE over FOU](gre-over-fou.md) — encrypted GRE in UDP, with direct or reverse initiation
 - [Direct tunnel — stream transports](direct-tunnel.md) — the `[direct]` engine, no longer offered by the wizard; the same forwarded ports, with Iran dialling
   out instead of waiting to be dialled
 - [Direct tunnel](l3-direct-tunnel.md) — **what the wizard builds**: a private network between the two
@@ -89,4 +90,4 @@ Reference pages: what each part of Backpack **is**, and every setting it has.
 
 ---
 
-*Last verified against Backpack v1.8.26.*
+*Last verified against Backpack v1.8.27.*
