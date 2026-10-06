@@ -117,7 +117,7 @@ func setupL3(side directSide) {
 	// the token made on kharej. Their answers depend on the route, and the
 	// operator wanted them left as they were. See directsetup_classic.go.
 	if carrier == "gre-fou" {
-		setupL3Classic(side, carrier)
+		setupL3ClassicDirection(side, carrier, directionDirect)
 		return
 	}
 	if carrier == "spoof" || carrier == "sni" {

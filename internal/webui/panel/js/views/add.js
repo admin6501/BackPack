@@ -17,6 +17,11 @@ import { openScreen } from '../ui/screen.js';
 import { oops, toast } from '../ui/toast.js';
 import { go } from '../router.js';
 
+// GRE uses the L3 API in either initiation direction; geography stays separate.
+const usesL3 = chosen => chosen.direction === 'direct' || chosen.transport === 'gre-fou';
+const setupCarrier = chosen => chosen.direction === 'reverse' ? 'gre-fou' : chosen.carrier;
+const greSetupMode = chosen => ((chosen.side === 'server') !== (chosen.direction === 'reverse')) ? 'dial' : 'listen';
+
 export function addView(ctx) {
   openScreen('add', {
     pick: '.dlg',
@@ -161,6 +166,11 @@ export function addView(ctx) {
         let carriers = [];
         try { carriers = (await api.directOptions()).carriers || []; } catch (e) { return; }
         if (!carriers.length) return;
+        const gre = carriers.find(c => c.value === 'gre-fou');
+        if (gre && !opts.families.some(f => f.label === 'GRE')) {
+          opts.families.push({ label: 'GRE', entries: [gre] });
+          paintFamilies();
+        }
         grid.innerHTML = carriers.map((c, i) => {
           const needsRoot = c.needsRoot ? '<span class="root2">needs root</span>' : '';
           return `<button class="dc${i === 0 ? ' on' : ''}" data-car="${esc(c.value)}"
@@ -388,19 +398,10 @@ export function addView(ctx) {
         applySuggestion();
       }
 
-      const fouModeGroup = el('div', { class: 'grp3', id: 'fouModeGroup', hidden: true }, [
-        el('div', { class: 'gl3', text: 'GRE over FOU connection direction' }),
-        el('label', { for: 'fouDirection', text: 'Which server initiates the tunnel?' }),
-        el('select', { name: 'fouDirection', id: 'fouDirection' }, [
-          el('option', { value: 'direct', text: 'Direct: Iran initiates, kharej listens' }),
-          el('option', { value: 'reverse', text: 'Reverse: kharej initiates, Iran listens' }),
-        ]),
-      ]);
-      root.querySelector('.step3direct')?.append(fouModeGroup);
-
       function applyShape() {
-        const direct = chosen.direction === 'direct';
-        show('.step3rev', !direct);
+        const direct = usesL3(chosen);
+        const carrier = setupCarrier(chosen);
+        show('.step3rev', chosen.direction === 'reverse');
         show('.step3direct', direct);
         if (direct) suggestDirect(chosen.side);
 
@@ -420,7 +421,7 @@ export function addView(ctx) {
           const row = n.closest('.f3, .tg3, .f, .row') || n;
           const ok = when.split('-').every(part => {
             if (part === 'server' || part === 'client') return chosen.side === part;
-            return chosen.carrier === part;
+            return carrier === part;
           });
           row.hidden = !ok;
         });
@@ -428,13 +429,15 @@ export function addView(ctx) {
            they belong to, because the container that used to decide it is no
            longer their parent. */
         root.querySelectorAll('[data-mode]').forEach(g => {
-          const wrong = g.dataset.mode !== (direct ? 'dir' : 'rev');
+          const family = !!g.querySelector('.fam');
+          const wrong = family ? chosen.direction !== 'reverse' : g.dataset.mode !== (direct ? 'dir' : 'rev');
           g.hidden = wrong;
           // A drawer left open in the other mode would spring back open with
           // its own settings when the operator switched away and back.
           if (wrong) g.classList.remove('open');
         });
-        fouModeGroup.hidden = !(direct && chosen.carrier === 'gre-fou');
+        const carrierGroup = root.querySelector('.step3direct .trgrid')?.closest('.grp3');
+        if (carrierGroup) carrierGroup.hidden = chosen.direction !== 'direct';
         // The token and the far end's address are the panel's business now.
         root.querySelectorAll('.tokgone, .addrgone').forEach(n => { n.hidden = true; });
         paintRail();
@@ -445,7 +448,7 @@ export function addView(ctx) {
            could never be true. */
         const sp = drawer('sp');
         if (sp) {
-          const wanted = direct && chosen.carrier === 'spoof';
+          const wanted = direct && carrier === 'spoof';
           sp.hidden = !wanted;
           if (!wanted) sp.classList.remove('open');
         }
@@ -453,7 +456,7 @@ export function addView(ctx) {
         /* The forged source cannot be learned from the traffic, so the kharej
            side of a spoof carrier has to be told where its peer is. */
         const spoofField = root.querySelector('[name="spoofPeerIp"]')?.closest('.f3, div');
-        if (spoofField) spoofField.hidden = !(direct && chosen.carrier === 'spoof'
+        if (spoofField) spoofField.hidden = !(direct && carrier === 'spoof'
                                               && chosen.side === 'client');
         if (!direct) { applyFields(); applyPresets(); }
       }
@@ -514,7 +517,7 @@ export function addView(ctx) {
         const result = conn.querySelector('#connResult');
         const spin = conn.querySelector('.spin');
         const onNode = nodeSel?.value || '';
-        const direct = chosen.direction === 'direct';
+        const direct = usesL3(chosen);
         const t0 = Date.now();
 
         const labels = [
@@ -724,7 +727,7 @@ export function addView(ctx) {
         .forEach(b => b.addEventListener('click', async () => {
           const get = n => root.querySelector(`[name="${n}"], #${n}`)?.value?.trim() || '';
           const line = ['sudo backpack',
-            chosen.direction === 'direct' ? 'direct' : 'reverse',
+            usesL3(chosen) ? 'direct' : 'reverse',
             chosen.side === 'server' ? '--iran' : '--kharej',
             chosen.transport ? '--transport ' + chosen.transport : '',
             get('aname') ? '--name ' + get('aname') : '',
@@ -1196,14 +1199,10 @@ export function addView(ctx) {
           at[last] = NUMERIC.has(n.name) ? Number(v) : v;
         });
         payload.name ||= '';
-        if (chosen.direction === 'direct') {
+        if (usesL3(chosen)) {
           payload.side = chosen.side === 'server' ? 'iran' : 'kharej';
-          payload.carrier = chosen.carrier;
-          if (chosen.carrier === 'gre-fou') {
-            const reverse = payload.fouDirection === 'reverse';
-            payload.mode = ((payload.side === 'iran') !== reverse) ? 'dial' : 'listen';
-          }
-          delete payload.fouDirection;
+          payload.carrier = setupCarrier(chosen);
+          if (payload.carrier === 'gre-fou') payload.mode = greSetupMode(chosen);
         } else {
           payload.role = chosen.side;
           payload.transport = chosen.transport;
@@ -1211,7 +1210,7 @@ export function addView(ctx) {
         if (chosen.preset) payload.preset = chosen.preset;
 
         const onNode = nodeSel?.value || '';
-        const direct = chosen.direction === 'direct';
+        const direct = usesL3(chosen);
         // Collected by name like everything else, then lifted out: it describes
         // the other machine and must not be written onto this one.
         const peerConn = payload.peerConn;
@@ -1238,3 +1237,4 @@ export function addView(ctx) {
     },
   }).catch(oops);
 }
+

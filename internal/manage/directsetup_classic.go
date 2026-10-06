@@ -25,6 +25,10 @@ import (
 
 // setupL3Classic is setupL3 as it was, from after the carrier question.
 func setupL3Classic(side directSide, carrier string) {
+	setupL3ClassicDirection(side, carrier, directionDirect)
+}
+
+func setupL3ClassicDirection(side directSide, carrier string, direction tunnelDirection) {
 	const encap = "gre"
 	cfg := l3Spec{Side: side, Carrier: carrier, Encap: encap}
 	// Chosen against what is already on the machine, so a second tunnel does
@@ -33,14 +37,7 @@ func setupL3Classic(side directSide, carrier string) {
 
 	dials := side == sideIran
 	if carrier == "gre-fou" {
-		reverse := tui.ChooseOpt("Connection direction", []tui.Option{
-			{Title: "Direct", Desc: "Iran initiates; kharej listens"},
-			{Title: "Reverse", Desc: "Kharej initiates; Iran listens"},
-		})
-		if reverse < 0 {
-			return
-		}
-		dials = (side == sideIran) != (reverse == 1)
+		dials = greFOUDials(side, direction)
 		cfg.Mode = "listen"
 		if dials {
 			cfg.Mode = "dial"
@@ -297,4 +294,9 @@ func sideLabel(s directSide) string {
 		return "Iran (dials out, exposes the ports)"
 	}
 	return "Kharej (listens, holds the service)"
+}
+
+// The selected direction is independent of which geographic end is local.
+func greFOUDials(side directSide, direction tunnelDirection) bool {
+	return (side == sideIran) != (direction == directionReverse)
 }

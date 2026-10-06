@@ -40,11 +40,15 @@ The questions, in the order they are asked. `[Y/n]` marks the default.
 
 Both setup entries ask **Reverse or Direct** before anything else. The table
 below is the reverse flow; the direct flow is much shorter and is listed after
-it.
+it. GRE is family **4**, with **1) GRE over FOU**. It uses the encrypted
+L3 wizard in reverse initiation mode (kharej dials, Iran listens). For direct
+initiation choose **Direct → GRE over FOU**. The selected direction is retained;
+it is not asked again. Setup Link and SSH pairing retain the same carrier,
+mode, token, and swapped private addresses.
 
 | Prompt | Notes |
 |---|---|
-| **Select transport family** | TCP / UDP / WebSocket / Experimental. [Transports](transports.md) |
+| **Select transport family** | TCP / UDP / WebSocket / GRE. [Transports](transports.md) |
 | **Select … transport** | the variant within that family |
 | **Tunnel (control) port** | what the client dials. Refused if already in use for that protocol. A port alone listens on every address; `85.10.11.51:443` pins it to one, so another service can hold the same port on another address — see [Port mappings](port-mappings.md#binding-to-one-local-address) |
 | **Listen on IPv6 as well** `[y/N]` | binds `::`, which accepts IPv4 too on a dual-stack host — "as well", not "instead" |

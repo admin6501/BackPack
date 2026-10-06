@@ -34,8 +34,13 @@ func SetupServer() {
 	tui.Title("Reverse Tunnel — Iran")
 	fmt.Println()
 
-	transport := chooseTransport()
+	transport := chooseTransport(true)
 	if transport == "" {
+		return
+	}
+
+	if transport == "gre-fou" {
+		setupL3ClassicDirection(sideIran, transport, directionReverse)
 		return
 	}
 
@@ -150,8 +155,13 @@ func SetupClient() {
 	tui.Title("Reverse Tunnel — Kharej")
 	fmt.Println()
 
-	transport := chooseTransport()
+	transport := chooseTransport(true)
 	if transport == "" {
+		return
+	}
+
+	if transport == "gre-fou" {
+		setupL3ClassicDirection(sideKharej, transport, directionReverse)
 		return
 	}
 

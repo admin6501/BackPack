@@ -53,17 +53,25 @@ var transportGroups = []struct {
 
 // chooseTransport walks the family menu and then the variant menu. It returns
 // an empty string when the user backs out at either level.
-func chooseTransport() string {
+func chooseTransport(setup ...bool) string {
+	groups := transportGroups
+	// GRE is an L3 setup family, not a stream transport conversion target.
+	if len(setup) > 0 && setup[0] {
+		gre := groups[0]
+		gre.label, gre.desc = "GRE", "encrypted private network over UDP"
+		gre.entries = []transportEntry{{"GRE over FOU", "encrypted GRE in UDP; kharej initiates", "gre-fou"}}
+		groups = append(append(groups[:0:0], groups...), gre)
+	}
 	for {
-		groupOpts := make([]tui.Option, len(transportGroups))
-		for i, g := range transportGroups {
+		groupOpts := make([]tui.Option, len(groups))
+		for i, g := range groups {
 			groupOpts[i] = tui.Option{Title: g.label, Desc: g.desc}
 		}
 		gi := tui.ChooseOpt("Select Transport Family", groupOpts)
 		if gi < 0 {
 			return ""
 		}
-		group := transportGroups[gi]
+		group := groups[gi]
 
 		entryOpts := make([]tui.Option, len(group.entries))
 		for i, e := range group.entries {
