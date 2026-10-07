@@ -676,7 +676,10 @@ func PeerSetupAddress(name, fallback string) string {
 	if err == nil && cfg.L3.Enabled() && cfg.L3.Mode == "listen" && outerIPv6(cfg.L3.Addr) {
 		ip := net.ParseIP(strings.Trim(fallback, "[]"))
 		if fallback == "" || fallback == "-" || (ip != nil && ip.To4() != nil) {
-			return PublicIPv6()
+			if address := PublicIPv6(); address != "-" {
+				return address
+			}
+			return ""
 		}
 	}
 	return fallback

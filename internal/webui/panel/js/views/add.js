@@ -21,6 +21,10 @@ import { go } from '../router.js';
 const usesL3 = chosen => chosen.direction === 'direct' || chosen.transport === 'gre-fou';
 const setupCarrier = chosen => chosen.direction === 'reverse' ? 'gre-fou' : chosen.carrier;
 const greSetupMode = chosen => ((chosen.side === 'server') !== (chosen.direction === 'reverse')) ? 'dial' : 'listen';
+const l3Listens = chosen => setupCarrier(chosen) === 'gre-fou'
+  ? greSetupMode(chosen) === 'listen' : chosen.side === 'client';
+const showIPv6Family = chosen => usesL3(chosen) && l3Listens(chosen)
+  && ['xdi', 'udp', 'quic', 'gre-fou'].includes(setupCarrier(chosen));
 
 export function addView(ctx) {
   openScreen('add', {
@@ -401,9 +405,6 @@ export function addView(ctx) {
       function applyShape() {
         const direct = usesL3(chosen);
         const carrier = setupCarrier(chosen);
-        const ipv6Carrier = ['xdi', 'udp', 'quic', 'gre-fou'].includes(carrier);
-        const listens = carrier === 'gre-fou' ? greSetupMode(chosen) === 'listen' : chosen.side === 'client';
-        show('[data-direct-listen-family]', direct && ipv6Carrier && listens);
 
         show('.step3rev', chosen.direction === 'reverse');
         show('.step3direct', direct);
@@ -440,6 +441,11 @@ export function addView(ctx) {
           // its own settings when the operator switched away and back.
           if (wrong) g.classList.remove('open');
         });
+
+        // Apply after the staged group's generic direction visibility.
+        show('[data-direct-listen-family]', showIPv6Family(chosen));
+        const peerAddressRow = root.querySelector('[name="peerAddr"]')?.closest('.f3');
+        if (peerAddressRow) peerAddressRow.hidden = !direct || l3Listens(chosen);
         const carrierGroup = root.querySelector('.step3direct .trgrid')?.closest('.grp3');
         if (carrierGroup) carrierGroup.hidden = chosen.direction !== 'direct';
         // The token and the far end's address are the panel's business now.
