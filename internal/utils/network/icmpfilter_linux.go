@@ -53,13 +53,32 @@ func attachICMPFilter(pc icmpSocket, wantType uint8, id int) {
 	if !ok {
 		return
 	}
-	p4 := real.IPv4PacketConn()
-	if p4 == nil {
-		return
+	prog := icmpFilter(wantType, id)
+	if real.IPv6PacketConn() != nil {
+		// Linux raw IPv6 sockets expose the ICMPv6 header, without an IP header.
+		prog = icmp6Filter(wantType, id)
 	}
-	raw, err := bpf.Assemble(icmpFilter(wantType, id))
+	raw, err := bpf.Assemble(prog)
 	if err != nil {
 		return
 	}
-	_ = p4.SetBPF(raw)
+	if p6 := real.IPv6PacketConn(); p6 != nil {
+		_ = p6.SetBPF(raw)
+	} else if p4 := real.IPv4PacketConn(); p4 != nil {
+		_ = p4.SetBPF(raw)
+	}
+}
+
+func icmp6Filter(wantType uint8, id int) []bpf.Instruction {
+	prog := []bpf.Instruction{
+		bpf.LoadAbsolute{Off: 0, Size: 1},
+		bpf.JumpIf{Cond: bpf.JumpNotEqual, Val: uint32(wantType), SkipTrue: 3},
+		bpf.LoadAbsolute{Off: 4, Size: 2},
+		bpf.JumpIf{Cond: bpf.JumpNotEqual, Val: uint32(id), SkipTrue: 1},
+		bpf.RetConstant{Val: 0xffff}, bpf.RetConstant{Val: 0},
+	}
+	if id < 0 {
+		return []bpf.Instruction{prog[0], bpf.JumpIf{Cond: bpf.JumpNotEqual, Val: uint32(wantType), SkipTrue: 1}, prog[4], prog[5]}
+	}
+	return prog
 }

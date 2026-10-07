@@ -18,7 +18,7 @@ import (
 
 type icmpBatch struct {
 	once sync.Once
-	p4   *ipv4.PacketConn // nil when the socket is not a real one (tests)
+	pc   icmpBatchSocket // nil when the socket is not a real one (tests)
 
 	rmu  sync.Mutex
 	rmsg []ipv4.Message
@@ -28,21 +28,30 @@ type icmpBatch struct {
 	frames [][]byte
 }
 
-func (c *icmpConn) batchConn() *ipv4.PacketConn {
+type icmpBatchSocket interface {
+	ReadBatch([]ipv4.Message, int) (int, error)
+	WriteBatch([]ipv4.Message, int) (int, error)
+}
+
+func (c *icmpConn) batchConn() icmpBatchSocket {
 	c.batch.once.Do(func() {
 		if pc, ok := c.pc.(*icmp.PacketConn); ok {
-			c.batch.p4 = pc.IPv4PacketConn()
+			if c.proto == 58 {
+				c.batch.pc = pc.IPv6PacketConn()
+			} else {
+				c.batch.pc = pc.IPv4PacketConn()
+			}
 		}
 	})
-	return c.batch.p4
+	return c.batch.pc
 }
 
 // ReadBatch reads up to len(bufs) of this tunnel's echoes, leaving each one's
 // payload at the front of bufs[i]. It blocks until one is this tunnel's and
 // never waits for a second.
 func (c *icmpConn) ReadBatch(bufs [][]byte, sizes []int, froms []net.Addr) (int, error) {
-	p4 := c.batchConn()
-	if p4 == nil {
+	pc := c.batchConn()
+	if pc == nil {
 		return 0, errPckNoBatch
 	}
 	n := len(bufs)
@@ -62,17 +71,14 @@ func (c *icmpConn) ReadBatch(bufs [][]byte, sizes []int, froms []net.Addr) (int,
 		c.batch.rmsg = make([]ipv4.Message, n)
 	}
 	msgs := c.batch.rmsg[:n]
-	wantType, wantDir := icmpEchoRequest, inboundDir(c.server)
-	if !c.server {
-		wantType = icmpEchoReply
-	}
+	wantType, wantDir := c.echoType(c.server), inboundDir(c.server)
 
 	for {
 		for i := range msgs {
 			msgs[i].Buffers = [][]byte{bufs[i]}
 			msgs[i].N, msgs[i].Addr = 0, nil
 		}
-		got, err := p4.ReadBatch(msgs, 0)
+		got, err := pc.ReadBatch(msgs, 0)
 		if err != nil {
 			return 0, err
 		}
@@ -81,12 +87,12 @@ func (c *icmpConn) ReadBatch(bufs [][]byte, sizes []int, froms []net.Addr) (int,
 			pkt := bufs[i][:msgs[i].N]
 			// A raw socket read by recvmmsg carries the IP header, where the
 			// single read had it stripped by the net package.
-			if len(pkt) >= 20 && pkt[0]>>4 == 4 {
+			if c.proto != 58 && len(pkt) >= 20 && pkt[0]>>4 == 4 {
 				if ihl := int(pkt[0]&0x0f) * 4; ihl >= 20 && ihl <= len(pkt) {
 					pkt = pkt[ihl:]
 				}
 			}
-			if len(pkt) < 8 || pkt[0] != byte(wantType) {
+			if len(pkt) < 8 || pkt[0] != byte(wantType) || pkt[1] != 0 {
 				continue
 			}
 			echoID := int(pkt[4])<<8 | int(pkt[5])
@@ -110,8 +116,8 @@ func (c *icmpConn) ReadBatch(bufs [][]byte, sizes []int, froms []net.Addr) (int,
 
 // WriteBatch sends bufs to one peer as consecutive echoes.
 func (c *icmpConn) WriteBatch(bufs [][]byte, to net.Addr) (int, error) {
-	p4 := c.batchConn()
-	if p4 == nil {
+	pc := c.batchConn()
+	if pc == nil {
 		return 0, errPckNoBatch
 	}
 	ipAddr, err := toIPAddr(to)
@@ -122,10 +128,7 @@ func (c *icmpConn) WriteBatch(bufs [][]byte, to net.Addr) (int, error) {
 	if n == 0 {
 		return 0, nil
 	}
-	typ := icmpEchoRequest
-	if c.server {
-		typ = icmpEchoReply
-	}
+	typ := c.echoType(!c.server)
 	id := uint16(c.echoIDFor(to))
 
 	c.batch.wmu.Lock()
@@ -140,7 +143,7 @@ func (c *icmpConn) WriteBatch(bufs [][]byte, to net.Addr) (int, error) {
 	for i, p := range bufs {
 		frame := appendEcho(c.batch.frames[i][:0], byte(typ), id, uint16(c.seq.Add(1)))
 		frame = appendXdiPayload(frame, c.tag, outboundDir(c.server), p)
-		setICMPChecksum(frame)
+		c.checksum(frame)
 		c.batch.frames[i] = frame
 		msgs[i].Buffers = [][]byte{frame}
 		msgs[i].Addr = ipAddr
@@ -148,7 +151,7 @@ func (c *icmpConn) WriteBatch(bufs [][]byte, to net.Addr) (int, error) {
 
 	sent := 0
 	for sent < n {
-		k, err := p4.WriteBatch(msgs[sent:], 0)
+		k, err := pc.WriteBatch(msgs[sent:], 0)
 		if err != nil {
 			return sent, err
 		}

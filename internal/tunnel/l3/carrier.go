@@ -92,7 +92,7 @@ func listenUDP(bind string, sockBuf int) (DatagramCarrier, error) {
 		return nil, fmt.Errorf("l3: listening on %q: %w", bind, err)
 	}
 	sizeUDPBuffers(conn, sockBuf)
-	c := &udpCarrier{UDPConn: conn, overhead: udpOverhead(addr)}
+	c := &udpCarrier{UDPConn: conn, overhead: udpOverhead(conn.LocalAddr())}
 	c.enableBatch()
 	return c, nil
 }
@@ -357,4 +357,26 @@ func closeAll(paths []DatagramCarrier) {
 	for _, p := range paths {
 		p.Close()
 	}
+}
+
+// SupportsIPv6 reports support for an IPv6 outer endpoint, independently of
+// the private addresses inside the encrypted tunnel.
+func SupportsIPv6(carrier string) bool {
+	switch strings.ToLower(strings.TrimSpace(carrier)) {
+	case "", CarrierUDP, CarrierQuic, CarrierGREFOU, CarrierXdi:
+		return true
+	}
+	return false
+}
+
+func CheckCarrierAddress(carrier, addr string) error {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("l3: address must be host:port (use [IPv6]:port): %w", err)
+	}
+	ipHost, _, _ := strings.Cut(host, "%")
+	if ip := net.ParseIP(ipHost); ip != nil && ip.To4() == nil && !SupportsIPv6(carrier) {
+		return fmt.Errorf("l3: carrier %q supports only IPv4 outer addresses; use xdi, udp, quic or gre-fou for IPv6", carrier)
+	}
+	return nil
 }

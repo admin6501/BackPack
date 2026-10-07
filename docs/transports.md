@@ -149,7 +149,10 @@ KCP/control-channel transport. Optional FEC belongs to this L3 session.
 The private interface carries IP traffic, and Iran owns the forwarded ports.
 Both hosts need Linux and root for the TUN interface and raw ICMP sockets.
 Actual throughput depends on ICMP filtering and rate limits along the route.
-See the [XDI tutorial](../tutorial/xdi-icmp.md).
+The direct XDI carrier supports IPv4 ICMP and IPv6 ICMPv6. UDP, QUIC and
+GRE over FOU also support IPv6 outer endpoints; PCK, SNI and IP Spoofing
+remain IPv4-only. See [IPv6 setup](l3-direct-tunnel.md#outer-ipv6-endpoints)
+and the [XDI tutorial](../tutorial/xdi-icmp.md).
 
 ### IP Spoofing
 

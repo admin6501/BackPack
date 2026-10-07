@@ -44,7 +44,7 @@ func printShareLink(name string) bool {
 		// the kharej side which public address to dial. Use the detected address
 		// as a starting point, and let the operator correct it for NAT, a CDN,
 		// or a multi-homed server before encoding the link.
-		detected := PublicIPv4()
+		detected := PeerSetupAddress(name, PublicIPv4())
 		if detected == "-" {
 			detected = ""
 		}

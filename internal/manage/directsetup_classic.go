@@ -8,6 +8,7 @@ import (
 	"github.com/backpack/backpack/internal/app"
 	"github.com/backpack/backpack/internal/snispoof"
 	"github.com/backpack/backpack/internal/tui"
+	"github.com/backpack/backpack/internal/tunnel/l3"
 )
 
 // The classic direct wizard, kept for IP spoofing and SNI spoofing.
@@ -56,7 +57,7 @@ func setupL3ClassicDirection(side directSide, carrier string, direction tunnelDi
 			tui.PressEnter()
 			return
 		}
-		cfg.Addr = net.JoinHostPort(strings.TrimSpace(host), port)
+		cfg.Addr = net.JoinHostPort(strings.Trim(strings.TrimSpace(host), "[]"), port)
 	} else {
 		port := tui.PromptDefault("Tunnel port to listen on", "9000")
 		if !validPort(port) {
@@ -64,9 +65,14 @@ func setupL3ClassicDirection(side directSide, carrier string, direction tunnelDi
 			tui.PressEnter()
 			return
 		}
-		cfg.Addr = net.JoinHostPort("0.0.0.0", port)
+		cfg.Addr = net.JoinHostPort(askDirectListenHost(carrier), port)
 	}
 
+	if err := l3.CheckCarrierAddress(carrier, cfg.Addr); err != nil {
+		tui.Error(err.Error())
+		tui.PressEnter()
+		return
+	}
 	fmt.Println()
 	tui.Info("Private addresses for the two ends of the tunnel. The defaults are")
 	tui.Info("fine unless " + l3Block(cfg.LocalIP) + "x is already used on either machine.")

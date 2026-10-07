@@ -44,6 +44,8 @@ type NewDirectTunnel struct {
 
 	// PeerAddr is the kharej server's IP or domain, on the Iran side only.
 	PeerAddr string `json:"peerAddr"`
+	// ListenHost selects the outer bind address; empty preserves IPv4 defaults.
+	ListenHost string `json:"listenHost,omitempty"`
 
 	// TunnelPort is the port the carrier uses: what kharej binds, and what Iran
 	// reaches out to.
@@ -129,7 +131,7 @@ func DirectCarriers() []map[string]string {
 	// carriers, whose answers depend on the route.
 	return []map[string]string{
 		{"value": "xdi", "label": "xDi", "needsRoot": "1",
-			"desc": "inside ping (ICMP), for a path that filters UDP and TCP but lets ping through"},
+			"desc": "inside IPv4/IPv6 ping (ICMP/ICMPv6), for a path that filters UDP and TCP but lets ping through"},
 		{"value": "pck", "label": "PCK", "needsRoot": "1",
 			"desc": "looks like an ordinary TCP flow, but with no socket the firewall can touch"},
 		{"value": "gre-fou", "label": "GRE over FOU", "needsRoot": "",
@@ -424,13 +426,24 @@ func (n NewDirectTunnel) spec() (l3Spec, error) {
 	if mode != "" {
 		dials = mode == "dial"
 	}
-	addr := net.JoinHostPort("0.0.0.0", port)
+	bind := strings.Trim(strings.TrimSpace(n.ListenHost), "[]")
+	if bind == "" {
+		bind = "0.0.0.0"
+	}
+	if !dials && net.ParseIP(bind) == nil {
+		return l3Spec{}, fmt.Errorf("listen address must be an IPv4 or IPv6 literal")
+	}
+	addr := net.JoinHostPort(bind, port)
 	if dials {
-		host := strings.TrimSpace(n.PeerAddr)
+		host := strings.Trim(strings.TrimSpace(n.PeerAddr), "[]")
 		if host == "" {
 			return l3Spec{}, fmt.Errorf("the listening peer's address is required on the dialing side")
 		}
 		addr = net.JoinHostPort(host, port)
+	}
+
+	if err := l3.CheckCarrierAddress(carrier, addr); err != nil {
+		return l3Spec{}, err
 	}
 
 	local, peer := strings.TrimSpace(n.LocalIP), strings.TrimSpace(n.PeerIP)

@@ -401,6 +401,10 @@ export function addView(ctx) {
       function applyShape() {
         const direct = usesL3(chosen);
         const carrier = setupCarrier(chosen);
+        const ipv6Carrier = ['xdi', 'udp', 'quic', 'gre-fou'].includes(carrier);
+        const listens = carrier === 'gre-fou' ? greSetupMode(chosen) === 'listen' : chosen.side === 'client';
+        show('[data-direct-listen-family]', direct && ipv6Carrier && listens);
+
         show('.step3rev', chosen.direction === 'reverse');
         show('.step3direct', direct);
         if (direct) suggestDirect(chosen.side);

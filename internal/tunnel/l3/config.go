@@ -212,6 +212,9 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("l3: carrier %q is not available (have %q, %q, %q, %q)",
 			c.Carrier, CarrierUDP, CarrierPck, CarrierXdi, CarrierSpoof)
 	}
+	if err := CheckCarrierAddress(c.Carrier, c.Addr); err != nil {
+		return err
+	}
 	// The listening side of the forged-source carrier cannot learn where its
 	// peer really is, because every packet it receives carries a forged
 	// source. Catching that here beats a tunnel that comes up and sends its

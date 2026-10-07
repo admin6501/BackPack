@@ -80,22 +80,28 @@ func NewPckPacketConn(listening bool, token, addr string, carrier PcapCarrier) (
 // tunnels sharing the host's raw ICMP socket are separated by the tag derived
 // from their token.
 func NewXdiPacketConn(listening bool, token, addr string) (net.PacketConn, net.Addr, error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	peer, err := net.ResolveIPAddr("ip", host)
+	if err != nil {
+		return nil, nil, fmt.Errorf("xdi: resolving %q: %w", host, err)
+	}
+	v6 := peer.IP != nil && peer.IP.To4() == nil
+	bind := "0.0.0.0"
+	if v6 {
+		bind = "::"
+	}
+	if listening && peer.IP != nil {
+		bind = peer.String()
+	}
+	conn, err := newICMPFamilyConn(token, listening, v6, bind)
+	if err != nil {
+		return nil, nil, err
+	}
 	if listening {
-		conn, err := newICMPServerConn(token)
-		if err != nil {
-			return nil, nil, err
-		}
 		return conn, nil, nil
-	}
-
-	conn, err := newICMPClientConn(token)
-	if err != nil {
-		return nil, nil, err
-	}
-	peer, err := hostToIPAddr(addr)
-	if err != nil {
-		conn.Close()
-		return nil, nil, err
 	}
 	return conn, peer, nil
 }

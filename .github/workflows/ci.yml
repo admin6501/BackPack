@@ -69,6 +69,13 @@ jobs:
         # they need more than the default 10 minute budget on a shared runner.
         run: go test ./... -timeout 20m
 
+      - name: IPv6 raw ICMP round trip
+        if: matrix.mode == 'normal'
+        # Exercise real kernel ICMPv6 checksums and batch I/O; never skip this gate.
+        run: |
+          go test -c -o /tmp/backpack-network.test ./internal/utils/network
+          sudo env BACKPACK_REQUIRE_RAW_TEST=1 /tmp/backpack-network.test -test.run '^TestICMPv6(RawRoundTrip|Factory)$' -test.v -test.timeout 30s
+
       - name: Test with the race detector
         if: matrix.mode == 'race'
         # Enforced. The transports are heavily concurrent and a data race there

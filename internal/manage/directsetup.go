@@ -177,7 +177,7 @@ func setupL3(side directSide) {
 			tui.PressEnter()
 			return
 		}
-		cfg.Addr = net.JoinHostPort(strings.TrimSpace(host), port)
+		cfg.Addr = net.JoinHostPort(strings.Trim(strings.TrimSpace(host), "[]"), port)
 
 		var ok bool
 		cfg.Ports, ok = askRequiredDirectPorts("Forwarded Ports (Required): ")
@@ -192,10 +192,15 @@ func setupL3(side directSide) {
 			tui.PressEnter()
 			return
 		}
-		cfg.Addr = net.JoinHostPort("0.0.0.0", port)
+		cfg.Addr = net.JoinHostPort(askDirectListenHost(carrier), port)
 
 	}
 
+	if err := l3.CheckCarrierAddress(carrier, cfg.Addr); err != nil {
+		tui.Error(err.Error())
+		tui.PressEnter()
+		return
+	}
 	askL3TunnelAddresses(&cfg, side)
 
 	cfg.Name = uniqueName(tui.PromptDefault("Tunnel Name", cfg.defaultName()))
@@ -907,4 +912,11 @@ func l3PeerWithPrefix(cfg l3Spec) string {
 		return peer + "/" + prefix
 	}
 	return peer
+}
+
+func askDirectListenHost(carrier string) string {
+	if l3.SupportsIPv6(carrier) && tui.Confirm("Listen over IPv6 (the other end must dial this server's IPv6 address)", false) {
+		return "::"
+	}
+	return "0.0.0.0"
 }

@@ -146,7 +146,7 @@ func setUpPeer(t manage.Tunnel) {
 	// A listening end's config usually says 0.0.0.0. The peer needs the
 	// reachable address, which only the operator can confirm on a routed VPS.
 	if peerSetupNeedsHost(t) {
-		host = strings.TrimSpace(tui.PromptDefault("This server's address as the peer reaches it", manage.PublicIPv4()))
+		host = strings.TrimSpace(tui.PromptDefault("This server's address as the peer reaches it", manage.PeerSetupAddress(t.Name, manage.PublicIPv4())))
 		if host == "" || host == "-" {
 			tui.Error("A reachable address is required before setting up the other end.")
 			tui.PressEnter()
