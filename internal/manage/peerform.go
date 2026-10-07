@@ -82,6 +82,7 @@ func (f PeerForm) ToNewDirectTunnel() NewDirectTunnel {
 		Name:        f.Name,
 		Token:       f.Token,
 		PeerAddr:    f.ServerAddr,
+		ListenHost:  f.ListenHost,
 		TunnelPort:  f.TunnelPort,
 		Ports:       f.Ports,
 		AcceptUDP:   f.AcceptUDP,

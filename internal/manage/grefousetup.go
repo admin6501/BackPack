@@ -19,6 +19,9 @@ func showGREFOUPeerLink(cfg l3Spec) {
 	host := ""
 	if cfg.Mode == "listen" {
 		detected := PublicIPv4()
+		if outerIPv6(cfg.Addr) {
+			detected = PublicIPv6()
+		}
 		if detected == "-" {
 			detected = ""
 		}

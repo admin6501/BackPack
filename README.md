@@ -67,6 +67,9 @@ GRE (family 4) → GRE over FOU (option 1)**, or **Direct → GRE over FOU**.
 The web panel follows the same grouping. Setup Link and SSH pairing carry the
 opposite mode to the peer and preserve the shared settings.
 
+Direct XDI, UDP, QUIC and GRE over FOU also support IPv6 server addresses.
+Private tunnel addresses can stay IPv4. [IPv6 setup](docs/l3-direct-tunnel.md#outer-ipv6-endpoints).
+
 **→ [GRE over FOU tutorial](tutorial/gre-over-fou.md)** ·
 **[Direct tunnel](docs/l3-direct-tunnel.md)**
 

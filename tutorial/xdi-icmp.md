@@ -10,6 +10,15 @@ Both ends need Linux and root for the TUN interface and raw ICMP sockets. The
 route must pass ICMP echo traffic; successful ordinary ping is a useful first
 check, but does not guarantee that larger or sustained tunnel traffic passes.
 
+## IPv6
+
+To use an IPv6 route, enter kharej's real IPv6 address on Iran and import the
+resulting Setup Link on kharej. The link selects the ICMPv6 listener. For
+manual kharej setup, enable **Listen over IPv6**; in the panel select **Outer
+IP family → IPv6**. If setting kharej up first, give its reachable IPv6 address
+when generating the link. Upgrade both ends to a build with IPv6 XDI support.
+Keep the private tunnel addresses as they are. See [IPv6 setup details](../docs/l3-direct-tunnel.md#outer-ipv6-endpoints).
+
 ## Setup
 
 1. On Iran run `sudo backpack` → **Setup Iran → Direct → XDI**.

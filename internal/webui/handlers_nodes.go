@@ -638,7 +638,7 @@ func peerConnOnNode(run node.Runner, nodeName, tunnel string) *manage.ConnTune {
 
 // pushPeerEnd mirrors a freshly created tunnel and applies it on the node.
 func (s *server) pushPeerEnd(run node.Runner, nodeName, tunnel string, peerConn *manage.ConnTune, r *http.Request) (any, error) {
-	link, err := manage.ShareLinkFor(tunnel, panelHost(r))
+	link, err := manage.ShareLinkFor(tunnel, manage.PeerSetupAddress(tunnel, panelHost(r)))
 	if err != nil {
 		return nil, fmt.Errorf("could not read back the tunnel just created: %w", err)
 	}

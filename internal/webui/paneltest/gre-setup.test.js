@@ -21,3 +21,19 @@ test('GRE follows the selected direction without a second selector',()=>{
  assert.match(source,/payload\.carrier = setupCarrier\(chosen\)/);
  assert.match(source,/payload\.mode = greSetupMode\(chosen\)/);
 });
+
+const {showIPv6Family,l3Listens} = runInNewContext(source+'\n({showIPv6Family,l3Listens});');
+test('IPv6 family selection follows the actual L3 listener',()=>{
+ for(const carrier of ['xdi','udp','quic','gre-fou','pck','sni','spoof']) {
+  for(const side of ['server','client']) {
+   const c={direction:'direct',side,carrier};
+   assert.equal(l3Listens(c),side==='client');
+   assert.equal(showIPv6Family(c),side==='client'&&['xdi','udp','quic','gre-fou'].includes(carrier));
+  }
+ }
+ for(const side of ['server','client']) {
+  const c={direction:'reverse',side,transport:'gre-fou'};
+  assert.equal(showIPv6Family(c),side==='server');
+ }
+ assert.equal(showIPv6Family({direction:'reverse',side:'server',transport:'tcp'}),false);
+});

@@ -121,6 +121,9 @@ func openXdi(cfg Config) (DatagramCarrier, net.Addr, error) {
 		overhead:   network.XdiOverhead(),
 		name:       "xdi",
 	}
+	if a, ok := conn.LocalAddr().(*net.IPAddr); ok && a.IP != nil && a.IP.To4() == nil {
+		base.overhead += ipv6HeaderLen - ipv4HeaderLen
+	}
 	if f, ok := conn.(interface{ FirewallNote() string }); ok {
 		base.warning = f.FirewallNote()
 	}

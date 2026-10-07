@@ -34,5 +34,8 @@ func (c *icmpConn) FirewallNote() string {
 	if c.accept.Installed() {
 		return ""
 	}
+	if c.proto == 58 {
+		return "xdi: the tunnel-specific ICMPv6 firewall rule could not be installed; check ip6tables/nftables permits this tunnel’s echo traffic"
+	}
 	return XdiFirewallNote(c.server)
 }

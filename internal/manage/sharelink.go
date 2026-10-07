@@ -59,6 +59,7 @@ const (
 // ends disagreed about it? An interface name, a socket buffer or a tunnel's own
 // name would not, so they are not here and the receiving side keeps its own.
 type ShareLink struct {
+	IPv6  bool   `json:"v6,omitempty"`   // outer family; private tunnel addresses are independent
 	V     int    `json:"v"`              // format version
 	Kind  string `json:"k"`              // "reverse" or "direct"
 	From  string `json:"f"`              // "iran" or "kharej" — the side that made it
@@ -245,10 +246,11 @@ func (l ShareLink) PeerSide() string {
 // the same reason the mirroring does: two copies of it would eventually
 // disagree, and the disagreement would be invisible until a tunnel went quiet.
 type PeerForm struct {
-	Kind string `json:"kind"` // "reverse" or "direct"
-	Mode string `json:"mode,omitempty"`
-	Side string `json:"side"` // the side this form is for
-	Name string `json:"name,omitempty"`
+	ListenHost string `json:"listenHost,omitempty"`
+	Kind       string `json:"kind"` // "reverse" or "direct"
+	Mode       string `json:"mode,omitempty"`
+	Side       string `json:"side"` // the side this form is for
+	Name       string `json:"name,omitempty"`
 
 	Transport  string `json:"transport,omitempty"`  // reverse
 	Carrier    string `json:"carrier,omitempty"`    // direct
@@ -357,6 +359,10 @@ func MirrorForPeer(l ShareLink) PeerForm {
 		}
 	} else {
 		f.Carrier = l.Tr
+		if l.IPv6 {
+			f.ListenHost = "::"
+			paired = append(paired, "listenHost")
+		}
 		if l.Mode != "" {
 			f.Mode = "listen"
 			if l.Mode == "listen" {
@@ -522,7 +528,7 @@ func ShareLinkFor(name, host string) (string, error) {
 // shareLinkOf builds the link from a config in hand, which is how the direct
 // wizard shows it in its summary before the tunnel is written.
 func shareLinkOf(name, host string, cfg config.Config) (string, error) {
-	l := ShareLink{Name: name, Host: strings.TrimSpace(host)}
+	l := ShareLink{Name: name, Host: strings.Trim(strings.TrimSpace(host), "[]")}
 
 	switch {
 	case cfg.L3.Enabled():
@@ -534,6 +540,16 @@ func shareLinkOf(name, host string, cfg config.Config) (string, error) {
 		l.SNI = cfg.L3.SNIDomain
 		l.Encap = "gre"
 		l.Port = addrPort(cfg.L3.Addr)
+		outerHost, _, _ := net.SplitHostPort(cfg.L3.Addr)
+		outerHost, _, _ = strings.Cut(outerHost, "%")
+		if ip := net.ParseIP(outerHost); ip != nil {
+			l.IPv6 = ip.To4() == nil
+		}
+		if l.IPv6 && cfg.L3.Mode == "listen" {
+			if ip := net.ParseIP(l.Host); ip != nil && ip.To4() != nil {
+				return "", fmt.Errorf("this tunnel listens on IPv6; provide its reachable IPv6 address or an IPv6 hostname")
+			}
+		}
 		l.Preset = cfg.L3.Preset
 		l.Ports = strings.Join(cfg.L3.Ports, ", ")
 		l.AcceptUDP = cfg.L3.AcceptUDP
@@ -651,4 +667,30 @@ func fieldName(goName string, spoken map[string]string) string {
 		return s
 	}
 	return goName
+}
+
+// PeerSetupAddress avoids handing an IPv6 listener's peer the panel's IPv4
+// address. An explicit hostname can still be used for routed/NAT deployments.
+func PeerSetupAddress(name, fallback string) string {
+	cfg, err := LoadTunnelConfig(name)
+	if err == nil && cfg.L3.Enabled() && cfg.L3.Mode == "listen" && outerIPv6(cfg.L3.Addr) {
+		ip := net.ParseIP(strings.Trim(fallback, "[]"))
+		if fallback == "" || fallback == "-" || (ip != nil && ip.To4() != nil) {
+			if address := PublicIPv6(); address != "-" {
+				return address
+			}
+			return ""
+		}
+	}
+	return fallback
+}
+
+func outerIPv6(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	host, _, _ = strings.Cut(host, "%")
+	ip := net.ParseIP(host)
+	return ip != nil && ip.To4() == nil
 }

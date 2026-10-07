@@ -1,5 +1,36 @@
 # Direct layer-3 tunnel
 
+## Outer IPv6 endpoints
+
+XDI, UDP, QUIC and GRE over FOU support IPv6 between the two servers. XDI
+uses ICMPv6 echo requests/replies over IPv6; IPv4 continues to use ICMPv4.
+PCK, SNI and IP Spoofing still require IPv4 outer endpoints, including when
+the spoof packet profile is named `icmpv6`.
+
+Enter the listening server's real IPv6 address in the dialing wizard's peer
+IP field. The separate port prompt handles brackets for you; hand-written
+TOML uses `addr = "[2001:db8::2]:9000"`. The example address is documentation-only.
+For manual setup on the listening server, answer **yes** to **Listen over
+IPv6**. The web panel exposes **Outer IP family → IPv6** on that same side.
+This writes `[::]:port`. Existing configurations keep their bind addresses;
+IPv4 XDI listeners are not silently changed to IPv6 listeners.
+
+Setup Links carry the outer address family and select the IPv6 listener when
+the other end dials a literal IPv6 address. SSH pairing uses the same form.
+When starting from the listener, supply its reachable IPv6 address for the
+peer link. Use a literal IPv6 address for deterministic family selection;
+a hostname with both A and AAAA records may resolve to IPv4. Both endpoints
+must run a build with this support, and the path must permit the selected
+carrier (ICMPv6 for XDI, UDP for UDP/QUIC/GRE over FOU).
+
+The private `10.x.x.x/30` addresses and forwarded service ports do not need
+to change. They are inside the encrypted tunnel, independent of outer IPv6.
+Carrier MTU accounting includes the larger IPv6 header. XDI's narrow IPv6
+firewall rules target this tunnel's echo tag; they do not disable neighbor
+discovery, path-MTU errors, or ordinary ping. These rules use `ip6tables` with
+`u32`; when unavailable, check the host/provider firewall manually.
+
+
 Every other transport in Backpack forwards **ports**: a listener on the Iran
 server, a backend dial on the kharej server, and a stream in between. This one
 is different. It creates a network **interface** on each host and carries whole

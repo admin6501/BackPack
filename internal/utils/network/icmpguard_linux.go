@@ -40,9 +40,10 @@ import (
 // works and wastes some uplink is a better failure than one whose private
 // network cannot carry a ping. The carrier logs which happened.
 type icmpEchoGuard struct {
-	port   uint16
-	rule   []string
-	active bool
+	command string
+	port    uint16
+	rule    []string
+	active  bool
 }
 
 // installICMPEchoGuard adds the reply-drop rule for a tunnel port and returns a
@@ -72,7 +73,7 @@ func installXdiEchoGuard(tag [xdiTagLen]byte) *icmpEchoGuard {
 
 // installEchoRule inserts a guard's rule and records whether it took.
 func installEchoRule(g *icmpEchoGuard) *icmpEchoGuard {
-	key := strings.Join(g.rule, " ")
+	key := g.binary() + " " + strings.Join(g.rule, " ")
 	echoRules.Lock()
 	defer echoRules.Unlock()
 	// Shared within the process: the sessions of one reverse xdi tunnel each
@@ -84,15 +85,15 @@ func installEchoRule(g *icmpEchoGuard) *icmpEchoGuard {
 		g.active = true
 		return g
 	}
-	if _, err := exec.LookPath("iptables"); err != nil {
+	if _, err := exec.LookPath(g.binary()); err != nil {
 		return g
 	}
 	// A rule already there is one a crashed run left behind — the process
 	// died before it could remove it. It is adopted rather than doubled, so
 	// crash after crash does not stack copies, and this run's exit removes it.
-	if exec.Command("iptables", append([]string{"-C"}, g.rule...)...).Run() == nil {
+	if exec.Command(g.binary(), append([]string{"-C"}, g.rule...)...).Run() == nil {
 		g.active = true
-	} else if exec.Command("iptables", append([]string{"-I"}, g.rule...)...).Run() == nil {
+	} else if exec.Command(g.binary(), append([]string{"-I"}, g.rule...)...).Run() == nil {
 		g.active = true
 	}
 	if g.active {
@@ -114,14 +115,14 @@ func (g *icmpEchoGuard) remove() {
 		return
 	}
 	g.active = false
-	key := strings.Join(g.rule, " ")
+	key := g.binary() + " " + strings.Join(g.rule, " ")
 	echoRules.Lock()
 	defer echoRules.Unlock()
 	if echoRules.users[key]--; echoRules.users[key] > 0 {
 		return
 	}
 	delete(echoRules.users, key)
-	_ = exec.Command("iptables", append([]string{"-D"}, g.rule...)...).Run()
+	_ = exec.Command(g.binary(), append([]string{"-D"}, g.rule...)...).Run()
 }
 
 // Installed reports whether the rule is in place, so the carrier can log which
@@ -202,4 +203,11 @@ func xdiAcceptRule(tag [xdiTagLen]byte, server bool) []string {
 		"-m", "comment", "--comment", fmt.Sprintf("backpack-xdi-in-%s-%08x", side, word),
 		"-j", "ACCEPT",
 	}
+}
+
+func (g *icmpEchoGuard) binary() string {
+	if g.command != "" {
+		return g.command
+	}
+	return "iptables"
 }

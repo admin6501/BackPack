@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
+	"golang.org/x/net/ipv6"
 )
 
 // A net.PacketConn that carries datagrams inside ICMP echo.
@@ -169,10 +170,7 @@ func (c *icmpConn) WriteTo(p []byte, dst net.Addr) (int, error) {
 		return 0, err
 	}
 
-	typ := icmpEchoRequest
-	if c.server {
-		typ = icmpEchoReply
-	}
+	typ := c.echoType(!c.server)
 	// The echo is built straight into one pooled buffer: header, tag,
 	// direction, payload, then the checksum over all of it. It used to go
 	// through icmp.Message.Marshal, which allocated the message, its body and
@@ -182,7 +180,7 @@ func (c *icmpConn) WriteTo(p []byte, dst net.Addr) (int, error) {
 	defer xdiBuffers.Put(wp)
 	wire := appendEcho((*wp)[:0], byte(typ), uint16(c.echoIDFor(dst)), uint16(c.seq.Add(1)))
 	wire = appendXdiPayload(wire, c.tag, outboundDir(c.server), p)
-	setICMPChecksum(wire)
+	c.checksum(wire)
 	if _, err := c.pc.WriteTo(wire, ipAddr); err != nil {
 		return 0, err
 	}
@@ -201,10 +199,7 @@ func (c *icmpConn) ReadFrom(p []byte) (int, net.Addr, error) {
 	bp := xdiBuffers.Get().(*[]byte)
 	defer xdiBuffers.Put(bp)
 	buf := *bp
-	wantType := icmpEchoRequest // the server reads requests
-	if !c.server {
-		wantType = icmpEchoReply // the client reads replies
-	}
+	wantType := c.echoType(c.server)
 	wantDir := inboundDir(c.server)
 
 	for {
@@ -215,7 +210,7 @@ func (c *icmpConn) ReadFrom(p []byte) (int, net.Addr, error) {
 		// The type, and on the client the echo identifier below. The socket
 		// filter normally keeps everything else away already; this is what is
 		// left where it could not be attached.
-		if n < 8 || buf[0] != byte(wantType) {
+		if n < 8 || buf[0] != byte(wantType) || buf[1] != 0 {
 			continue
 		}
 		// An echo is eight bytes of header and then its data; nothing in it
@@ -286,7 +281,11 @@ func (c *icmpConn) peerAddr(peer net.Addr, echoID int) net.Addr {
 	if !c.server {
 		return peer
 	}
-	return &net.UDPAddr{IP: addrIP(peer), Port: echoID}
+	ip, err := toIPAddr(peer)
+	if err != nil {
+		return &net.UDPAddr{Port: echoID}
+	}
+	return &net.UDPAddr{IP: ip.IP, Zone: ip.Zone, Port: echoID}
 }
 
 // addrIP pulls the IP out of whatever the socket reported, through the same
@@ -337,4 +336,84 @@ func toIPAddr(addr net.Addr) (*net.IPAddr, error) {
 		}
 		return &net.IPAddr{IP: parsed}, nil
 	}
+}
+
+// Direct XDI uses the address family of its peer/bind address. Legacy KCP
+// constructors above retain their IPv4 wire behavior.
+func newICMPFamilyConn(token string, server, v6 bool, bind string) (net.PacketConn, error) {
+	network := "ip4:icmp"
+	if v6 {
+		network = "ip6:ipv6-icmp"
+	}
+	pc, err := icmp.ListenPacket(network, bind)
+	if err != nil {
+		return nil, fmt.Errorf("xdi: opening %s on %s (requires root or CAP_NET_RAW): %w", network, bind, err)
+	}
+	var c *icmpConn
+	if server {
+		c = newICMPServerConnWith(pc, token).(*icmpConn)
+	} else {
+		c = newICMPClientConnWith(pc, token).(*icmpConn)
+	}
+	if v6 {
+		c.proto = 58
+	}
+	id := -1
+	if !server {
+		id = int(c.id)
+	}
+	attachICMPFilter(pc, c.echoType(server), id)
+	if v6 {
+		if server {
+			c.echoGuard = installEchoRule(&icmpEchoGuard{command: "ip6tables", rule: xdiIPv6Rule(c.tag, true, true)})
+		}
+		c.accept = installEchoRule(&icmpEchoGuard{command: "ip6tables", rule: xdiIPv6Rule(c.tag, false, server)})
+	} else {
+		if server {
+			c.echoGuard = installXdiEchoGuard(c.tag)
+		}
+		c.accept = installXdiAcceptRule(c.tag, server)
+	}
+	return c, nil
+}
+
+func (c *icmpConn) echoType(request bool) uint8 {
+	if c.proto == 58 {
+		if request {
+			return uint8(ipv6.ICMPTypeEchoRequest)
+		}
+		return uint8(ipv6.ICMPTypeEchoReply)
+	}
+	if request {
+		return uint8(icmpEchoRequest)
+	}
+	return uint8(icmpEchoReply)
+}
+
+func (c *icmpConn) checksum(wire []byte) {
+	// RFC 3542 section 3.1: the kernel inserts the mandatory ICMPv6
+	// checksum including the selected source address and IPv6 pseudoheader.
+	if c.proto == 58 {
+		wire[2], wire[3] = 0, 0
+		return
+	}
+	setICMPChecksum(wire)
+}
+
+// IPv6 has a fixed 40-byte header. Restrict this match to packets whose
+// immediate next header is ICMPv6; never interpret extension headers as data.
+// Only this tunnel's tag/direction is accepted or suppressed. ND and PMTU
+// messages, ordinary ping and authenticated tunnel replies are untouched.
+func xdiIPv6Rule(tag [xdiTagLen]byte, output, server bool) []string {
+	word := uint32(tag[0])<<24 | uint32(tag[1])<<16 | uint32(tag[2])<<8 | uint32(tag[3])
+	chain, target, typ, dir := "INPUT", "ACCEPT", "echo-reply", xdiDirServer
+	if server {
+		typ, dir = "echo-request", xdiDirClient
+	}
+	if output {
+		chain, target, typ, dir = "OUTPUT", "DROP", "echo-reply", xdiDirClient
+	}
+	return []string{chain, "-p", "ipv6-icmp", "--icmpv6-type", typ,
+		"-m", "u32", "--u32", fmt.Sprintf("6>>24=58&&48=0x%08x&&52>>24=0x%02x", word, dir),
+		"-m", "comment", "--comment", fmt.Sprintf("backpack-xdi6-%s-%s-%08x", chain, typ, word), "-j", target}
 }

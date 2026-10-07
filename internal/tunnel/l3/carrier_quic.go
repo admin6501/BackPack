@@ -251,7 +251,12 @@ func newQuicCarrier() *quicCarrier {
 }
 
 func (c *quicCarrier) CarrierName() string { return CarrierQuic }
-func (c *quicCarrier) Overhead() int       { return quicOverhead }
+func (c *quicCarrier) Overhead() int {
+	if a, ok := c.LocalAddr().(*net.UDPAddr); ok && a.IP != nil && a.IP.To4() == nil {
+		return quicOverhead + ipv6HeaderLen - ipv4HeaderLen
+	}
+	return quicOverhead
+}
 
 // acceptLoop takes every connection the listener is offered.
 func (c *quicCarrier) acceptLoop() {

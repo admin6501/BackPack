@@ -20,3 +20,7 @@ func newICMPClientConn(token string) (net.PacketConn, error) { return nil, errXd
 // icmpMTUOverhead mirrors the Linux value so the MTU arithmetic in kcp.go is
 // identical on every platform, even though the socket is never opened here.
 const icmpMTUOverhead = 8 + xdiHeaderLen
+
+func newICMPFamilyConn(token string, server, v6 bool, bind string) (net.PacketConn, error) {
+	return nil, errXdiNotLinux
+}
