@@ -187,8 +187,9 @@ connection is refused promptly rather than left hanging.
 
 ## Limits
 
-- **KCP and QUIC are reverse-only.** The four transports above are what a
-  direct tunnel has.
+- This legacy `[direct]` stream engine supports the four transports above.
+  It does not support KCP or QUIC. The current **L3** engine supports QUIC
+  datagrams; see [the L3 reference](l3-direct-tunnel.md).
 
 ## It cannot disturb a reverse tunnel
 
@@ -242,7 +243,9 @@ nonce و یک پروتکل سیگنال بین دو سر نیاز دارد. **ه
 مدت bind می‌مانند — پورتی که با هر reconnect ناپدید شود بدتر از پورتی است که قبول
 و رد کند — و تا وقتی سشنی بالا نیست، اتصال سریع رد می‌شود نه اینکه معلق بماند.
 
-**محدودیت:** KCP و QUIC فقط روی تونل معکوس‌اند؛ تونل مستقیم چهار ترنسپورت دارد.
+**محدودیت:** موتور قدیمی `[direct]` چهار ترنسپورت بالا را دارد و KCP/QUIC
+ندارد. موتور مستقیم فعلی `[l3]` از QUIC دیتاگرامی پشتیبانی می‌کند؛ این دو موتور
+را با هم اشتباه نگیر.
 
 **نمی‌تواند به تونل معکوس آسیب بزند:** در جدول `[direct]` و پکیج خودش زندگی
 می‌کند. کانفیگی که `[direct]` ندارد اصلاً به این کد نمی‌رسد و آنکه دارد هیچ‌وقت به

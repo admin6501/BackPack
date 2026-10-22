@@ -6,7 +6,7 @@ are.
 
 ---
 
-## One binary, seven modes
+## One binary, several entry points
 
 `main.go` dispatches before anything else is decided:
 
@@ -18,7 +18,10 @@ are.
 | `backpack --monitor` | watchdog, Telegram bot, alerts, history — `internal/monitor` |
 | `backpack --proxy` | the built-in SOCKS5/HTTP proxy — `internal/localproxy` |
 | `backpack --restart-all` / `--telegram-report` | one-shot jobs, run from cron |
-| `backpack node exec <base64>` | the one operation a panel runs on a managed server over SSH |
+| `backpack node exec <base64>` | execute a permitted managed-server operation over SSH |
+| `backpack tunnel list` / `tunnel status <name>` | inspect tunnels, optionally with `--json` |
+| `backpack check -c <file>` | validate a config without starting a tunnel |
+| `backpack backup check <file>` / `backup restore <file> --yes` | inspect or restore a backup; see [backup & restore](backup-restore.md) |
 
 Everything except engine mode is management. Engine mode is the product.
 
@@ -41,14 +44,15 @@ config ─┼─ [direct] table present? ─yes──►  internal/tunnel/direct
                                              the reverse tunnel
 ```
 
-They share **no configuration key and no code**. A file that does not mention
+They have separate configuration tables and engine dispatch, with shared
+utility packages. A file that does not mention
 `[l3]` cannot reach the layer-3 engine; one that does never reaches the reverse
 tunnel. `L3Config.Enabled()` is one trimmed string, and it is the whole gate.
 
 ### The reverse tunnel — `[server]` / `[client]`
 
 The Iran side listens and exposes ports; the kharej side dials out. A control
-channel plus a pool of data connections. Ten transports: `tcp`, `tcpmux`,
+channel plus a pool of data connections. Transports: `tcp`, `tcpmux`,
 `stealth`, `ws`, `wss`, `wsmux`, `wssmux`, `kcp`, `quic`, `udp`, plus `xdi` and
 `pck` which ride the KCP stack over raw and packet sockets.
 
@@ -65,8 +69,8 @@ needs no inbound port of its own. `internal/tunnel/direct`.
 ### The layer-3 tunnel — `[l3]`
 
 An interface on each host carrying whole IP packets. Noise NNpsk0, explicit
-nonces, a 2048-bit replay window (RFC 4303, as WireGuard uses). Six carriers
-underneath: `udp`, `quic`, `pck`, `sni`, `xdi`, `spoof`. `internal/tunnel/l3`.
+nonces, a 2048-bit replay window (RFC 4303, as WireGuard uses). Seven carriers
+underneath: `udp`, `quic`, `pck`, `sni`, `xdi`, `spoof`, `gre-fou`. `internal/tunnel/l3`.
 
 A reliable carrier is deliberately not an option here — stacking retransmission
 under a reliable tunnel is actively harmful, not merely wasteful. The package
@@ -104,8 +108,9 @@ miss looked healthy in the socket table.
 
 | Package | Responsibility |
 |---|---|
-| `internal/manage` | the real work: wizards, edit, backup, restore, update, migrate, diagnose, speed test, presets. 27,302 lines, and the seam the panel and the CLI both call |
-| `internal/menu` | the interactive TUI. One 1,400-line file with no tests and no non-interactive entry point, which is why nothing can drive it |
+| `internal/manage` | the real work: wizards, edit, backup, restore, update, migrate, diagnose, speed test, presets; the seam the panel and the CLI both call |
+| `internal/cli` | non-interactive commands, JSON output and exit codes over the same management operations |
+| `internal/menu` | the interactive TUI, split into menu modules with tests; scriptable commands live in `internal/cli` |
 | `internal/webui` | the panel: a Go mux plus a vanilla-JS SPA under `panel/`, served beneath a random secret base path. Also currently owns the fleet |
 | `internal/telegram` | bot, alerts, scheduled reports. Has a read-only admin tier |
 | `internal/node` | the fleet: JSON over the managed server's own SSH, with a closed list of operations |
@@ -119,8 +124,11 @@ functions, which is why a setting can be changed wherever it can be chosen.
 The panel dials **out** over the managed server's own SSH. The far side needs no
 agent, no daemon and no state — `backpack node exec <base64>` performs one
 operation from a closed list and prints the answer. The list is the security
-boundary: there is no operation that runs a command, reads a path or installs a
-binary.
+boundary: callers cannot supply arbitrary commands or paths to this RPC.
+Registration stores SSH credentials sealed by the panel's local node key. The
+separate **SSH restore/setup** workflow can bootstrap Backpack with a pinned,
+checksum-verified installer; that workflow is not a general command RPC. See
+[managed servers](managed-servers.md) and [backup & restore](backup-restore.md).
 
 ---
 
@@ -144,7 +152,7 @@ run on every update.
 
 ## Support packages
 
-`internal/utils/network` (88 files) is where the unusual work lives: Noise,
+`internal/utils/network` is where the unusual work lives: Noise,
 nonce pools, KCP, uTLS, the spoof and pck carriers, ICMP, outbound routing,
 endpoints, TLS config.
 
@@ -179,19 +187,20 @@ they are worth reading before changing the code they sit on.
 این صفحه می‌گوید Backpack از چه ساخته شده و کدام بخش به کدام سؤال جواب می‌دهد.
 بقیهٔ راهنماها می‌گویند «چطور کاری را بکنی»؛ این یکی می‌گوید «چیزها کجایند».
 
-**یک باینری، هفت حالت.** `main.go` قبل از هر چیز دیگری تصمیم می‌گیرد: `backpack`
+**یک باینری، چند ورودی.** `main.go` قبل از هر چیز دیگری تصمیم می‌گیرد: `backpack`
 منوی مدیریت است؛ `backpack -c <file>` **حالت موتور** است یعنی یک تونل از یک
 کانفیگ؛ `--webui` پنل وب؛ `--monitor` نگهبان و ربات تلگرام و هشدارها و تاریخچه؛
 `--proxy` پراکسی داخلی SOCKS5/HTTP؛ `--restart-all` و `--telegram-report` کارهای
-یک‌باره‌ای که از cron اجرا می‌شوند؛ و `backpack node exec <base64>` تنها عملیاتی
-که پنل روی یک سرور مدیریت‌شده از طریق SSH اجرا می‌کند. **هر چیزی جز حالت موتور،
+یک‌باره‌ای که از cron اجرا می‌شوند؛ و `backpack node exec <base64>` اجرای یک عملیات
+از مجموعهٔ مجاز روی سرور مدیریت‌شده از طریق SSH است. دستورهای `tunnel list`،
+`tunnel status`، `check -c` و `backup` هم برای اسکریپت‌ها وجود دارند. **هر چیزی جز حالت موتور،
 مدیریت است. حالت موتور، خودِ محصول است.** هر تونل یک سرویس systemd جداگانه و یک
 پروسهٔ جداگانه دارد.
 
 **سه موتور،** و `cmd/cmd.go runEngine` به همین ترتیب انتخاب می‌کند: اگر جدول
 `[l3]` باشد → موتور لایه‌۳؛ وگرنه اگر `[direct]` باشد → تونل مستقیم لایه‌۴؛
-وگرنه `[server]`/`[client]` → تونل معکوس. **هیچ کلید کانفیگ و هیچ کدی بین‌شان
-مشترک نیست.** فایلی که `[l3]` ندارد اصلاً به موتور لایه‌۳ نمی‌رسد، و فایلی که
+وگرنه `[server]`/`[client]` → تونل معکوس. جدول کانفیگ و مسیر اجرای موتورها
+جداست؛ بعضی ابزارهای کمکی بین آن‌ها مشترک‌اند. فایلی که `[l3]` ندارد اصلاً به موتور لایه‌۳ نمی‌رسد، و فایلی که
 دارد هیچ‌وقت به موتور معکوس نمی‌رسد.
 
 **درزِ بین موتورها و هر چیزی که تماشایشان می‌کند** — مهم‌ترین چیزی که قبل از

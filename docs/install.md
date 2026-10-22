@@ -8,7 +8,7 @@ One command as root on the VPS:
 bash <(curl -fsSL https://raw.githubusercontent.com/admin6501/BackPack/main/install.sh)
 ```
 
-It downloads the prebuilt release archive for your architecture (amd64/arm64)
+It downloads the prebuilt release archive for your architecture (amd64, arm64, 386, s390x or supported 32-bit ARM)
 into `/root/BackPack`, **verifies it against the checksum published with the
 release**, installs the binary, and opens the menu when it finishes.
 
@@ -26,6 +26,13 @@ backups in `/root/BackPack/backups`, tunnel configs in `/etc/backpack`. See
 > `sudo bash install.sh` inside it. If the release download fails it builds with
 > Go, fetching modules **directly first** and via Iran-friendly mirrors
 > (RunFlare, goproxy.cn) only when direct access fails.
+>
+> Source builds require a patched Go toolchain: **1.26.10 or later in the 1.26
+> series**, or **1.27.3 or later**. Go 1.27.0–1.27.2 is also affected by a
+> known certificate-validation advisory and is rejected by the installer.
+> The bundled Go download version and SHA-256 allowlist must agree with
+> `go.mod`; an unverified toolchain download is refused. See
+> [CONTRIBUTING](../CONTRIBUTING.md) for local build and test commands.
 
 ---
 
@@ -105,6 +112,10 @@ amd64 و `aarch64` یعنی arm64. بهترین راه این است که `insta
 پیدا و تأیید می‌کند و اصلاً به شبکه دست نمی‌زند. روش دستی هم در بالا آمده؛ فقط
 یادت باشد خط `install_path` را بنویسی، چون حذف‌کنندهٔ داخلی از روی آن می‌فهمد چه
 چیزی را پاک کند.
+
+**ساخت از سورس:** نسخهٔ Go در `go.mod` را رعایت کن؛ ۱٫۲۶٫۱۰ یا نسخهٔ اصلاح‌شدهٔ
+جدیدتر لازم است. Go ۱٫۲۷٫۰ تا ۱٫۲۷٫۲ هم آسیب‌پذیرند و نصب‌کننده ردشان می‌کند؛
+از شاخهٔ ۱٫۲۷ حداقل ۱٫۲۷٫۳ را بگیر.
 
 **آپدیت:** از منوی اصلی گزینهٔ ۸ — با تأیید SHA-256 و **بازگشت خودکار** اگر تونل
 بالا نیامد. آپدیت آفلاین هم همان مراحل نصب با آرشیو جدید است و کانفیگ‌های

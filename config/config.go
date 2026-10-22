@@ -149,16 +149,17 @@ func (k KCPConfig) WithDefaults() KCPConfig {
 // note because "where did spoof_pipe go" is a question the removal invites, and
 // the file that answered it had nothing else left in it.
 type SpoofConfig struct {
-	// SpoofProfile is the L4 shim wrapped around each datagram, which decides
-	// what the packet looks like to inspection: "udp" (default), "icmp" (looks
-	// like ping) or "tcp" (looks like a TCP flow; the receiving side auto-manages
-	// an iptables rule to drop the kernel's RSTs). It sets BOTH directions unless
-	// SpoofUplink/SpoofDownlink override them.
+	// SpoofProfile selects the shim inside an outer IPv4 packet: "udp" (default),
+	// "tcp" (raw SYN segments, not a TCP connection), "icmp", "icmpv6" (an echo
+	// shim over IPv4 protocol 58, not IPv6), "proto58" (bare protocol 58), "ipip"
+	// or "gre". It sets BOTH directions unless SpoofUplink/SpoofDownlink override
+	// them. Each profile needs its own protocol allowed along the actual path.
 	SpoofProfile string `toml:"spoof_profile"`
 	// SpoofUplink and SpoofDownlink set the profile per direction, for a path
 	// whose filtering is not symmetric — e.g. ICMP survives client→server while
 	// UDP survives server→client. Uplink is client→server, downlink is
-	// server→client; both ends must set the same pair. Empty falls back to
+	// server→client (client dials, server listens, regardless of geography);
+	// both ends must set the same pair. Empty falls back to
 	// SpoofProfile, which is the symmetric case.
 	SpoofUplink string `toml:"spoof_uplink"`
 	// SpoofDownlink is the same for the listening side. For a symmetric tunnel
@@ -167,10 +168,10 @@ type SpoofConfig struct {
 	// SpoofSrcIP is the forged source address stamped on every outgoing packet.
 	// Empty leaves the host's real source in place, which spoofs nothing.
 	SpoofSrcIP string `toml:"spoof_src_ip"`
-	// SpoofSrcPool is an optional list of forged sources to rotate through: each
-	// time the carrier (re)connects it picks one, so the tunnel is not pinned to
-	// a single address a firewall might rate-limit or block. SpoofSrcIP, if set,
-	// is always a member. Empty means use SpoofSrcIP alone.
+	// SpoofSrcPool is an optional list of forged sources rotated per outgoing
+	// packet. SpoofSrcIP, if set, is always a member. Empty means use SpoofSrcIP
+	// alone. A peer pinned to one SpoofPeerSrcIP rejects the other pool members;
+	// leave that pin empty when using multiple sources.
 	SpoofSrcPool []string `toml:"spoof_src_pool"`
 	// SpoofPeerIP is the peer's REAL IPv4 address — where the forged packets are
 	// actually routed. On the server it is REQUIRED: because the client forges
@@ -203,8 +204,8 @@ type SpoofConfig struct {
 	// SpoofPeerSrcIP pins the forged source the peer stamps on its packets, so
 	// anything arriving with a different source is dropped before the encryption
 	// ever looks at it. Empty accepts any source and leaves the demux to the port
-	// and the encryption, which is safe but noisier. Set it to the peer's
-	// spoof_src_ip for a tighter, cheaper receive path.
+	// and the encryption. Set it to the peer's only source for a tighter receive
+	// path; leave empty if the peer rotates multiple source addresses.
 	SpoofPeerSrcIP string `toml:"spoof_peer_src_ip"`
 	// SpoofICMPReply makes an icmp/icmpv6 tunnel look like a real ping exchange:
 	// the client sends Echo Requests and the server answers with Echo Replies,
@@ -245,8 +246,9 @@ type SpoofConfig struct {
 	// SpoofPaddingMax is the most random bytes appended to a datagram when
 	// padding is on. 0 uses the default.
 	SpoofPaddingMax int `toml:"spoof_padding_max"`
-	// SpoofFakeTLS prepends a fake TLS 1.2 record header to each TCP segment, so a
-	// middlebox reads it as TLS. TCP profile only; both ends must agree.
+	// SpoofFakeTLS prepends a cosmetic TLS 1.2 record header to each TCP segment.
+	// It does not perform a TLS handshake or create HTTPS. TCP profile only;
+	// both ends must agree.
 	SpoofFakeTLS bool `toml:"spoof_fake_tls"`
 }
 

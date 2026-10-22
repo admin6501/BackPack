@@ -1,8 +1,9 @@
 # Backpack tutorials
 
 Step-by-step walkthroughs for tunnel setup and everyday operations. The
-transport pages follow the reverse wizard; direct tunnels and managing both
-servers have their own pages below.
+TCP, UDP and WebSocket pages follow the reverse wizard. XDI and IP Spoofing
+use the L3 direct wizard; direct tunnels and managing both servers have their
+own pages below.
 
 **New here? Read [Before you start](before-you-start.md) once.** It covers the
 two roles, the token, the ports and the firewall — the four things that account

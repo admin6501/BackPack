@@ -36,9 +36,10 @@ Do it in this order. It is designed so you always have a working tunnel and neve
 have to debug two unknowns at once:
 
 1. **Build the tunnel with no forgery.** Press Enter through the forged-source
-   question. You get an ordinary working tunnel on your real address.
-2. **Run the tester** to find which forged sources actually cross the path.
-3. **Set one of those** from the Edit menu.
+   question. Verify real traffic crosses on your actual route before proceeding.
+2. **Run the UDP tester** in each direction to measure candidate sources.
+3. **Set a passing source** from Edit, then test actual tunnel traffic in both
+   directions with the selected profile. UDP probes do not verify other profiles.
 
 Doing it the other way round gives you a tunnel that connects and carries
 nothing — which looks exactly like every other fault there is.
@@ -62,9 +63,11 @@ After the usual questions the wizard runs a **4-step** spoof screen.
 Use UDP — the recommended profile [Y/n]
 ```
 
-Say yes. The forged packets can be dressed as UDP, as ping (ICMP), or as a TCP
-flow; UDP is the plainest and passes nearly everywhere. The other two are for a
-path that filters UDP specifically.
+Start with UDP if the path allows it. There are seven profiles: `udp`, `tcp`,
+`icmp`, `icmpv6`, `proto58`, `ipip` and `gre`. Their prerequisites and packet
+formats are in [the profile table](../docs/ip-spoofing.md#packet-profile--spoof_profile).
+All use outer IPv4; `icmpv6` is not a real IPv6 carrier. Raw `tcp` is not a normal
+TCP connection. No profile is guaranteed to pass a particular provider.
 
 **The other end must pick the same profile.**
 
@@ -72,9 +75,10 @@ path that filters UDP specifically.
 Set the two directions separately [y/N]
 ```
 
-`N`. A path *can* filter one direction differently — uplink is kharej → Iran,
-downlink is Iran → kharej — but almost none does, and both ends have to be set
-the same way.
+Start with `N`. Uplink means dialling client → listening server, downlink is
+the reverse. In the default Direct setup this is Iran → kharej and kharej → Iran,
+respectively. Set different profiles only if measurements justify it; both ends
+must enter the same pair without swapping the values.
 
 ### Step 2 — where this end sends its replies
 
@@ -99,8 +103,8 @@ Forged source IPv4 (empty = do not forge):
 **Leave it empty.** Nothing is forged, the tunnel comes up on this machine's real
 address and works normally. That is the right answer for a first run.
 
-(Several addresses, comma separated, are rotated one per session — that is what
-gets past a block that counts by address. Come back for that in Part 3.)
+(Several addresses, comma separated, rotate **per outgoing packet**. Every member
+must pass, and the receiver must not pin a single source. Come back in Part 3.)
 
 If the machine has **more than one** network interface you are also asked which
 one the raw packets leave by. Empty lets the kernel route, which is right unless
@@ -117,8 +121,8 @@ packets look like, or you will not know which of the two you are debugging.
 
 Stealth is one answer standing for the whole anti-fingerprinting group: random
 padding on every packet, a varying TTL and DSCP byte, a moving source port, and
-— on a `tcp` profile — a TLS record header in front, so a middlebox reads the
-flow as HTTPS. It is one question rather than seven because two of those change
+— on a `tcp` profile — a cosmetic TLS record header. This does not perform a
+TLS handshake or create HTTPS, and filters may still reject it. It is one question rather than seven because two of those change
 what goes on the wire and **must match at the other end**; as a group, that is
 one answer to keep in step instead of several.
 
@@ -181,9 +185,12 @@ The receiver prints a table:
   8.8.4.4            0/5        100.0
 ```
 
-Anything that arrived at or below your loss threshold passed. **`0/5` everywhere
-means your provider drops forged packets** — the transport cannot work from that
-machine, and no setting will change it.
+Anything that arrived at or below your loss threshold passed this **UDP** test.
+`0/5` everywhere means the receiver saw no valid probes during the window.
+Check receiver startup, matching token/port, real target IP, host/cloud firewall,
+interface and route; first test the sender's real source as a baseline. If that
+passes and forged sources fail, upstream source filtering is a likely cause.
+A passing UDP result does not verify the other six profiles.
 
 Then **swap the roles and run it again** to map the other direction. The two
 directions are independent: an address that gets from kharej to Iran says nothing
@@ -203,7 +210,8 @@ tester says arrives at **Forged source IPv4**. You can enter several addresses,
 comma separated, to rotate them. The tunnel restarts on the new settings.
 
 If you use the optional **expected forged source** filter on the other end,
-update it to accept this address too; an old pinned value drops the new one.
+update it to this sole address; an old pinned value drops the new one. If the
+sender rotates multiple sources, leave that single-address filter empty.
 See [the setting reference](../docs/ip-spoofing.md) for its config key. The CLI
 setup-again menu does not ask for that optional filter. Keep the packet
 profile and Stealth settings paired.
@@ -211,7 +219,9 @@ profile and Stealth settings paired.
 Do the same for the reverse direction with the addresses that passed that way.
 
 **Nothing here is proven until traffic actually crosses.** If the tunnel comes up
-but carries nothing, the forged source is being dropped — go back to the tester.
+but carries nothing, check profile/token pairing, source pins, firewall,
+reverse-path filtering and MTU as well as source-address filtering. Test the
+actual chosen profile; see [prerequisites](../docs/ip-spoofing.md#what-determines-whether-it-works).
 
 ---
 
@@ -233,10 +243,10 @@ instead. Change one at a time and test.
 
 | Symptom | Cause |
 |---|---|
-| Tunnel connects, carries nothing | the forged source is being dropped — run the tester |
+| Tunnel connects, carries nothing | check source filtering, profile/token/wire flags, source pin, firewall, reverse-path filtering and MTU |
 | Nothing at all, even unforged | profile mismatch between the ends, or either side lacks the peer's real IPv4 |
 | Kharej side refuses to finish setup | the Iran server's real IPv4 is empty — fill it first |
-| Tester: everything `0/5` | your provider drops forged sources; this transport is not available to you |
+| Tester: everything `0/5` | check receiver, token/port, real target and firewall; compare with a real-source baseline before concluding upstream filtering |
 | Worked, then stopped | if you rotate a pool, one of the addresses may have started being dropped — retest the pool |
 
 ---
@@ -262,14 +272,16 @@ instead. Change one at a time and test.
 
 ۲. بعد `Manage → IP Spoofing Tester` را اجرا کن: روی یک سرور **Receiver** (اول
 این را استارت کن) و روی سرور دیگر **Sender**. لیست/رنج/CIDR آدرس‌های کاندید را
-بده. جدول خروجی نشان می‌دهد کدام آدرس‌ها واقعاً رسیده‌اند. اگر همه `0/5` بود،
-یعنی سرویس‌دهنده‌ات پکت جعلی را دور می‌ریزد و این ترنسپورت برایت کار نمی‌کند.
-بعد جای دو نقش را عوض کن تا جهت برعکس را هم بسنجی.
+بده. تستر فقط UDP را می‌سنجد. اگر همه `0/5` بود، اول Receiver، تطبیق توکن و
+پورت، آی‌پی واقعی مقصد و فایروال را بررسی کن و با مبدأ واقعی تست بگیر. اگر
+واقعی می‌رسد و جعلی نمی‌رسد، فیلتر مبدأ در شبکه محتمل است. بعد جای دو نقش را
+عوض کن؛ خود پروفایل انتخاب‌شده را هم با ترافیک واقعی در هر دو جهت بسنج.
 
 ۳. برای آدرسی که از تست عبور کرده، از `Manage → Edit → IP Spoofing → Run the
 setup again` استفاده کن؛ این منو گزینهٔ جداگانهٔ «Forged source IP(s)» ندارد.
 پروفایل و آی‌پی واقعی طرف مقابل را همان قبلی بگذار و در سؤال Forged source
-آدرس تازه را وارد کن (چند آدرس با کاما = چرخش بین آن‌ها). در طرف مقابل نیز
+آدرس تازه را وارد کن (چند آدرس با کاما = چرخش برای هر بسته). برای pool
+چندآدرسی، فیلتر تک‌آدرسی `spoof_peer_src_ip` طرف مقابل باید خالی باشد. در طرف مقابل نیز
 اگر فیلتر اختیاری آدرس مبدأ مورد انتظار را در کانفیگ طرف مقابل فعال کرده‌ای،
 آن را هم مطابق [مرجع تنظیمات](../docs/ip-spoofing.md) به‌روز کن؛ ویزارد CLI
 این سؤال اختیاری را نمی‌پرسد.

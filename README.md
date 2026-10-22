@@ -137,14 +137,14 @@ own step-by-step page.
 
 ## Pick a transport
 
-Thirteen to choose from, so you match the route instead of fighting it. Not sure?
+Choose a transport for your route. Not sure?
 **Manage → Link Test** measures your actual route and recommends one.
 
 | Transport | Reach for it when | Guide |
 |---|---|---|
 | **TCP** | you are not sure — this is the starting point | [→](tutorial/tcp.md) |
 | **TCP Mux** | the service opens many short connections | [→](tutorial/tcp-mux.md) |
-| **TCP + Stealth** | filtering is heavy — Noise-encrypted, **no fingerprint at all** | [→](tutorial/tcp-stealth.md) |
+| **TCP + Stealth** | filtering is heavy — Noise-encrypted; test it on your route | [→](tutorial/tcp-stealth.md) |
 | **TCP + PCK** | TCP connects then stalls, resets or is throttled | [→](tutorial/tcp-pck.md) |
 | **UDP + KCP + FEC** | gaming or a lossy route — always-on error correction | [→](tutorial/udp-kcp-fec.md) |
 | **UDP + QUIC** | you want to test an encrypted, self-tuning UDP carrier | [→](tutorial/udp-quic.md) |
@@ -170,7 +170,7 @@ Thirteen to choose from, so you match the route instead of fighting it. Not sure
 - **UDP on any forwarded port** — Xray/3x-ui, Shadowsocks, WireGuard, DNS and
   games, on **every** transport, with one switch.
   [How](tutorial/udp-forwarding.md)
-- **No fingerprint** — Stealth looks like random bytes; WSS dials with a real
+- **Traffic camouflage** — Stealth looks like random bytes; WSS dials with a real
   **Chrome** TLS handshake and answers every probe with a **decoy website**.
 - **Gaming-grade UDP** — KCP with always-on FEC repairs loss instead of waiting
   for a retransmit, plus **multi-exit failover** that steers to the healthiest

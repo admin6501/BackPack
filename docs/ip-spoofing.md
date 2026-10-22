@@ -14,7 +14,7 @@
 > itself connected and carried nothing. A direct tunnel has one session, which
 > is the shape this carrier can serve.
 
-The reference page for the `spoof` transport: what it is, and what every single
+The reference page for the direct `spoof` carrier: what it is, and what every single
 setting does. For a step-by-step first setup, use
 **[the IP Spoofing tutorial](../tutorial/ip-spoofing.md)** instead.
 
@@ -50,6 +50,25 @@ It is for a path that **blocks, throttles or counts by source address**.
 
 ---
 
+## What determines whether it works
+
+- **Provider and hypervisor:** egress anti-spoofing (often BCP 38) may reject a
+  forged source before it leaves the VPS. Neither a new shim nor Stealth disables it.
+- **Both directions:** routing, cloud security groups, host firewalls and the
+  selected IP protocol must permit the actual packets in each direction.
+- **Host source validation:** reverse-path filtering (`rp_filter`) can discard
+  forged sources. Linux uses the maximum of `all` and the receiving interface's
+  setting; inspect both. Use an appropriate loose/disabled policy for the
+  intended interface only after checking the host's routing requirements.
+- **Privileges and local rules:** Linux raw sockets need `CAP_NET_RAW` (normally
+  root); TCP socket receive needs the RST guard. Optional XDP has extra kernel
+  and capability requirements described below.
+- **Pairing:** real peer addresses, token, direction profiles, wire-changing
+  flags and source pins must agree. A single source pin cannot accept a pool.
+- **Packet size and load:** path MTU, fragment filtering, loss, rate limits,
+  socket buffers and CPU affect speed. FEC can repair some loss; it cannot make
+  a blocked protocol or source pass.
+
 ## The paired settings
 
 Everything in a spoof setup is paired, and the pairing is what goes wrong. This
@@ -58,7 +77,7 @@ table is the whole compatibility contract:
 | Setting | Must match the peer? |
 |---|---|
 | Packet profile / per-direction profiles | **yes** — mismatched profiles carry nothing |
-| ICMP reply mode | **yes** (icmp profile only) |
+| ICMP reply mode | **yes** (`icmp` and `icmpv6` profiles) |
 | Padding, fake TLS | **yes** — they change the wire |
 | Forged source ↔ the peer's "expected forged source" | **yes**, if you pin it |
 | The other end's real IPv4 | required on **both ends** by the direct Spoof wizard |
@@ -82,31 +101,43 @@ config key is given for each, for `/etc/backpack/<name>.toml`.
 
 What the forged packets are dressed as.
 
-| Value | Looks like | Notes |
-|---|---|---|
-| **`udp`** | plain datagrams | **the default and the recommendation** — passes nearly everywhere |
-| `icmp` | ping traffic | for a path that filters UDP specifically |
-| `tcp` | a TCP flow | the receiving side auto-manages an iptables rule to drop the kernel's RSTs |
-| `icmpv6` | an ICMPv6 echo inside an **IPv4** packet (protocol 58) | not real IPv6 — the outer packet is IPv4 with a forged IPv4 source. Many filters clamp down on ICMP and UDP and leave protocol 58 alone |
-| `proto58` | the same protocol number, **bare** | `icmpv6` with the echo header taken off. Take this where the path passes protocol 58 whatever is inside it; take `icmpv6` where it expects to see an ICMPv6 message |
-| `ipip` | IP-in-IP (protocol 4) | the router-to-router encapsulation, which some filters wave through |
-| `gre` | GRE (protocol 47), four bytes of header | the same idea, a different number |
+Every profile below uses an **outer IPv4 header** (20 bytes before options).
+The shim sizes exclude Noise, framing, optional FEC and padding overhead.
 
-The last four carry **no port**, so a receiver on one of them cannot filter the
-flow in the kernel and leans on the encryption above. Set
-[`spoof_peer_src_ip`](#describing-the-other-end) on one of these, or every packet
-of that protocol reaching the host is handed to the cipher.
+| Value | IPv4 protocol | Shim bytes | What must cross the path |
+|---|:--:|:--:|---|
+| **`udp`** (default) | 17 | 8 | UDP datagrams, with the chosen source accepted. Start here when UDP is allowed. |
+| `tcp` | 6 | 20 | Raw SYN segments with payload. This is **not a TCP connection**; stateful filters and SYN proxies may reject it. The socket receive path manages an iptables RST guard. |
+| `icmp` | 1 | 8 | Echo messages with payload. Ping success alone does not prove this packet size, rate or forged source will pass. |
+| `icmpv6` | 58 | 8 | An echo-shaped shim **inside IPv4**, not real IPv6. Filters may reject this unusual protocol combination. |
+| `proto58` | 58 | 0 | Bare encrypted payload under protocol 58. It has no echo header and is not wire-compatible with `icmpv6`. |
+| `ipip` | 4 | 0 | Backpack payload under the IP-in-IP protocol number. It is not a plain inner IP packet for a kernel IPIP peer. |
+| `gre` | 47 | 4 | Backpack payload after a minimal GRE shim. It requires a Backpack peer; it is separate from the `gre-fou` carrier. |
 
-**Both ends must be set the same**, or the tunnel stops carrying.
+Only `proto58`, `ipip` and `gre` lack a port **or echo identifier** for kernel
+flow filtering. The two echo profiles carry a token-derived identifier. For the
+three bare profiles, a single [`spoof_peer_src_ip`](#describing-the-other-end)
+can narrow receive filtering; leave it empty if the peer rotates several
+sources, or the other sources will be dropped. Noise authenticates the session.
+
+UDP/TCP destination ports and echo identifiers are derived from the tunnel
+**token**. Do not assume the port displayed in the L3 address is the actual
+spoof wire port; firewall rules must allow the actual carrier packets.
+
+**Both ends must use the same profile pair and token.** A profile changes packet
+format, not encryption strength, reliability or the provider's anti-spoof policy.
+There is no profile guaranteed to work or be fastest on every route.
 
 ### Per-direction profiles — `spoof_uplink`, `spoof_downlink`
 
 A different profile each way, for a path whose filtering is not symmetric — ICMP
-survives kharej → Iran while UDP survives Iran → kharej, say. **Uplink is
-client → server (kharej → Iran); downlink is server → client.** Empty falls back
-to `spoof_profile`, which is the symmetric case.
+survives one direction while UDP survives the other, say. **Uplink is the
+dialling client → listening server; downlink is the reverse.** In the default
+Direct setup Iran dials kharej, so uplink is Iran → kharej. Use the actual
+initiation roles if you change them. Empty falls back to `spoof_profile`.
 
-Almost no path needs this, and both ends must set the same pair.
+Start with a symmetric pair. If measurements justify different profiles, both
+ends must configure the same uplink/downlink pair, not swap the two values.
 
 ### Forged source IP(s) — `spoof_src_ip`, `spoof_src_pool`
 
@@ -115,13 +146,16 @@ The address stamped on the packets this machine sends.
 - **Empty forges nothing.** The tunnel runs on the machine's real address and
   still works. This is the correct first-run answer.
 - **One address** goes in `spoof_src_ip`.
-- **Several, comma separated**, become `spoof_src_pool`: the carrier picks one
-  each time it (re)connects, so the tunnel is not pinned to a single address a
-  firewall might rate-limit or block. `spoof_src_ip` is always a member.
+- **Several, comma separated**, become `spoof_src_pool`: the carrier rotates
+  through the addresses **for each outgoing packet**, not per session.
+  `spoof_src_ip`, if set, is also a member. Every member must pass the path;
+  one failing member causes recurring loss. A peer pinned to a single
+  `spoof_peer_src_ip` rejects packets from the other members.
 
-**Only an address the [tester](#the-ip-spoofing-tester) says arrives is worth
-putting here.** One that does not leaves a tunnel that connects and carries
-nothing, which reads as every other fault there is.
+Only use sources verified on the actual route. The
+[tester](#the-ip-spoofing-tester) checks UDP; verify the selected tunnel profile
+too. An address that does not pass can leave the service running while no
+application traffic crosses.
 
 ### The other end's real IPv4 — `spoof_peer_ip`
 
@@ -149,11 +183,11 @@ raw/UDP receive.
   is no clang, libbpf, or CGo, and the binary stays statically linked.
 - **Opt-in and best-effort.** If the kernel is too old (the ring-buffer and
   `bpf_xdp_load_bytes` helpers need ~5.18+), the attach fails, or the verifier
-  rejects the program, the carrier logs it and **silently falls back** to the
+  rejects the program, the carrier logs it and **falls back** to the
   ordinary receive — turning it on can never cost a working tunnel.
 - Needs `CAP_BPF`/`CAP_NET_ADMIN` in addition to the carrier's `CAP_NET_RAW`
   (root has both).
-- The `ipip`/`gre` profiles have no port to demux on, so the fast path needs
+- The `proto58`/`ipip`/`gre` profiles have no port or echo identifier to demux on, so the fast path needs
   `spoof_peer_src_ip` set to know which packets are the tunnel's; without it, it
   falls back for those profiles.
 - Local only — it changes nothing on the wire, so the two ends need not agree,
@@ -203,7 +237,7 @@ costs something — bandwidth, CPU, or a shape a different filter notices instea
 
 | Setting | Key | What it does |
 |---|---|---|
-| Expected forged source from the other end | `spoof_peer_src_ip` | Pins the source the peer stamps, so anything arriving with a different one is dropped **before the encryption looks at it** — a tighter, cheaper receive path. Empty accepts any source and leaves demux to the port and the encryption: safe, but noisier. Set it to the peer's `spoof_src_ip`. |
+| Expected forged source from the other end | `spoof_peer_src_ip` | Pins the source the peer stamps, so anything arriving with a different one is dropped **before the encryption looks at it** — a tighter, cheaper receive path. Empty accepts any source and leaves demux to the port and the encryption: safe, but noisier. Set it to the peer's only source. Leave it empty for a multi-address pool. |
 
 ### Sizing
 
@@ -216,11 +250,11 @@ costs something — bandwidth, CPU, or a shape a different filter notices instea
 
 | Setting | Key | Match peer? | What it does |
 |---|---|:--:|---|
-| ICMP profile: this pair asks and answers | `spoof_icmp_reply` | **yes** | Makes an ICMP tunnel read as a real ping exchange — client sends Echo Requests, server answers with Echo Replies — instead of both ends sending Requests. Purely cosmetic. Ignored by udp/tcp. |
+| ICMP/ICMPv6 echo: this pair asks and answers | `spoof_icmp_reply` | **yes** | Makes an ICMP tunnel read as a real ping exchange — client sends Echo Requests, server answers with Echo Replies — instead of both ends sending Requests. Purely cosmetic. Used by `icmp` and `icmpv6` only. |
 | Vary the TTL from packet to packet | `spoof_ttl_jitter` | no | Varies the IP TTL across realistic OS defaults {64, 128, 255} instead of a fixed 64, blurring TTL fingerprints. |
 | Vary the DSCP field | `spoof_random_dscp` | no | Varies the DSCP/ToS byte across plausible values instead of leaving it 0. |
-| Prepend a fake TLS record header | `spoof_fake_tls` | **yes** | Prepends a fake TLS 1.2 record header to each segment so a middlebox reads it as TLS. **TCP profile only.** |
-| Randomise the source port of every packet | `spoof_shuffle_port` + `spoof_port_min` / `spoof_port_max` | no | Randomises the L4 **source** port per packet within the range, so the flow does not sit on one port. The destination port stays fixed, so demux is unaffected. Leave both at 0 for the whole ephemeral range. |
+| Prepend a fake TLS record header | `spoof_fake_tls` | **yes** | Prepends a cosmetic TLS 1.2 record header. There is no TLS handshake or HTTPS session; DPI may still identify or reject it. **TCP profile only.** |
+| Randomise the source port of every packet | `spoof_shuffle_port` + `spoof_port_min` / `spoof_port_max` | no | For UDP/TCP, randomises the L4 **source** port per packet within the range, so the flow does not sit on one port. The destination port stays fixed, so demux is unaffected. Leave both at 0 for the whole ephemeral range. |
 | Append random padding to each frame | `spoof_padding` + `spoof_padding_max` | **yes** | Appends 1..max random bytes to every payload (self-describing, so the receiver strips them), defeating size fingerprints. Costs exactly that much bandwidth. |
 
 ---
@@ -231,8 +265,10 @@ costs something — bandwidth, CPU, or a shape a different filter notices instea
 Manage → IP Spoofing Tester
 ```
 
-Finds which forged source IPs actually cross the network between two nodes. Linux
-only; the sender needs root.
+Tests forged **UDP** probes between two nodes. Linux only; the sender needs
+root. It does not test TCP, ICMP, protocol 58, IPIP or GRE. A passing result is
+specific to that source, direction, UDP port and measurement window; verify the
+chosen tunnel profile with real traffic afterwards.
 
 It is a **two-node test, and the receiver must be started first**:
 
@@ -265,8 +301,12 @@ forged source(s).
 **Swap the roles and run it again** to map the other direction — the two are
 independent.
 
-**Everything `0/5` means your provider drops forged packets.** No setting changes
-that; the transport is not available from that machine.
+**Everything `0/5` means no valid probes reached this receiver during the
+window.** First check the receiver is running, token/port match, real target IP,
+host/cloud firewall, interface and route. Test with the sender's real source as
+a baseline. If that passes but forged probes do not, upstream anti-spoofing or
+source filtering is a likely cause; changing the cosmetic profile settings
+cannot override a provider's source-address policy.
 
 ---
 
@@ -274,10 +314,10 @@ that; the transport is not available from that machine.
 
 | Symptom | Cause |
 |---|---|
-| Tunnel connects, carries nothing | the forged source is being dropped — run the tester |
-| Nothing at all, even unforged | profile mismatch, or `spoof_peer_ip` unset on the server |
+| Tunnel connects, carries nothing | check both directions: source filtering, profile/token/wire-setting mismatch, stale source pin, firewall and MTU |
+| Nothing at all, even unforged | check real peer addresses, token/profile pair, permissions, actual carrier protocol/port and firewall |
 | The Edit screen refuses to save anything | `spoof_peer_ip` is empty on a server — set it first |
-| Throughput far below the link | raise `spoof_sockbuf`; check `spoof_padding` is not on for no reason |
+| Throughput far below the link | measure loss/MTU and CPU first; check buffer ceilings, padding and loss on individual pool members |
 | Large transfers fail, small ones fine | lower `spoof_mtu` to the real path MTU |
 | Worked, then stopped | if a pool is in use, one of its addresses may now be dropped — retest |
 
@@ -289,21 +329,41 @@ that; the transport is not available from that machine.
 
 ترنسپورت **spoof** پکت‌های IP را خودش می‌سازد و آدرس مبدأ روی هدر را با آدرسی که
 تو انتخاب می‌کنی عوض می‌کند. مسیریابی همچنان با آدرس **واقعی** طرف مقابل انجام
-می‌شود، پس پکت واقعاً می‌رسد؛ فقط هدر چیز دیگری می‌گوید. زیر لایهٔ پکت همان KCP
-است. لینوکس + root روی هر دو طرف.
+می‌شود؛ رسیدن بسته به اجازهٔ شبکه و فایروال وابسته است. این حامل در تونل مستقیم
+لایهٔ ۳ از **Noise** برای رمزنگاری استفاده می‌کند و KCP زیر آن نیست. لینوکس و
+مجوز raw socket روی هر دو طرف لازم است.
+
+**پروفایل‌ها چه می‌کنند؟** همهٔ این‌ها بستهٔ بیرونی **IPv4** دارند:
+
+| پروفایل | رفتار و شرط عبور |
+|---|---|
+| `udp` | دیتاگرام UDP، شمارهٔ پروتکل ۱۷؛ نقطهٔ شروع وقتی UDP باز است. |
+| `tcp` | سگمنت خام با فلگ SYN، شمارهٔ ۶؛ اتصال TCP معمولی و handshake ندارد و فایروال stateful ممکن است رد کند. |
+| `icmp` | پیام Echo، شمارهٔ ۱؛ موفق بودن ping معمولی عبور بسته‌های جعلی با همین حجم و نرخ را تضمین نمی‌کند. |
+| `icmpv6` | هدر Echo با شمارهٔ ۵۸ **داخل IPv4**؛ قابلیت IPv6 واقعی نیست. |
+| `proto58` | شمارهٔ ۵۸ بدون هدر Echo؛ با `icmpv6` سازگار نیست. |
+| `ipip` | شمارهٔ ۴ با محتوای Backpack؛ اتصال معمولی به IPIP کرنل نیست. |
+| `gre` | شمارهٔ ۴۷ با هدر چهار بایتی GRE؛ با حامل مستقل `gre-fou` فرق دارد. |
+
+هیچ‌کدام برای همهٔ سرورها بهترین نیستند. اجازهٔ دیتاسنتر برای خروج مبدأ جعلی،
+فایروال هر دو سمت، فیلتر `rp_filter`، مسیر، MTU و تطبیق تنظیمات تعیین‌کننده‌اند.
+Fake TLS فقط ظاهر یک هدر را اضافه می‌کند و HTTPS واقعی نمی‌سازد. عوض کردن پروفایل
+محدودیت ضدجعل مبدأ در دیتاسنتر را برنمی‌دارد.
 
 **آنچه حتماً باید در دو طرف یکی باشد:** پروفایل پکت (و پروفایل هر جهت)، حالت
 ICMP reply، padding و fake TLS. **آنچه محلی است و لازم نیست یکی باشد:** TTL
 jitter، DSCP، shuffle پورت، رابط شبکه، بافر سوکت و MTU.
 
-**روی سرور ایران وارد کردن «آی‌پی واقعی سرور خارج» (`spoof_peer_ip`) اجباری
-است** — چون کلاینت مبدأش را جعل می‌کند و سرور از روی خود پکت نمی‌فهمد جواب را
-کجا بفرستد. تا وقتی خالی باشد هیچ تنظیمی ذخیره نمی‌شود.
+**ویزارد Direct روی هر دو سمت آی‌پی واقعی طرف مقابل را می‌پرسد.** پاسخ باید به
+همان آی‌پی واقعی برود، نه آدرس جعلی. `uplink` یعنی سمت dial به سمت listen؛ در
+Direct پیش‌فرض ایران به خارج است و `downlink` جهت برعکس. هر دو سمت باید همان
+جفت پروفایل را وارد کنند.
 
 **آدرس مبدأ جعلی:** خالی یعنی هیچ جعلی انجام نمی‌شود و تونل با آدرس واقعی کار
-می‌کند (جواب درست برای اولین اجرا). چند آدرس با کاما یعنی هر بار اتصال یکی
-انتخاب می‌شود — همان چیزی که از محدودیت‌های مبتنی بر آدرس عبور می‌کند. فقط
-آدرسی را بگذار که **تستر** گفته می‌رسد.
+می‌کند، به شرط باز بودن مسیر. چند آدرس با کاما یعنی چرخش **برای هر بسته**؛
+اگر یکی نرسد، مرتب packet loss می‌گیری. در این حالت فیلتر تک‌آدرسی
+`spoof_peer_src_ip` سمت مقابل باید خالی باشد. عبور UDP در تستر، عبور همهٔ
+پروفایل‌ها را ثابت نمی‌کند؛ خود تونل را هم در هر دو جهت امتحان کن.
 
 **Stealth:** ویزارد یک سؤال می‌پرسد — *Turn Stealth on* — و همان یک جواب کل
 گروهِ ضدِ DPI را روشن می‌کند: padding، تغییر TTL و DSCP، جابه‌جایی پورت مبدأ، و
@@ -321,8 +381,10 @@ jitter، DSCP، shuffle پورت، رابط شبکه، بافر سوکت و MTU.
 
 **تستر (`Manage → IP Spoofing Tester`)** دو طرفه است: اول Receiver را روی یک
 سرور بالا بیاور، بعد Sender را روی سرور دیگر. جدول خروجی می‌گوید کدام آدرس‌ها
-رسیده‌اند. اگر همه `0/5` بود، سرویس‌دهنده‌ات پکت جعلی را عبور نمی‌دهد و کاری
-نمی‌شود کرد. بعد جای نقش‌ها را عوض کن تا جهت دیگر هم سنجیده شود.
+رسیده‌اند. تستر فقط **UDP** می‌فرستد. اگر همه `0/5` بود، اول اجرای Receiver،
+توکن و پورت، آی‌پی واقعی مقصد، فایروال و مسیر را بررسی کن و با مبدأ واقعی تست
+بگیر. اگر مبدأ واقعی می‌رسد و جعلی نمی‌رسد، فیلتر مبدأ در شبکه محتمل است.
+بعد جای نقش‌ها را عوض کن تا جهت دیگر هم سنجیده شود.
 
 </div>
 

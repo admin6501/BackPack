@@ -10,17 +10,15 @@ import (
 //
 // The carrier used to prefix every payload with a session tag and a direction
 // byte borrowed from xdi. It no longer does: to match the reference spoof
-// transports, the KCP datagram now rides bare inside the profile's L4 header,
+// transports, the encrypted session datagram rides inside the profile's shim,
 // and a packet is recognised as this tunnel's by the field the kernel already
 // filters on — the UDP/TCP port, or the ICMP echo identifier — with the
 // encryption above rejecting anything that shares that field by chance. The
 // only thing derived from the token here now is that identifier; the tag half
 // of spoofIdentity is dead weight kept only so the derivation stays stable.
 //
-// None of this was a security boundary — KCP's token-keyed cipher authenticates
-// the tunnel, exactly as on every other carrier. The tag was a demultiplexer,
-// and the port/identifier demultiplexes just as well without adding bytes to
-// the wire.
+// These fields are demultiplexers, not authentication. The current L3 carrier
+// carries a Noise session, which authenticates the peer and the inner packets.
 
 // SpoofProfile is the L4 shim the carrier wraps around each datagram. It
 // changes only what the packet looks like to inspection; everything above the
@@ -29,8 +27,8 @@ type SpoofProfile string
 
 const (
 	// SpoofProfileUDP wraps the payload in a UDP header. The default: the host
-	// kernel has no automatic answer to an unknown UDP datagram, so nothing on
-	// the machine fights the forged flow.
+// receive socket consumes the selected UDP port. The network must still allow
+// the source address and UDP packets in both directions.
 	SpoofProfileUDP SpoofProfile = "udp"
 	// SpoofProfileTCP wraps the payload in a TCP header, which is what the
 	// reference tools send. The host kernel WILL answer a forged TCP segment to
@@ -46,10 +44,8 @@ const (
 	// SpoofProfileICMPv6 carries the payload in an ICMPv6 Echo Request (type
 	// 128) that rides inside an ORDINARY IPv4 packet whose protocol byte is 58
 	// (ICMPv6's number). It is not real IPv6 — the outer packet is IPv4 with a
-	// forged IPv4 source, exactly like the icmp profile — but many filters that
-	// clamp down hard on ICMP and UDP leave protocol 58 comparatively open,
-	// because IPv6 itself is cut off and its ICMP is treated as harmless. The
-	// reference spoof-tunnel ships this same trick. The kernel does not process
+	// forged IPv4 source. Whether this unusual combination crosses a filter is
+	// specific to the route. The kernel does not process
 	// proto-58 payloads in an IPv4 packet as ICMP, so unlike the icmp profile it
 	// generates no automatic reply and needs no suppression.
 	SpoofProfileICMPv6 SpoofProfile = "icmpv6"
@@ -63,8 +59,8 @@ const (
 	// SpoofProfileProto58 carries the payload directly as the body of an IPv4
 	// packet whose protocol byte is 58, with no L4 header at all. It is the
 	// reference spoof-tunnel's "proto58", and it is the icmpv6 profile with the
-	// echo header taken off: the same protocol number that filters tend to leave
-	// open, without the eight bytes that make it look like a ping.
+	// echo header taken off. Protocol 58 must be allowed by the actual path;
+	// its payload need not be accepted merely because the protocol is allowed.
 	//
 	// Which to reach for is a question about the filter, not about efficiency.
 	// A path that passes protocol 58 whatever is inside it takes this; one that
@@ -97,7 +93,7 @@ func ParseSpoofProfile(s string) (SpoofProfile, error) {
 	case SpoofProfileGRE:
 		return SpoofProfileGRE, nil
 	default:
-		return "", fmt.Errorf("unknown spoof profile %q (supported: udp, tcp, icmp, icmpv6, ipip, gre)", s)
+		return "", fmt.Errorf("unknown spoof profile %q (supported: udp, tcp, icmp, icmpv6, proto58, ipip, gre)", s)
 	}
 }
 

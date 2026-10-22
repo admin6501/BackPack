@@ -101,7 +101,11 @@ next successful connection.
 
 In `/etc/backpack/nodes.json`, on the panel's own server, `0600` and owned by
 root — the same file and the same permissions as every other secret Backpack
-holds. It is never sent to the browser.
+holds. Passwords are sealed with the local `/etc/backpack/node.key`; the key
+is excluded from normal backups. After moving a backup to another machine,
+re-enter the SSH credentials rather than assuming the sealed passwords still
+work. Legacy plaintext entries are sealed on the next save. The password is
+never sent to the browser.
 
 For Fleet operations, keep Backpack **v1.8.13 or newer on both the panel host
 and every managed server**. The panel sends each request through SSH standard

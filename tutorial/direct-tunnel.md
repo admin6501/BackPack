@@ -122,7 +122,7 @@ The wizard describes each by what it is for. In short:
 
 | | Take it when |
 |---|---|
-| **Stealth** | the default. Encrypted, no fingerprint, nothing for DPI to match |
+| **Stealth** | the default. Noise-encrypted; packet patterns remain observable |
 | **TCP** | the payload is already encrypted (Xray, TLS) and nothing is filtering |
 | **WSS** | you are putting a CDN like Cloudflare in front of the kharej server |
 | **WS** | something in the path insists on seeing plain HTTP |
@@ -256,7 +256,7 @@ forwards ports over it as well.
 
 ### ترنسپورت‌ها
 
-**Stealth** پیش‌فرض است: رمزنگاری‌شده و بدون اثر انگشت. **TCP** وقتی خودِ
+**Stealth** پیش‌فرض است: رمزنگاری Noise؛ تشخیص‌ناپذیری را تضمین نمی‌کند. **TCP** وقتی خودِ
 ترافیک از قبل رمز است. **WSS** وقتی CDN مثل کلادفلر جلوی سرور خارج می‌گذاری.
 **WS** فقط جایی که مسیر حتماً باید HTTP ساده ببیند. هر دو طرف باید یکی را
 انتخاب کنند.

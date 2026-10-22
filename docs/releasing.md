@@ -21,6 +21,15 @@ written down, so a release made in a hurry is the same release.
       the Persian one is the one most users read.
 - [ ] `go.mod`'s Go version and `install.sh`'s `GO_VERSION` / `GO_SHA_VERSION`
       agree. The installer refuses to run if they do not, and says so.
+- [ ] If `install.sh` changes, publish that script in an immutable commit first,
+      then update **both** `restoreInstallerCommit` and `restoreInstallerSHA256`
+      in `internal/node/remote_restore.go`. Hash the exact bytes served by that
+      commit's raw URL. SSH restore verifies this pair before executing the
+      installer; `TestPinnedInstallerRejectsChangedScriptBeforeExecution` checks
+      the checked-out script and pin still agree.
+- [ ] The selected Go patch is free of reachable advisories (`govulncheck`);
+      a newer minor version alone is insufficient. Keep the installer's
+      affected-version exclusions current too.
 - [ ] The full suite is green, with `-race`, and so are `staticcheck` and
       `govulncheck`.
 - [ ] The compatibility job passed: the previous release talks to this one in
@@ -132,6 +141,11 @@ during the incident.
 بدون امضا را رد می‌کند؛ باینری بدون کلید با روش چک‌سام کار می‌کند. توضیح تغییرات
 هر نسخه به‌طور خودکار از PRهای ادغام‌شده ساخته می‌شود و داخل صفحهٔ همان Release
 قرار می‌گیرد؛ نیازی به فایل جداگانهٔ changelog نیست.
+
+اگر `install.sh` تغییر کرد، ابتدا اسکریپت را در commit ثابت منتشر کن، سپس هم
+شناسهٔ commit و هم SHA-256 همان فایل را در `internal/node/remote_restore.go`
+به‌روز کن؛ بازیابی SSH قبل از اجرا این دو را بررسی می‌کند. صرفاً تغییر نسخهٔ
+Go بدون به‌روزرسانی چک‌سام‌های رسمی نصب‌کننده کافی نیست.
 
 **ساخت تکرارپذیر:** انتشار با `CGO_ENABLED=0`، `-trimpath` و نسخه‌ای که از
 `VERSION` می‌آید نه از ساعت ساخته می‌شود، پس دو build از یک سورس بایت‌به‌بایت

@@ -24,8 +24,9 @@ stalls on the first full segment.
 - **Web panel** — Edit → **Fine Tune** → *TCP MSS clamp*
 - **At setup** — answer *yes* to "Fine-tune the advanced settings by hand"
 
-`0` means automatic, which is the default and what almost every tunnel should
-keep.
+For the stream `mss` setting, `0` leaves the choice to the kernel. For L3,
+`mss_clamp = 0` derives an inner TCP MSS from the tunnel MTU; `-1` disables
+Backpack's TUN-interface clamp. These are different settings.
 
 **Set the same value on both ends.** Each end clamps only what *it* sends, so a
 tunnel clamped on one side is still sending full-sized packets from the other —
@@ -33,16 +34,21 @@ and those are the ones being dropped.
 
 ## Notes
 
-- It applies to the transports that carry TCP segments: `tcp`, `tcpmux`,
-  `stealth`, `ws`, `wss`, `wsmux`, `wssmux`. A datagram transport (`udp`, `kcp`,
-  `xdi`, `quic`, `spoof`) sizes its packets with the **KCP MTU** instead, and is
-  not offered a clamp.
+- The stream `mss` setting applies to TCP-based reverse transports (`tcp`,
+  `tcpmux`, `stealth`, `ws`, `wss`, `wsmux`, `wssmux`) and the legacy `[direct]`
+  stream engine. It controls the outer TCP connection.
+- Reverse `kcp`, `xdi` and `pck` use **KCP MTU**. Raw `udp` and `quic` do not
+  use KCP; do not tune them with a KCP setting.
+- The current `[l3]` engine has separate **TUN MTU**, automatic path-MTU probing
+  and **inner TCP MSS** rules for its carriers, including Spoof and QUIC.
+  See [L3 sizing](l3-direct-tunnel.md). `spoof_mtu` limits the outer forged
+  packet before fragmentation; it is not the same as the inner MSS.
 - It is not part of a [performance preset](performance-presets.md) and a preset
   change leaves it alone. It describes the path the tunnel crosses, not how hard
   the tunnel is being pushed.
-- Accepted range is 524–1460 bytes. Below that, the path is smaller than IPv4
-  guarantees every route can carry, and no clamp will rescue it — look for a
-  broken tunnel or VPN in front of yours.
+- The stream tuning menu accepts 524–1460 bytes (or `0` for kernel default).
+  Account for the actual encapsulation overhead when sizing packets; inner
+  payload size and outer path MTU are different figures.
 
 ---
 
@@ -61,13 +67,16 @@ and those are the ones being dropped.
 **Manage → Health Check** دقیقاً همین را می‌سنجد و عدد دقیق را چاپ می‌کند.
 
 **تنظیم:** `Manage → Manage Tunnels → Edit → TCP MSS clamp`. مقدار `0` یعنی
-خودکار، که پیش‌فرض است و برای تقریباً همهٔ تونل‌ها درست است.
+انتخاب کرنل در تنظیم `mss` برای اتصال بیرونی TCP. در L3 تنظیم جداگانهٔ
+`mss_clamp = 0` از MTU تونل محاسبه می‌شود و `-1` آن را خاموش می‌کند.
 **همان مقدار را روی هر دو طرف بگذار** — هر طرف فقط چیزی را که خودش می‌فرستد
 clamp می‌کند.
 
-**نکات:** فقط روی ترنسپورت‌هایی که سگمنت TCP حمل می‌کنند معنی دارد
-(`tcp`, `tcpmux`, `stealth`, `ws`, `wss`, `wsmux`, `wssmux`)؛ ترنسپورت‌های
-دیتاگرامی به‌جایش **KCP MTU** دارند. جزو پریست‌ها نیست و تغییر پریست به آن دست
+**نکات:** تنظیم `mss` روی اتصال بیرونی TCP اعمال می‌شود
+(`tcp`, `tcpmux`, `stealth`, `ws`, `wss`, `wsmux`, `wssmux` و `[direct]` قدیمی).
+KCP و حامل‌های KCP از **KCP MTU** استفاده می‌کنند، ولی UDP خام و QUIC، KCP
+ندارند. در L3، MTU رابط TUN و clamp برای TCP داخلی جداست؛ `spoof_mtu` هم اندازهٔ
+بستهٔ بیرونی را کنترل می‌کند. جزو پریست‌ها نیست و تغییر پریست به آن دست
 نمی‌زند. بازهٔ مجاز ۵۲۴ تا ۱۴۶۰ بایت است.
 
 </div>

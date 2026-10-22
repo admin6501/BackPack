@@ -49,8 +49,8 @@ Reference pages: what each part of Backpack **is**, and every setting it has.
 - [The web panel, screen by screen](web-panel-screens.md) — every screen, its
   address, and the CLI entry that does the same job
 - [Managed servers (nodes)](managed-servers.md) — register a foreign server with
-  the panel once, then build both ends of a tunnel from one screen, with no SSH
-  and no login held for that machine
+  the panel once, then build both ends from one screen over outbound SSH;
+  credentials are sealed locally and no persistent remote agent is needed
 - [Telegram bot](telegram-bot.md)
 - [Alerts](alerts.md)
 - [Tunnel Metrics](tunnel-metrics.md) — incoming, outgoing, total and remaining traffic

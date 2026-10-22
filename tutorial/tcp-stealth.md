@@ -2,8 +2,9 @@
 
 A TCP tunnel wrapped in a **Noise (NNpsk0) record layer**. On the wire it is two
 short bursts of what looks like random bytes, followed by an encrypted stream
-that looks the same — no TLS ClientHello, no recognisable protocol header,
-nothing for deep packet inspection to match on.
+that looks the same, without a TLS ClientHello or plaintext application header.
+Traffic sizes, timing and the Noise handshake pattern remain visible; DPI may
+still classify or block it.
 
 **Reach for it when:** the link is DPI-filtered, plain TCP connects and then dies
 under load, or the tunnel keeps being killed after a while. This is the transport
@@ -15,16 +16,16 @@ that brought a filtered Germany server back online in the field.
 
 ---
 
-## Why it hides better than the alternatives
+## What the record layer changes
 
-- **No fingerprint at all.** TLS-based camouflage tries to look like something
-  specific; Stealth looks like *nothing*. There is no field to match, no version
-  string, no handshake shape belonging to a known protocol.
+- **Encrypted content.** It removes plaintext tunnel identifiers rather than
+  performing TLS camouflage. Random-looking bytes can themselves be filtered;
+  success depends on the route, not just the encryption.
 - **The key comes from the token.** No separate key material to distribute, and
   the pre-shared key is mixed in from the very first message.
 - **A wrong token gets no reply.** A peer without the token cannot complete the
-  handshake, so the server answers with silence — a port scan finds a dead port,
-  not a service. That is also why a token typo looks identical to a firewall
+  handshake, so the server sends no application handshake response. The kernel
+  still accepts TCP connections; a TCP port scan can see an open port. That is also why a token typo looks identical to a firewall
   problem.
 
 ---
@@ -42,8 +43,9 @@ Firewall on the Iran server: the tunnel port and the forwarded ports on `tcp`.
 
 ### Pick an unremarkable tunnel port
 
-Stealth removes the fingerprint from the *content*; the port is still a hint. A
-long-lived flow on 8443 or 2087 draws less attention than one on 1194 or 51820.
+The port, flow duration and packet pattern remain visible. Choose a reachable
+port and test it on the actual route; changing the port does not make the
+transport indistinguishable from HTTPS.
 
 ---
 
@@ -65,15 +67,15 @@ If the client says it is connecting and the server shows nothing:
 
 ## Stealth vs WSS
 
-Both survive DPI; they hide in opposite directions.
+They present different packet patterns; either can be blocked by a particular filter.
 
 | | TCP + Stealth | [WSS / WSS Mux](websocket-tls.md) |
 |---|---|---|
-| What it looks like | random bytes — no protocol at all | ordinary HTTPS to a website |
+| What it looks like | encrypted Noise records | ordinary HTTPS to a website |
 | Needs a certificate | no | yes (self-signed or Let's Encrypt) |
 | Can sit behind a CDN | no | yes |
 | A browser hitting the port sees | nothing | a normal "Welcome to nginx" page |
-| A scanner sweeping for it finds | nothing to match on | a different nginx on every install |
+| A scanner sweeping for it finds | an open TCP port; no valid Noise reply without the token | a different nginx on every install |
 | Overhead | lower | TLS on top of WebSocket framing |
 
 Rule of thumb: on a bare IP where "unidentifiable traffic" is fine, use Stealth.
@@ -87,13 +89,13 @@ use WSS.
 ## خلاصهٔ فارسی
 
 **TCP + Stealth** یک تونل TCP است که داخل یک لایهٔ رمزنگاری Noise پیچیده شده.
-روی سیم فقط بایت تصادفی دیده می‌شود — نه TLS، نه هیچ پروتکل قابل‌تشخیص دیگری —
-پس DPI چیزی برای گیر دادن ندارد. بهترین انتخاب برای مسیرهای فیلترشده و لینکی که
-TCP ساده روی آن وصل می‌شود و بعد می‌میرد.
+محتوا ظاهری شبیه بایت تصادفی دارد و TLS ClientHello ندارد؛ ولی اندازه و زمان‌بندی
+بسته‌ها و الگوی handshake دیده می‌شود و DPI می‌تواند آن را مسدود کند. روی مسیر
+واقعی آزمایشش کن؛ رمزنگاری تضمین تشخیص‌ناپذیری نیست.
 
 کلید رمزنگاری از خود توکن ساخته می‌شود، پس چیز اضافه‌ای برای تنظیم نیست. اگر
-توکن غلط باشد سرور اصلاً **جواب نمی‌دهد** و پورت بسته به‌نظر می‌رسد؛ پس اگر وصل
-نشد، اول توکن و ترنسپورت دو طرف را چک کن.
+توکن غلط باشد handshake برنامه کامل نمی‌شود؛ با این حال اسکن TCP می‌تواند
+پورت باز را ببیند. اگر وصل نشد، اول توکن و ترنسپورت دو طرف را چک کن.
 
 راه‌اندازی مو‌به‌مو مثل [TCP](tcp.md) است، فقط در منو **TCP + Stealth** را
 انتخاب کن — روی هر دو سرور. نه دامنه لازم دارد نه گواهی.
