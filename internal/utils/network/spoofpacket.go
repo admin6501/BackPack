@@ -348,10 +348,10 @@ func buildTCPShim(port uint16, seq uint32, src, dst net.IP, framed []byte) []byt
 // out-of-state TCP is the first thing a stateful firewall does. The tunnel then
 // comes up, the sockets are healthy, and nothing crosses.
 //
-// A SYN is never out of state: it is the packet that starts a connection, so a
-// stateful device has nothing to reject it for. This is what the spoof-tunnel
-// reference sends — its sender is named for it — and it is the difference
-// between the two implementations that can stop traffic outright.
+// SYN matches a connection opener rather than pretending a handshake already
+// happened. It still carries payload without establishing a normal TCP stream:
+// stateful firewalls, SYN proxies and DPI can reject it. This is what the
+// spoof-tunnel reference sends; whether it crosses a given path must be tested.
 //
 // The receiving end does not care either way: stripSpoofShim reads the ports
 // and the data offset and never looks at the flags, so a sender on SYN

@@ -1,6 +1,6 @@
 # The panel
 
-The web UI the Go binary serves at `/panel/`. It is plain ES modules and plain
+The web UI the Go binary serves beneath its configured random secret base path. It is plain ES modules and plain
 CSS — no build step, no bundler, no dependencies. What is in this directory is
 what the browser gets.
 
@@ -35,7 +35,8 @@ css/                tokens, base, components, one file per screen
 
 ## Working on it
 
-Run the binary with `--webui` and open `/panel/`. The templates and stylesheets
+Run the binary with `--webui` and open the panel URL printed by Backpack
+(including its secret base path), or use the URL shown in Manage → Web Panel. The templates and stylesheets
 are embedded, so a change needs a rebuild; everything else is ordinary
 front-end work.
 
@@ -45,3 +46,11 @@ Two rules the tests enforce (`internal/webui`):
   looks like a switch and does nothing is a bug, not a drawing;
 - the fields the forms post match the Go structs they post into, by name and
   by type.
+
+Run the JavaScript tests from the repository root (Node.js 22 or newer):
+
+```bash
+node --test internal/webui/paneltest/*.test.js
+```
+
+The Go tests in `internal/webui` also check the embedded assets and server API.

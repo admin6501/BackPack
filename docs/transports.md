@@ -65,13 +65,14 @@ connections. Supports the PROXY protocol.
 ### TCP + Stealth
 A TCP tunnel wrapped in a **Noise (NNpsk0) record layer**. On the wire it is two
 short bursts that look like random bytes, followed by an encrypted stream that
-looks the same — **no TLS ClientHello, no recognisable protocol, nothing for
-deep packet inspection to fingerprint**.
+looks the same, without a TLS ClientHello or plaintext application header.
+Packet sizes, timing and the handshake pattern remain observable; this does
+not guarantee evasion of DPI or entropy-based filtering.
 
 The pre-shared key is derived from the tunnel token, so the transport needs no
 key of its own. Because that key is mixed in from the first message, a peer
 without the token cannot even complete the handshake: the server replies with
-nothing, so a port scan finds a dead port rather than a service. Reach for it
+no application handshake response. A TCP scan can still see the listening port. Reach for it
 where filtering is heavy and you want the connection itself to be unremarkable.
 Costs a little more CPU than plain TCP for the encryption.
 
@@ -220,8 +221,8 @@ from **Edit → Certificate**.
 جابه‌جا می‌کنند؛ تفاوتشان در چیزی است که روی سیم دیده می‌شود.
 
 **خانوادهٔ TCP:** *TCP* ساده و سریع (نقطهٔ شروع)؛ *TCP Mux* برای سرویس‌هایی با
-اتصال‌های کوتاه و زیاد؛ *TCP + Stealth* رمزنگاری Noise بدون هیچ fingerprint —
-بهترین گزینه برای فیلترینگ سنگین؛ *TCP + PCK* که اصلاً از استک TCP کرنل استفاده
+اتصال‌های کوتاه و زیاد؛ *TCP + Stealth* رمزنگاری Noise با ظاهری شبیه بایت تصادفی —
+برای امتحان روی مسیر فیلترشده؛ تشخیص‌ناپذیری را تضمین نمی‌کند؛ *TCP + PCK* که اصلاً از استک TCP کرنل استفاده
 نمی‌کند و برای وقتی است که تونل TCP وصل می‌شود و بعد بی‌دلیل می‌میرد.
 
 **خانوادهٔ UDP:** *UDP* خام (بدون قابلیت اطمینان)؛ *UDP + KCP + FEC* تونل
@@ -252,4 +253,4 @@ IPv4 یا پیشوند IPv6 از نوع `/64` پذیرفته می‌شود. با
 
 ---
 
-*Last verified against Backpack v1.8.27.*
+*Last verified against Backpack v1.8.28.*

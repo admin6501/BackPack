@@ -75,4 +75,4 @@ share one link and you want to stop any one of them from taking it all.
 
 ---
 
-*Last verified against Backpack v1.8.27.*
+*Last verified against Backpack v1.8.28.*

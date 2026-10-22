@@ -36,8 +36,8 @@ const maxTransferBackup = 512 << 20
 
 // The installer itself is trusted code: never execute mutable branch contents
 // as root. This audited commit and digest are updated deliberately together.
-const restoreInstallerCommit = "afe905b9f0d2394507e45232cb4362612c070e98"
-const restoreInstallerSHA256 = "1c135ed17ed714bca443c9454ecb50e131d5aff4e26e675f1dae25e88205c089"
+const restoreInstallerCommit = "dbda2fe1cf33b956cdf813fa6d240ce8e7ef005e"
+const restoreInstallerSHA256 = "c3e89d88fdf5f0f63e35625da6ca044b69f08910214f504c5439ecdff803abab"
 
 func PrepareRemoteRestore(ctx context.Context, target SSHTarget, path string) (_ *RemoteRestore, err error) {
 	if net.ParseIP(target.Host) == nil || target.Port < 0 || target.Port > 65535 || target.User == "" {

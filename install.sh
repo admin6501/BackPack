@@ -46,7 +46,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-/tmp}")" 2>/dev/null && pwd || ec
 # the ones least able to do anything else. The values below are the fallback for
 # a standalone `curl | bash`, where there is no go.mod to read and no source
 # build to do either.
-GO_VERSION="1.26.6"
+GO_VERSION="1.26.10"
 GO_MIN_MINOR=26
 if [[ -f "$SCRIPT_DIR/go.mod" ]]; then
   gomod_go="$(grep -m1 -E '^go[[:space:]]+[0-9]+\.[0-9]+' "$SCRIPT_DIR/go.mod" | awk '{print $2}' || true)"
@@ -272,12 +272,12 @@ install_binary_from_tar() {
 # worse, be quietly changed to skip the check. It fails loudly and says exactly
 # what to update instead. Values come from
 # https://go.dev/dl/?mode=json&include=all.
-GO_SHA_VERSION="1.26.6"
-GO_SHA256_amd64="708effb774be8237570d0add163225abbdfaf4fca28b2611df167beba4feef89"
-GO_SHA256_arm64="d0507e9e9d7fe012aae570108cbd76c15de879e17130ab8cb90d4d7445cb1f2e"
-GO_SHA256_386="f09a71029fc5cd2940fbe36b0eb1fb2d8f3407cd6adb6b7b4de3eaf04007f8c4"
-GO_SHA256_s390x="958757933d38172dd544085d253c8738cf09793d24c8bc0422e5e1e1fffa4fde"
-GO_SHA256_armv6l="e1379a2fe77bd30fa29833074388247e7c65416e09279f746f20de2d5cf4dfea"
+GO_SHA_VERSION="1.26.10"
+GO_SHA256_amd64="ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+GO_SHA256_arm64="3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797"
+GO_SHA256_386="fa05f9c9d71d08da81ae34f1b6baf8aacb05374b9a6fb223e92f7b29afc81148"
+GO_SHA256_s390x="ae724ea910de9ea2528ce6558b8493725c7a06b8d14ed88d0a51144b5138533e"
+GO_SHA256_armv6l="7d89fd32259eb0ff647381e8c3465dc32ccfc7f71cb7b9bcd95604c3481f5109"
 
 # go_arch maps this script's asset architecture onto the one Go names its
 # toolchain with.
@@ -366,6 +366,11 @@ go_new_enough() {
   found="$("$1" version 2>/dev/null)" || return 1
   [[ "$found" =~ go([0-9]+)\.([0-9]+)(\.([0-9]+))?([[:space:]]|$) ]] || return 1
   have_major="${BASH_REMATCH[1]}" have_minor="${BASH_REMATCH[2]}" have_patch="${BASH_REMATCH[4]:-0}"
+  # Go 1.27.0-1.27.2 also contain GO-2026-6809, despite sorting after
+  # this module's minimum 1.26.10. Keep source installs on a patched compiler.
+  if (( 10#$have_major == 1 && 10#$have_minor == 27 && 10#$have_patch < 3 )); then
+    return 1
+  fi
   required="$GO_VERSION"
   [[ "$required" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || return 1
   want_major="${BASH_REMATCH[1]}" want_minor="${BASH_REMATCH[2]}" want_patch="${BASH_REMATCH[3]}"

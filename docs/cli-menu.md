@@ -18,12 +18,12 @@ long form. For *how to set a tunnel up*, use the
 |---|--------|--------------|
 | 1 | **Setup Iran** | Create the **Iran-side** tunnel that exposes ports. Asks the direction first — reverse or direct. |
 | 2 | **Setup Kharej** | Create the **kharej-side** tunnel that holds the real service. Asks the direction first. |
-| 3 | **Manage** | Everything about existing tunnels, plus the diagnostics. [↓](#3-manage) |
-| 4 | **Backup & Restore** | The whole configuration as one `.tar.gz`. [↓](#4-backup--restore) |
-| 5 | **Web Panel** | The monitoring dashboard — port, login, certificate. [↓](#5-web-panel) |
+| 3 | **Manage** | Everything about existing tunnels, plus the diagnostics. [↓](#3--manage) |
+| 4 | **Backup & Restore** | The whole configuration as one `.tar.gz`. [↓](#4--backup--restore) |
+| 5 | **Web Panel** | The monitoring dashboard — port, login, certificate. [↓](#5--web-panel) |
 | 6 | **Optimize** | Applies system-wide kernel/network tuning: BBR + fq, socket-buffer ceilings, file-descriptor limits. Answer yes and it prints each change. A reboot is recommended for the file-limit changes. It also keeps the kernel's own ephemeral port range (`32768 60999`) rather than widening it, and reserves the ports your tunnels listen on — see [what it does to ports](#optimize-and-your-service-ports) |
-| 7 | **Telegram Bot** | Reports, alerts and control from Iran. [↓](#7-telegram-bot) |
-| 8 | **Update** | Verified update with automatic rollback. [↓](#8-update) |
+| 7 | **Telegram Bot** | Reports, alerts and control from Iran. [↓](#7--telegram-bot) |
+| 8 | **Update** | Verified update with automatic rollback. [↓](#8--update) |
 | 9 | **Uninstall** | Removes everything Backpack installed. |
 | 10 | **Exit** | |
 
@@ -72,14 +72,14 @@ there is nothing to choose about the shape or the framing — only how it travel
 
 | Prompt | Notes |
 |---|---|
-| **How should the packets travel?** | **PCK** (looks like an ordinary TCP flow, no socket a firewall can hold), **UDP** (plain, where the path does not interfere), **Spoof** (forged source — test it on your route) |
+| **Carrier** | **PCK, UDP, QUIC, XDI, GRE over FOU, Spoof or SNI**. Each has different path requirements; see [carriers](l3-direct-tunnel.md) |
 | **Kharej server address** | Iran side only. Iran dials out, so it needs no inbound port of its own |
 | **Tunnel port** | what kharej binds and Iran reaches |
 | **Private addresses** | the two ends of the tunnel's own subnet. A free `10.10.N.0/30` is suggested, so a second tunnel does not collide with the first |
 | **Tunnel name** | names the service and the config file |
-| **Security token** | suggested on the **kharej** side only, and pasted on the Iran side — offering one on both ends is how two different tokens happen |
-| **Ports to expose here** | Iran side only, optional. Without them the tunnel just routes |
-| **The Iran server's real IP** | spoof carrier, kharej side only: the peer forges every source, so this side has to be told where replies go |
+| **Security token** | ordinary carrier flow: generated on Iran and copied to kharej by Setup Link. The classic Spoof/SNI/GRE-over-FOU flow normally generates it on kharej. Reuse exactly one token |
+| **Ports to expose here** | Iran side: at least one valid forwarded mapping is required by the wizard. Hand-written routing-only configurations are separate |
+| **Peer's real IPv4** | the direct Spoof wizard asks on **both** ends; replies must route to the actual peer, never its forged source |
 | **How should the tunnel be tuned?** | Turbo / Balance / Aggressive — the queue and the socket buffers. [Presets](performance-presets.md) |
 | **Fine-tune the advanced settings by hand** `[y/N]` | starting MTU, interface name, GRE key, segment cap, caps |
 
@@ -315,7 +315,7 @@ silently overwrite your answers.
 | **Mux receive buffer** | Per-session receive window — the ceiling on in-flight data for the session. |
 | **Mux stream buffer** | Per-stream window, which is what stops one heavy stream consuming the session. |
 
-### KCP transports (kcp, xdi, spoof, pck)
+### KCP transports (kcp, xdi, pck)
 
 | Setting | What it is |
 |---|---|
@@ -435,4 +435,4 @@ Reverse Setup Links retain auth/mux parameters, KCP/XDI/PCK FEC and MTU, and the
 
 لینک ستاپ ریورس تنظیمات مشترک دو طرف را در هر دو جهت منتقل می‌کند. آدرس و پورت ضروریِ ناقص پیش از ساخت پرسیده می‌شود. ویرایش معمولی زمان اتصال سفارشی را حفظ می‌کند؛ انتخاب رابط خودکار PCK تنظیم دستی قبلی را پاک می‌کند.
 
-*Last verified against Backpack v1.8.27.*
+*Last verified against Backpack v1.8.28.*

@@ -1,6 +1,6 @@
 # Performance presets
 
-Instead of a yes/no "best performance" switch, every tunnel picks a preset. Each
+For reverse tunnels, each performance preset
 fills in **every** tuning value at once — connection pools, socket buffers,
 receive windows, mux windows, and on KCP the retransmission and error-correction
 settings — and applies the kernel tuning (BBR + fq, buffer ceilings, file
@@ -12,6 +12,10 @@ limits).
 | **Turbo** | most people (**recommended**) | **Byte-for-byte identical to the old "Best Performance"**, so upgrading changes nothing about an existing tunnel. |
 | **Aggressive** | maximum gaming headroom | 32 MB socket buffers, 16 MB per mux stream. Noticeably more CPU. The KCP window deliberately stays at 2048 — with congestion control off, a deeper window *is* a deeper queue. |
 | **Throughput** | **bandwidth, not play** | Offered on the plain `kcp` transport only. |
+
+The values on this page describe the reverse engine. The [L3 direct tunnel](l3-direct-tunnel.md)
+has its own preset mapping, MTU and FEC settings; direct Spoof is not a KCP
+transport and does not acquire KCP retransmissions from a preset.
 
 ## About Throughput
 
@@ -30,7 +34,7 @@ Aggressive does.
 **It is not a gaming preset.** With congestion control off, a window that large
 is a queue that deep. Use Turbo or Aggressive for play and this for transfers.
 
-It is offered on `kcp` alone — the other KCP carriers (`xdi`, `spoof`, `pck`)
+It is offered on `kcp` alone — the other KCP carriers (`xdi`, `pck`)
 build their packets by hand and pay a syscall per datagram, so bandwidth is not
 what they are for, and on a TCP transport every knob it changes belongs to the
 kernel rather than to this process. Choosing it elsewhere is **refused with a
@@ -55,7 +59,9 @@ the tunnel is being pushed.
 
 ## خلاصهٔ فارسی
 
-هر تونل یک **پریست** می‌گیرد که **همهٔ** مقادیر تنظیم را یک‌جا پر می‌کند — اندازهٔ
+این صفحه تنظیمات موتور معکوس را توضیح می‌دهد؛ L3 نگاشت پریست و تنظیمات MTU/FEC خودش را دارد و Spoof مستقیم از KCP استفاده نمی‌کند.
+
+در تونل معکوس هر تونل یک **پریست** می‌گیرد که **همهٔ** مقادیر تنظیم را یک‌جا پر می‌کند — اندازهٔ
 pool، بافر سوکت، پنجره‌های دریافت و mux، و روی KCP تنظیمات ارسال مجدد و تصحیح
 خطا — و تنظیمات کرنل (BBR + fq و سقف بافرها) را هم اعمال می‌کند.
 
@@ -83,4 +89,4 @@ Turbo یا Aggressive، برای انتقال فایل Throughput. انتخاب�
 
 ---
 
-*Last verified against Backpack v1.8.27.*
+*Last verified against Backpack v1.8.28.*

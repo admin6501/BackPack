@@ -19,7 +19,7 @@ on this route drop ping while carrying tunnel traffic perfectly well. It then:
 | The route loses packets | **UDP + KCP + FEC** — repairs loss with forward error correction |
 | The link is clean | **TCP Mux** |
 | You need to look like a browser loading HTTPS | **WSS** — sends a real Chrome TLS fingerprint |
-| The connection itself is being filtered | **TCP + Stealth** — encrypted with no fingerprint at all |
+| The connection itself is being filtered | **TCP + Stealth** — Noise encryption; verify it on your route |
 
 **KCP runs over UDP** — if your provider filters UDP, it will not help; pick a
 TCP-based transport instead.
@@ -27,7 +27,7 @@ TCP-based transport instead.
 ## The families
 
 - **TCP** — reliable stream. `TCP Mux` runs many streams over one connection;
-  `TCP + Stealth` wraps it in a Noise layer with no fingerprint.
+  `TCP + Stealth` wraps it in a Noise layer with no plaintext application header.
 - **UDP** — datagrams. `UDP + KCP + FEC` is a low-latency gaming tunnel: reliable delivery with always-on FEC.
 - **WebSocket** — looks like web traffic. `WSS` / `WSS Mux` add TLS with a
   browser fingerprint and bind the credential to the TLS session.
@@ -63,4 +63,4 @@ Change a tunnel's transport any time from **Edit → Change transport**.
 
 ---
 
-*Last verified against Backpack v1.8.27.*
+*Last verified against Backpack v1.8.28.*

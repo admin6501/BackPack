@@ -34,8 +34,11 @@ For callers that are not browsers. A Prometheus scraper has no cookie, and
 `/metrics` is an endpoint built for scrapers.
 
 ```
-curl -H "Authorization: Bearer <token>" https://panel:8443/metrics
+curl -H "Authorization: Bearer <token>" https://panel:8443/SECRET_PATH/metrics
 ```
+
+Use your actual scheme, host, port and secret administrator path in that URL;
+`/metrics` is relative to the panel base path.
 
 Create one under **Settings → Security → API tokens**. The secret is shown
 once, when it is created, and never again — only its SHA-256 is stored, so a
@@ -115,7 +118,7 @@ fix it.
 `/metrics` اصلاً برای scraper ساخته شده:
 
 ```
-curl -H "Authorization: Bearer <token>" https://panel:8443/metrics
+curl -H "Authorization: Bearer <token>" https://panel:8443/SECRET_PATH/metrics
 ```
 
 از `Settings → Security → API tokens` ساخته می‌شود. رازش **فقط یک‌بار**، موقع
@@ -142,4 +145,4 @@ curl -H "Authorization: Bearer <token>" https://panel:8443/metrics
 
 ---
 
-*Last verified against Backpack v1.8.27.*
+*Last verified against Backpack v1.8.28.*
