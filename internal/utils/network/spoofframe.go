@@ -27,8 +27,8 @@ type SpoofProfile string
 
 const (
 	// SpoofProfileUDP wraps the payload in a UDP header. The default: the host
-// receive socket consumes the selected UDP port. The network must still allow
-// the source address and UDP packets in both directions.
+	// receive socket consumes the selected UDP port. The network must still allow
+	// the source address and UDP packets in both directions.
 	SpoofProfileUDP SpoofProfile = "udp"
 	// SpoofProfileTCP wraps the payload in a TCP header, which is what the
 	// reference tools send. The host kernel WILL answer a forged TCP segment to
