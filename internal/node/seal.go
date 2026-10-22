@@ -63,8 +63,15 @@ const sealPrefix = "enc:v1:"
 
 // sealingKey returns the key, creating it on first use.
 func sealingKey() ([]byte, error) {
-	if b, err := os.ReadFile(keyPath()); err == nil && len(b) == 32 {
+	b, err := os.ReadFile(keyPath())
+	if err == nil {
+		if len(b) != 32 {
+			return nil, fmt.Errorf("the fleet key is %d bytes rather than 32; it is damaged", len(b))
+		}
 		return b, nil
+	}
+	if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("reading the fleet key: %w", err)
 	}
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
@@ -223,13 +230,17 @@ func ImportSealKey(encoded string) error {
 	if len(key) != 32 {
 		return fmt.Errorf("a fleet key is 32 bytes; this one is %d", len(key))
 	}
-	if b, err := os.ReadFile(keyPath()); err == nil && len(b) > 0 {
+	b, err := os.ReadFile(keyPath())
+	if err == nil {
 		if string(b) == string(key) {
 			return nil // already the key we were given; nothing to do
 		}
 		return fmt.Errorf("this machine already has a fleet key, and replacing it would make "+
 			"every password currently sealed here unreadable. Move %s aside first if that "+
 			"is what you mean", keyPath())
+	}
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("reading the fleet key: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(keyPath()), 0o700); err != nil {
 		return fmt.Errorf("preparing the key directory: %w", err)
