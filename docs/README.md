@@ -60,8 +60,11 @@ Reference pages: what each part of Backpack **is**, and every setting it has.
   two collector recipes
 
 ### Maintenance
+- [Installation, offline installation and source builds](install.md)
 - [Backup & restore](backup-restore.md)
 - [Updates & rollback](updates.md)
+- [Fork maintenance and builds](fork-maintenance.md)
+- [Contributing](../CONTRIBUTING.md) and [security reporting](../SECURITY.md)
 
 ---
 

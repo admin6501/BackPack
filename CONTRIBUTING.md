@@ -90,4 +90,10 @@ entry points were found by hand before the last of those existed.
 
 ## Reporting a security issue
 
-Do not open an issue. See `SECURITY.md`.
+Do not open a public issue. Follow the [security policy](SECURITY.md).
+
+## Other maintainer guides
+
+- [Fork maintenance and builds](docs/fork-maintenance.md)
+- [Release checklist](docs/releasing.md)
+- [Panel development and JavaScript tests](internal/webui/panel/README.md)
