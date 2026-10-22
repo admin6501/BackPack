@@ -19,7 +19,7 @@ You keep the copyright on what you write. There is no CLA.
 
 ## Running checks locally
 
-Use the Go version in `go.mod` (currently 1.26.6). Node.js 22 is used in CI
+Use the Go version in `go.mod` (currently 1.26.10). Node.js 22 is used in CI
 for the web panel tests; without Node.js, those tests are skipped locally.
 Before opening a code change, run the relevant checks:
 
