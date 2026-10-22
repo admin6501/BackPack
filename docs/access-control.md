@@ -145,4 +145,4 @@ curl -H "Authorization: Bearer <token>" https://panel:8443/SECRET_PATH/metrics
 
 ---
 
-*Last verified against Backpack v1.8.27.*
+*Last verified against Backpack v1.8.28.*

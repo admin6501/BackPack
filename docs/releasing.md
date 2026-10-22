@@ -163,4 +163,4 @@ Go بدون به‌روزرسانی چک‌سام‌های رسمی نصب‌ک�
 
 ---
 
-*Last verified against Backpack v1.8.27.*
+*Last verified against Backpack v1.8.28.*
