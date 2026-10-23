@@ -176,6 +176,18 @@ only the entries that apply to its role and transport.
 Every edit is written and applied in one go, and **reverted automatically if the
 tunnel does not come back up**.
 
+**Layer-3 direct tunnels** have their own Edit menu. Iran shows Forwarded ports,
+UDP forwarding, MTU, TCP segment cap, Show the token, then **Error correction
+(FEC)** at **choice 6**. Kharej starts at MTU, so FEC is **choice 4** there.
+Spoof adds **IP Spoofing** after FEC (choice 7 on Iran, 5 on kharej). FEC can be
+enabled or disabled on either side; use the same scheme on both ends. Saving
+restarts the local tunnel. [FEC details](l3-direct-tunnel.md#error-correction).
+
+در Edit تونل‌های مستقیم لایهٔ ۳، **Error correction (FEC)** در ایران گزینهٔ **۶**
+و در خارج گزینهٔ **۴** است. برای Spoof، گزینهٔ IP Spoofing بعد از آن قرار می‌گیرد.
+روشن یا خاموش‌کردن FEC را در هر دو سرور هماهنگ انجام بده؛ ذخیره، تونل همان سرور
+را ری‌استارت می‌کند.
+
 ### Manage → Built-in Proxy
 
 This node serves its own SOCKS5 or HTTP proxy on a loopback port, so the tunnel
@@ -435,4 +447,4 @@ Reverse Setup Links retain auth/mux parameters, KCP/XDI/PCK FEC and MTU, and the
 
 لینک ستاپ ریورس تنظیمات مشترک دو طرف را در هر دو جهت منتقل می‌کند. آدرس و پورت ضروریِ ناقص پیش از ساخت پرسیده می‌شود. ویرایش معمولی زمان اتصال سفارشی را حفظ می‌کند؛ انتخاب رابط خودکار PCK تنظیم دستی قبلی را پاک می‌کند.
 
-*Last verified against Backpack v1.8.28.*
+*Last verified against Backpack v1.8.29.*

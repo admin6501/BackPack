@@ -328,6 +328,20 @@ fec_parity = 3
   and the panel's checkbox write. The exact numbers are a manual tuning; the
   Link Test can also size them to a measured loss.
 
+After setup, use **Manage → Manage Tunnels → your tunnel → Edit → Error
+correction (FEC)**. It is choice **6 on Iran** and **4 on kharej**, for every
+layer-3 direct carrier including Spoof. The editor shows the current scheme;
+enabling from off selects 10/3, keeping an enabled custom scheme preserves it,
+and disabling clears both keys. Saving restarts the local tunnel. Set the
+**same pair on both ends**, or disable it on both; traffic may stop while the
+settings differ.
+
+برای تغییر بعد از ساخت تونل، از `Manage → Manage Tunnels → Edit → Error correction (FEC)`
+استفاده کن: **گزینهٔ ۶ در ایران و ۴ در خارج**، از جمله برای Spoof. روشن‌کردن از
+حالت خاموش، نسبت ۱۰/۳ را می‌گذارد؛ نسبت سفارشیِ ازقبل روشن حفظ می‌شود و خاموش‌کردن
+هر دو مقدار را پاک می‌کند. ذخیره، تونل همین سرور را ری‌استارت می‌کند؛ تنظیم FEC
+را در هر دو طرف یکسان کن.
+
 ### Several sockets
 
 A tunnel on one UDP socket is one flow, and some providers give **each flow its
@@ -656,7 +670,7 @@ A Setup Link swaps local/peer tunnel addresses while retaining the producer's CI
 
 در هر دو جهت ستاپ، پیشوند شبکه روی آدرس محلی حفظ می‌شود و آدرس طرف مقابل بدون اسلش است. ویرایش پورت یا تنظیمات دیگر، دامنهٔ کریر SNI را حذف نمی‌کند.
 
-*Last verified against Backpack v1.8.28.*
+*Last verified against Backpack v1.8.29.*
 
 ## GRE over FOU
 
