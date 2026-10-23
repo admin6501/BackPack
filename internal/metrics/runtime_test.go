@@ -2,7 +2,7 @@ package metrics
 
 import (
 	"os"
-	"runtime"
+	"os/exec"
 	"sync"
 	"testing"
 )
@@ -12,6 +12,18 @@ import (
 // coming back down; a counter that does not track its subject would have shown
 // a flat line through both.
 func TestTheRuntimeCountersTrackWhatTheyCount(t *testing.T) {
+	// The count is process-wide. A collector from an earlier test can finish
+	// between the baseline and the second sample, hiding one of the goroutines
+	// held here. Use a fresh test process so the same assertion measures only
+	// this workload, including when the race detector is enabled.
+	if os.Getenv("BACKPACK_METRICS_RUNTIME_CHILD") != "1" {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestTheRuntimeCountersTrackWhatTheyCount$", "-test.count=1")
+		cmd.Env = append(os.Environ(), "BACKPACK_METRICS_RUNTIME_CHILD=1")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("isolated runtime counter check failed: %v\n%s", err, output)
+		}
+		return
+	}
 	before := readRuntimeStats()
 	if before.Goroutines < 1 {
 		t.Fatalf("goroutine count came back as %d, which cannot be right", before.Goroutines)
@@ -22,10 +34,11 @@ func TestTheRuntimeCountersTrackWhatTheyCount(t *testing.T) {
 	// have goroutines of their own that come and go.
 	const held = 50
 	release := make(chan struct{})
-	var started sync.WaitGroup
+	var started, finished sync.WaitGroup
 	started.Add(held)
+	finished.Add(held)
 	for i := 0; i < held; i++ {
-		go func() { started.Done(); <-release }()
+		go func() { defer finished.Done(); started.Done(); <-release }()
 	}
 	started.Wait()
 
@@ -36,11 +49,7 @@ func TestTheRuntimeCountersTrackWhatTheyCount(t *testing.T) {
 	}
 
 	close(release)
-	// Let them finish. Gosched rather than a sleep: the goroutines are already
-	// runnable, so this is a scheduling point rather than a wait.
-	for i := 0; i < 100 && readRuntimeStats().Goroutines > before.Goroutines+held/2; i++ {
-		runtime.Gosched()
-	}
+	finished.Wait()
 
 	// And the heap figures are real numbers rather than zero.
 	if during.HeapBytes == 0 || during.HeapObjects == 0 {
