@@ -94,4 +94,4 @@ Noise، محدودیت ترافیک و ثبت مصرف حفظ می‌شوند. �
 
 </div>
 
-Last verified against Backpack v1.8.28.
+Last verified against Backpack v1.8.29.
