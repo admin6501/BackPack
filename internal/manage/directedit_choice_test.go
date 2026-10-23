@@ -26,15 +26,15 @@ func TestGoingBackFromTheLayer3EditorGoesBack(t *testing.T) {
 
 // And the entries themselves must still land where they say they do.
 func TestLayer3EditorEntriesMapToTheRightActions(t *testing.T) {
-	// Iran sees all five, in order.
-	for chosen, want := range map[int]int{0: 0, 1: 1, 2: 2, 3: 3, 4: 4} {
+	// Iran sees the shared entries after ports and UDP; Spoof is last when present.
+	for chosen, want := range map[int]int{0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6} {
 		got, ok := l3EditAction(chosen, true)
 		if !ok || got != want {
 			t.Errorf("iran: entry %d -> action %d (ok=%v), want %d", chosen, got, ok, want)
 		}
 	}
-	// Kharej sees only MTU, the segment cap and the token — actions 2, 3 and 4.
-	for chosen, want := range map[int]int{0: 2, 1: 3, 2: 4} {
+	// Kharej sees MTU, the segment cap, token, FEC and optionally Spoof.
+	for chosen, want := range map[int]int{0: 2, 1: 3, 2: 4, 3: 5, 4: 6} {
 		got, ok := l3EditAction(chosen, false)
 		if !ok || got != want {
 			t.Errorf("kharej: entry %d -> action %d (ok=%v), want %d", chosen, got, ok, want)

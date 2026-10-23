@@ -216,6 +216,15 @@ See [the setting reference](../docs/ip-spoofing.md) for its config key. The CLI
 setup-again menu does not ask for that optional filter. Keep the packet
 profile and Stealth settings paired.
 
+To change error correction separately, return to **Edit → Error correction
+(FEC)**: choice **6 on Iran**, **4 on kharej**. Enable or disable it on both
+servers with the same scheme. Turning it on from off uses 10 data + 3 spare
+packets; it costs extra traffic and restarts the local tunnel when saved.
+
+برای روشن یا خاموش‌کردن تصحیح خطا، در منوی اصلی Edit گزینهٔ
+**Error correction (FEC)** را بزن: **۶ در ایران، ۴ در خارج**. تنظیم دو سمت باید
+یکسان باشد؛ روشن‌کردن از حالت خاموش، نسبت ۱۰ پکت داده و ۳ پکت کمکی را می‌گذارد.
+
 Do the same for the reverse direction with the addresses that passed that way.
 
 **Nothing here is proven until traffic actually crosses.** If the tunnel comes up

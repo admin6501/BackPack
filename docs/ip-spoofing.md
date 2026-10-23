@@ -90,6 +90,15 @@ several sockets (`paths`) — that carrier already varies its source per packet,
 so spreading it would add nothing. Both are documented in
 [the direct tunnel reference](l3-direct-tunnel.md#error-correction).
 
+To toggle FEC after setup, use **Edit → Error correction (FEC)**: choice **6 on
+Iran**, **4 on kharej**. This is separate from the IP Spoofing submenu. Enabling
+from off uses 10 data + 3 spare packets; an enabled custom pair is preserved.
+Set the same pair on both ends. Saving restarts this machine's tunnel.
+
+برای تغییر تصحیح خطا، در منوی اصلی Edit گزینهٔ **Error correction (FEC)** را بزن:
+**۶ در ایران و ۴ در خارج**. این گزینه جدا از زیرمنوی IP Spoofing است؛ تنظیم دو
+سرور باید یکسان باشد.
+
 ---
 
 ## Every setting
@@ -419,4 +428,4 @@ Running setup again and choosing no for Stealth clears the old Stealth settings.
 
 در ستاپ طرف مقابل، اگر مبدأ جداگانه‌ای برای طرف مقابل مشخص نشده باشد، آی‌پی جعلی یا pool انتخاب‌شده به مبدأ جعلی طرف مقابل هم منتقل می‌شود. آی‌پی واقعی با آی‌پی جعلی جدا می‌ماند و پورت‌های ایران، اگر در لینک نباشند، پرسیده می‌شوند. در ستاپ مجدد، انتخاب خاموش برای Stealth یا پروفایل جداگانه تنظیم قبلی را پاک می‌کند؛ خالی گذاشتن مبدأ جعلی، جعل مبدأ را خاموش می‌کند.
 
-*Last verified against Backpack v1.8.28.*
+*Last verified against Backpack v1.8.29.*

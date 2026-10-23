@@ -70,6 +70,10 @@ opposite mode to the peer and preserve the shared settings.
 **→ [GRE over FOU tutorial](tutorial/gre-over-fou.md)** ·
 **[Direct tunnel](docs/l3-direct-tunnel.md)**
 
+Direct layer-3 tunnels, including Spoof, can toggle **Error correction (FEC)**
+from **Manage → Manage Tunnels → Edit**: choice **6 on Iran**, **4 on kharej**.
+Use the same FEC scheme on both ends. [Details](docs/l3-direct-tunnel.md#error-correction).
+
 ---
 
 ## Install

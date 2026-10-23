@@ -12,10 +12,8 @@ import (
 
 // Editing a direct tunnel after it exists.
 //
-// The two things an operator actually comes back to change are the forwarded
-// ports and whether UDP rides along. Everything else — the token, the
-// addresses, the transport — has to match the other machine, so changing it
-// here alone would only break the tunnel; those are shown but not offered.
+// Local settings can be changed independently. Paired settings such as error
+// correction and Spoof have their own reminders to change the other end too.
 //
 // Edits go through the parsed config and are written back through the same
 // renderer the wizard uses, so an edited file looks exactly like a fresh one
@@ -166,6 +164,7 @@ func editL3Ports(t Tunnel, cfg config.Config) bool {
 	tui.Info("Address      : " + l.Addr)
 	tui.Info("Interface    : " + orDefault(l.Iface, "bp0") + "  " + l.LocalIP + " ↔ " + l.PeerIP)
 	tui.Info("MTU          : " + fmt.Sprint(l.MTU))
+	tui.Info("FEC          : " + l3FECLabel(l))
 	tui.Info("Tuning       : " + presetLabel(l.Preset) + ", " + orDefault(l.Qdisc, "fq_codel"))
 	if len(l.Ports) > 0 {
 		tui.Info("Ports        : " + strings.Join(l.Ports, ", "))
@@ -173,29 +172,7 @@ func editL3Ports(t Tunnel, cfg config.Config) bool {
 	}
 	fmt.Println()
 
-	options := []tui.Option{
-		{Title: "MTU", Desc: "lower it if large transfers stall — currently " + fmt.Sprint(l.MTU)},
-		{Title: "TCP segment cap", Desc: "currently " + mssClampLabel(l.MSSClamp, l.MTU)},
-		{Title: "Show the token", Desc: "reveal it, to copy to the other machine"},
-	}
-	// The carrier's own screen, for the one carrier that has settings worth
-	// changing after the fact. It goes last on both sides, which is what keeps
-	// l3EditAction's index shift correct without touching it: the entry sits at
-	// the end of the list whether or not the two Iran-only entries are above it.
-	if strings.EqualFold(strings.TrimSpace(l.Carrier), "spoof") {
-		options = append(options, tui.Option{
-			Title: "IP Spoofing",
-			Desc:  "the forged source, the packet profile, Stealth — currently " + spoofCarrierSummary(l.SpoofConfig),
-		})
-	}
-	if iran {
-		options = append([]tui.Option{
-			{Title: "Forwarded ports", Desc: "required ports carried over the tunnel"},
-			{Title: "UDP forwarding", Desc: "carry UDP as well as TCP — currently " + onOff(l.AcceptUDP)},
-		}, options...)
-	}
-
-	choice, ok := l3EditAction(tui.ChooseOpt("Change what?", options), iran)
+	choice, ok := l3EditAction(tui.ChooseOpt("Change what?", l3EditOptions(l)), iran)
 	if !ok {
 		return false
 	}
@@ -230,6 +207,9 @@ func editL3Ports(t Tunnel, cfg config.Config) bool {
 		fmt.Println("  " + tui.Color(tui.Bold+tui.White, l.Token))
 		tui.PressEnter()
 	case 5:
+		askL3FECEdit(&l)
+		saveL3(t, l)
+	case 6:
 		if editL3Spoof(t, l) {
 			return true
 		}
@@ -237,6 +217,58 @@ func editL3Ports(t Tunnel, cfg config.Config) bool {
 		return false
 	}
 	return true
+}
+
+func l3EditOptions(l config.L3Config) []tui.Option {
+	options := []tui.Option{
+		{Title: "MTU", Desc: "lower it if large transfers stall — currently " + fmt.Sprint(l.MTU)},
+		{Title: "TCP segment cap", Desc: "currently " + mssClampLabel(l.MSSClamp, l.MTU)},
+		{Title: "Show the token", Desc: "reveal it, to copy to the other machine"},
+		{Title: "Error correction (FEC)", Desc: "currently " + l3FECLabel(l) + " — set the same scheme on both ends"},
+	}
+	if strings.EqualFold(strings.TrimSpace(l.Carrier), "spoof") {
+		options = append(options, tui.Option{
+			Title: "IP Spoofing",
+			Desc:  "the forged source, the packet profile, Stealth — currently " + spoofCarrierSummary(l.SpoofConfig),
+		})
+	}
+	if l.SideName() == "iran" {
+		options = append([]tui.Option{
+			{Title: "Forwarded ports", Desc: "required ports carried over the tunnel"},
+			{Title: "UDP forwarding", Desc: "carry UDP as well as TCP — currently " + onOff(l.AcceptUDP)},
+		}, options...)
+	}
+	return options
+}
+
+func l3FECLabel(l config.L3Config) string {
+	if l.FECData <= 0 || l.FECParity <= 0 {
+		return "off"
+	}
+	return fmt.Sprintf("on (%d spare packets per %d data)", l.FECParity, l.FECData)
+}
+
+func askL3FECEdit(l *config.L3Config) {
+	there := "kharej"
+	if l.SideName() == "kharej" {
+		there = "Iran"
+	}
+	fmt.Println()
+	tui.Info("Error correction: " + l3FECLabel(*l))
+	tui.Info("Spare packets repair some packet loss at the cost of extra traffic.")
+	plan := defaultL3FEC()
+	tui.Info(fmt.Sprintf("When enabling, the recommended scheme is %d data + %d spare packets (about %d%% extra traffic).",
+		plan.Data, plan.Parity, 100*plan.Parity/plan.Data))
+	tui.Warn("Set the " + there + " end to the SAME fec_data/fec_parity pair, or turn it off on both ends.")
+	tui.Warn("Saving restarts this tunnel; traffic may stop until both ends match.")
+	on := l.FECData > 0 && l.FECParity > 0
+	if tui.Confirm("Turn on error correction", on) {
+		if !on {
+			l.FECData, l.FECParity = plan.Data, plan.Parity
+		}
+	} else {
+		l.FECData, l.FECParity = 0, 0
+	}
 }
 
 // l3EditActionShift is how far the kharej side's indices are below the actions
